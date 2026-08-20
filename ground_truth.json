@@ -1,0 +1,601 @@
+{
+  "_format_notes": "verdict alani sadece 'TP' veya 'FP' olabilir. reasoning alani opsiyoneldir ama 1 cumlelik kisa bir gerekce yazmaniz ileride prompt gelistirirken cok ise yarar. few_shot listesindeki 4 ornek prompt icine sabit gomulecek, test listesindeki 20 ornek ise modele ayri ayri sorulup sonuc bu dosyayla karsilastirilacak. Iki liste birbiriyle KESISMEMELI.",
+  "few_shot": [
+    {
+      "finding_id": "S107_deep_password_search_00007",
+      "file_path": "etc/shadow",
+      "matched_content": "root:$1$Jl7H1VOG$Wgw2F/C.nLNTC.4pwDa4H1:18145:0:99999:7:::",
+      "module": "S107_deep_password_search",
+      "corroboration_count": 4,
+      "verdict": "TP",
+      "reasoning": "Sistem parola dosyasinda gomulu, calisan bir MD5-crypt hash; 4 farkli modul tarafindan bagimsiz dogrulanmis.",
+      "context": {
+        "status": "ok",
+        "context_lines": [
+          "root:$1$Jl7H1VOG$Wgw2F/C.nLNTC.4pwDa4H1:18145:0:99999:7:::",
+          "daemon:*:0:0:99999:7:::",
+          "ftp:*:0:0:99999:7:::",
+          "network:*:0:0:99999:7:::",
+          "nobody:*:0:0:99999:7:::",
+          "dnsmasq:x:0:0:99999:7:::",
+          "dnsmasq:x:0:0:99999:7:::",
+          "iotgoatuser:$1$79bz0K8z$Ii6Q/if83F1QodGmkb4Ah.:18145:0:99999:7:::"
+        ],
+        "matched_line_index_in_context": 0,
+        "total_file_lines": 8
+      }
+    },
+    {
+      "finding_id": "S99_grepit_00082",
+      "file_path": "etc/opkg/keys/5151f69420c3f508",
+      "matched_content": "untrusted comment: LEDE usign key of Hans Dedecker",
+      "module": "S99_grepit",
+      "corroboration_count": 1,
+      "verdict": "FP",
+      "reasoning": "Bu bir gizli anahtar degil, paket imzalarini dogrulamak icin kullanilan PUBLIC anahtar - zaten acik olmasi gereken bir dosya.",
+      "context": {
+        "status": "ok",
+        "context_lines": [
+          "untrusted comment: LEDE usign key of Hans Dedecker",
+          "RWRRUfaUIMP1CAL9wvk3ABBHdUM+3SjMvIuJlK68b3b04Pw3wiaiAfxX"
+        ],
+        "matched_line_index_in_context": 0,
+        "total_file_lines": 2
+      }
+    },
+    {
+      "finding_id": "S99_grepit_00122",
+      "file_path": "etc/init.d/dropbear",
+      "matched_content": "'PasswordAuth:bool:1' \\",
+      "module": "S99_grepit",
+      "corroboration_count": 1,
+      "verdict": "FP",
+      "reasoning": "Bu bir parola degeri degil, UCI config sisteminde bir ayarin adi/tipi (boolean) - parola auth'un acik/kapali oldugunu belirten bir flag.",
+      "context": {
+        "status": "ok",
+        "context_lines": [
+          "\t}",
+          "",
+          "\tfor addr in $ipaddrs; do",
+          "\t\tprocd_append_param command -p \"$addr:$port\"",
+          "\tdone",
+          "}",
+          "",
+          "validate_section_dropbear()",
+          "{",
+          "\tuci_validate_section dropbear dropbear \"${1}\" \\",
+          "\t\t'PasswordAuth:bool:1' \\",
+          "\t\t'enable:bool:1' \\",
+          "\t\t'Interface:string' \\",
+          "\t\t'GatewayPorts:bool:0' \\",
+          "\t\t'RootPasswordAuth:bool:1' \\",
+          "\t\t'RootLogin:bool:1' \\",
+          "\t\t'rsakeyfile:file' \\",
+          "\t\t'BannerFile:file' \\",
+          "\t\t'Port:list(port):22' \\",
+          "\t\t'SSHKeepAlive:uinteger:300' \\",
+          "\t\t'IdleTimeout:uinteger:0' \\"
+        ],
+        "matched_line_index_in_context": 10,
+        "total_file_lines": 216
+      }
+    },
+    {
+      "finding_id": "S107_deep_password_search_00011",
+      "file_path": "lib/libc.so",
+      "matched_content": "$1$abcd0123$9Qcg8DyviekV3tDGMZynJ1",
+      "module": "S107_deep_password_search",
+      "corroboration_count": 1,
+      "verdict": "FP",
+      "reasoning": "Hash, kullanici config dosyasinda degil kutuphanenin kendi binary'sinde bulunuyor; crypt() dokumantasyon/test string'i gorunumunde, gercek bir kullanici credential'i degil.",
+      "context": {
+        "status": "binary_file_skipped"
+      }
+    }
+  ],
+  "test_set": [
+    {
+      "finding_id": "S99_grepit_00341",
+      "file_path": "etc/passwd",
+      "matched_content": "root:x:0:0:root:/root:/bin/ash",
+      "module": "S99_grepit",
+      "corroboration_count": null,
+      "verdict": "FP",
+      "reasoning": "passwd dosyasindaki 'x' sadece hash'in shadow dosyasinda tutuldugunu belirtir, bu satirin kendisinde bir credential degeri yok.",
+      "context": {
+        "status": "ok",
+        "context_lines": [
+          "root:x:0:0:root:/root:/bin/ash",
+          "daemon:*:1:1:daemon:/var:/bin/false",
+          "ftp:*:55:55:ftp:/home/ftp:/bin/false",
+          "network:*:101:101:network:/var:/bin/false",
+          "nobody:*:65534:65534:nobody:/var:/bin/false",
+          "dnsmasq:x:453:453:dnsmasq:/var/run/dnsmasq:/bin/false",
+          "iotgoatuser:x:1000:1000::/root:/bin/ash"
+        ],
+        "matched_line_index_in_context": 0,
+        "total_file_lines": 7
+      }
+    },
+    {
+      "finding_id": "S108_stacs_password_search_00015",
+      "file_path": "etc/shadow",
+      "matched_content": "iotgoatuser:$1$79bz0K8z$Ii6Q/if83F1QodGmkb4Ah.:18145:0:99999:7:::",
+      "module": "S108_stacs_password_search",
+      "corroboration_count": null,
+      "verdict": "TP",
+      "reasoning": "etc/shadow icinde gercek, calisan bir MD5-crypt hash.",
+      "context": {
+        "status": "ok",
+        "context_lines": [
+          "root:$1$Jl7H1VOG$Wgw2F/C.nLNTC.4pwDa4H1:18145:0:99999:7:::",
+          "daemon:*:0:0:99999:7:::",
+          "ftp:*:0:0:99999:7:::",
+          "network:*:0:0:99999:7:::",
+          "nobody:*:0:0:99999:7:::",
+          "dnsmasq:x:0:0:99999:7:::",
+          "dnsmasq:x:0:0:99999:7:::",
+          "iotgoatuser:$1$79bz0K8z$Ii6Q/if83F1QodGmkb4Ah.:18145:0:99999:7:::"
+        ],
+        "matched_line_index_in_context": 7,
+        "total_file_lines": 8
+      }
+    },
+    {
+      "finding_id": "S107_deep_password_search_00006",
+      "file_path": "etc/shadow.bak",
+      "matched_content": "root:$1$KzoHhzG9$wGyFXbWOcRChy3e.Ep2NY1:18080:0:99999:7:::",
+      "module": "S107_deep_password_search",
+      "corroboration_count": null,
+      "verdict": "TP",
+      "reasoning": "etc/shadow.bak icinde gercek, calisan bir MD5-crypt hash.",
+      "context": {
+        "status": "ok",
+        "context_lines": [
+          "root:$1$KzoHhzG9$wGyFXbWOcRChy3e.Ep2NY1:18080:0:99999:7:::",
+          "daemon:*:0:0:99999:7:::",
+          "ftp:*:0:0:99999:7:::",
+          "network:*:0:0:99999:7:::",
+          "nobody:*:0:0:99999:7:::",
+          "dnsmasq:x:0:0:99999:7:::"
+        ],
+        "matched_line_index_in_context": 0,
+        "total_file_lines": 6
+      }
+    },
+    {
+      "finding_id": "S45_pass_file_check_00003",
+      "file_path": "etc/shadow",
+      "matched_content": "flagged as password-related file",
+      "module": "S45_pass_file_check",
+      "corroboration_count": null,
+      "verdict": "TP",
+      "reasoning": "etc/shadow gercekten hassas bir parola dosyasi, dogru tespit edilmis (dosya seviyesinde TP, icerik hash'i degil).",
+      "context": {
+        "status": "context_not_located"
+      }
+    },
+    {
+      "finding_id": "S106_deep_key_search_00019",
+      "file_path": "/usr/lib/libmbedcrypto.so.2.12.0",
+      "matched_content": "3 match(es) for pattern: -----BEGIN .*PRIVATE KEY-----",
+      "module": "S106_deep_key_search",
+      "corroboration_count": null,
+      "verdict": "FP",
+      "reasoning": "Eslesme bir crypto kutuphanesinin kendi PEM parser'inda kullandigi '-----BEGIN...PRIVATE KEY-----' format string literal'i; gercek gomulu bir anahtar degil.",
+      "context": {
+        "status": "binary_file_skipped"
+      }
+    },
+    {
+      "finding_id": "S99_grepit_00083",
+      "file_path": "etc/opkg/keys/9ef4694208102c43",
+      "matched_content": "untrusted comment: LEDE usign key of Alvaro Fernandez Rojas",
+      "module": "S99_grepit",
+      "corroboration_count": null,
+      "verdict": "FP",
+      "reasoning": "opkg paket imzasi dogrulama icin kullanilan PUBLIC anahtar yorumu, gizli degil.",
+      "context": {
+        "status": "context_not_located"
+      }
+    },
+    {
+      "finding_id": "S99_grepit_00119",
+      "file_path": "etc/ppp/chap-secrets",
+      "matched_content": "#USERNAME  PROVIDER  PASSWORD  IPADDRESS",
+      "module": "S99_grepit",
+      "corroboration_count": null,
+      "verdict": "FP",
+      "reasoning": "Dosyanin sutun basligi yorumu (#USERNAME PROVIDER PASSWORD...), gercek bir kimlik bilgisi degil.",
+      "context": {
+        "status": "ok",
+        "context_lines": [
+          "#USERNAME  PROVIDER  PASSWORD  IPADDRESS"
+        ],
+        "matched_line_index_in_context": 0,
+        "total_file_lines": 1
+      }
+    },
+    {
+      "finding_id": "S99_grepit_00120",
+      "file_path": "etc/profile",
+      "matched_content": "export HOME=$(grep -e \"^${USER:-root}:\" /etc/passwd | cut -d \":\" -f 6)",
+      "module": "S99_grepit",
+      "corroboration_count": null,
+      "verdict": "FP",
+      "reasoning": "Kabuk script mantigi (passwd dosyasindan home dizini cekme), sabit kodlu bir deger yok.",
+      "context": {
+        "status": "ok",
+        "context_lines": [
+          "",
+          "[ -f /etc/banner ] && cat /etc/banner",
+          "[ -n \"$FAILSAFE\" ] && cat /etc/banner.failsafe",
+          "",
+          "fgrep -sq '/ overlay ro,' /proc/mounts && {",
+          "\techo 'Your JFFS2-partition seems full and overlayfs is mounted read-only.'",
+          "\techo 'Please try to remove files from /overlay/upper/... and reboot!'",
+          "}",
+          "",
+          "export PATH=\"/usr/sbin:/usr/bin:/sbin:/bin\"",
+          "export HOME=$(grep -e \"^${USER:-root}:\" /etc/passwd | cut -d \":\" -f 6)",
+          "export HOME=${HOME:-/root}",
+          "export PS1='\\u@\\h:\\w\\$ '",
+          "",
+          "case \"$TERM\" in",
+          "\txterm*|rxvt*)",
+          "\t\texport PS1='\\[\\e]0;\\u@\\h: \\w\\a\\]'$PS1",
+          "\t\t;;",
+          "esac",
+          "",
+          "[ -x /bin/more ] || alias more=less"
+        ],
+        "matched_line_index_in_context": 10,
+        "total_file_lines": 59
+      }
+    },
+    {
+      "finding_id": "S99_grepit_00121",
+      "file_path": "etc/profile",
+      "matched_content": "There is no root password defined on this device!",
+      "module": "S99_grepit",
+      "corroboration_count": null,
+      "verdict": "FP",
+      "reasoning": "Kullaniciya gosterilen bir uyari mesaji string'i, credential degil.",
+      "context": {
+        "status": "ok",
+        "context_lines": [
+          "\t\t[ -e \"$FILE\" ] && . \"$FILE\"",
+          "\tdone",
+          "\tunset FILE",
+          "}",
+          "",
+          "if ( grep -qs '^root::' /etc/shadow && \\",
+          "     [ -z \"$FAILSAFE\" ] )",
+          "then",
+          "cat << EOF",
+          "=== WARNING! =====================================",
+          "There is no root password defined on this device!",
+          "Use the \"passwd\" command to set up a new password",
+          "in order to prevent unauthorized SSH logins.",
+          "--------------------------------------------------",
+          "EOF",
+          "fi",
+          "",
+          "service() {",
+          "\t[ -f \"/etc/init.d/$1\" ] || {",
+          "\t\techo \"service \"'\"'\"$1\"'\"'\" not found, the following services are available:\"",
+          "\t\tls \"/etc/init.d\""
+        ],
+        "matched_line_index_in_context": 10,
+        "total_file_lines": 59
+      }
+    },
+    {
+      "finding_id": "S99_grepit_00126",
+      "file_path": "etc/init.d/uhttpd",
+      "matched_content": "local prefix username password",
+      "module": "S99_grepit",
+      "corroboration_count": null,
+      "verdict": "FP",
+      "reasoning": "Yerel degisken tanimi (local ... password), henuz bir deger atanmamis.",
+      "context": {
+        "status": "ok",
+        "context_lines": [
+          "\t\t\t-days ${days:-730} -newkey rsa:${bits:-2048} -keyout \"${UHTTPD_KEY}.new\" -out \"${UHTTPD_CERT}.new\" \\",
+          "\t\t\t-subj /C=\"${country:-ZZ}\"/ST=\"${state:-Somewhere}\"/L=\"${location:-Unknown}\"/O=\"${commonname:-OpenWrt}$UNIQUEID\"/CN=\"${commonname:-OpenWrt}\"",
+          "\t\tsync",
+          "\t\tmv \"${UHTTPD_KEY}.new\" \"${UHTTPD_KEY}\"",
+          "\t\tmv \"${UHTTPD_CERT}.new\" \"${UHTTPD_CERT}\"",
+          "\t}",
+          "}",
+          "",
+          "create_httpauth() {",
+          "\tlocal cfg=\"$1\"",
+          "\tlocal prefix username password",
+          "",
+          "\tconfig_get prefix \"$cfg\" prefix",
+          "\tconfig_get username \"$cfg\" username",
+          "\tconfig_get password \"$cfg\" password",
+          "",
+          "\tif [ -z \"$prefix\" ] || [ -z \"$username\" ] || [ -z \"$password\" ]; then",
+          "\t\treturn",
+          "\tfi",
+          "\techo \"${prefix}:${username}:${password}\" >>$httpdconf",
+          "\thaveauth=1"
+        ],
+        "matched_line_index_in_context": 10,
+        "total_file_lines": 205
+      }
+    },
+    {
+      "finding_id": "S99_grepit_00052",
+      "file_path": "etc/config/uhttpd",
+      "matched_content": "# Certificate and private key for HTTPS.",
+      "module": "S99_grepit",
+      "corroboration_count": null,
+      "verdict": "FP",
+      "reasoning": "Config dosyasindaki bir yorum satiri, gercek sertifika/anahtar verisi yok.",
+      "context": {
+        "status": "ok",
+        "context_lines": [
+          "\t# queued until the number of running requests drops",
+          "\t# below the limit again.",
+          "\toption max_requests 1",
+          "",
+          "\t# Maximum number of concurrent connections.",
+          "\t# If this number is exceeded, further TCP connection",
+          "\t# attempts are queued until the number of active",
+          "\t# connections drops below the limit again.",
+          "\toption max_connections 100",
+          "",
+          "\t# Certificate and private key for HTTPS.",
+          "\t# If no listen_https addresses are given,",
+          "\t# the key options are ignored.",
+          "\toption cert\t\t/etc/uhttpd.crt",
+          "\toption key\t\t/etc/uhttpd.key",
+          "",
+          "\t# CGI url prefix, will be searched in docroot.",
+          "\t# Default is /cgi-bin",
+          "\toption cgi_prefix\t/cgi-bin",
+          "",
+          "\t# List of extension->interpreter mappings."
+        ],
+        "matched_line_index_in_context": 10,
+        "total_file_lines": 135
+      }
+    },
+    {
+      "finding_id": "S99_grepit_00055",
+      "file_path": "usr/lib/lua/luci/model/cbi/admin_network/wifi.lua",
+      "matched_content": "privkey = s:taboption(\"encryption\", FileUpload, \"priv_key\", translate(\"Path to Private Key\"))",
+      "module": "S99_grepit",
+      "corroboration_count": null,
+      "verdict": "FP",
+      "reasoning": "Lua UI kodunda bir form alaninin etiket metni ('Path to Private Key'), gercek anahtar degeri degil.",
+      "context": {
+        "status": "ok",
+        "context_lines": [
+          "\tcacert:depends({mode=\"sta-wds\", encryption=\"wpa\"})",
+          "\tcacert:depends({mode=\"sta-wds\", encryption=\"wpa2\"})",
+          "\tcacert.rmempty = true",
+          "",
+          "\tclientcert = s:taboption(\"encryption\", FileUpload, \"client_cert\", translate(\"Path to Client-Certificate\"))",
+          "\tclientcert:depends({mode=\"sta\", eap_type=\"tls\", encryption=\"wpa\"})",
+          "\tclientcert:depends({mode=\"sta\", eap_type=\"tls\", encryption=\"wpa2\"})",
+          "\tclientcert:depends({mode=\"sta-wds\", eap_type=\"tls\", encryption=\"wpa\"})",
+          "\tclientcert:depends({mode=\"sta-wds\", eap_type=\"tls\", encryption=\"wpa2\"})",
+          "",
+          "\tprivkey = s:taboption(\"encryption\", FileUpload, \"priv_key\", translate(\"Path to Private Key\"))",
+          "\tprivkey:depends({mode=\"sta\", eap_type=\"tls\", encryption=\"wpa2\"})",
+          "\tprivkey:depends({mode=\"sta\", eap_type=\"tls\", encryption=\"wpa\"})",
+          "\tprivkey:depends({mode=\"sta-wds\", eap_type=\"tls\", encryption=\"wpa2\"})",
+          "\tprivkey:depends({mode=\"sta-wds\", eap_type=\"tls\", encryption=\"wpa\"})",
+          "",
+          "\tprivkeypwd = s:taboption(\"encryption\", Value, \"priv_key_pwd\", translate(\"Password of Private Key\"))",
+          "\tprivkeypwd:depends({mode=\"sta\", eap_type=\"tls\", encryption=\"wpa2\"})",
+          "\tprivkeypwd:depends({mode=\"sta\", eap_type=\"tls\", encryption=\"wpa\"})",
+          "\tprivkeypwd:depends({mode=\"sta-wds\", eap_type=\"tls\", encryption=\"wpa2\"})",
+          "\tprivkeypwd:depends({mode=\"sta-wds\", eap_type=\"tls\", encryption=\"wpa\"})"
+        ],
+        "matched_line_index_in_context": 10,
+        "total_file_lines": 1103
+      }
+    },
+    {
+      "finding_id": "S99_grepit_00306",
+      "file_path": "usr/lib/lua/luci/model/cbi/admin_network/wifi.lua",
+      "matched_content": "wpakey = s:taboption(\"encryption\", Value, \"_wpa_key\", translate(\"Key\"))",
+      "module": "S99_grepit",
+      "corroboration_count": null,
+      "verdict": "FP",
+      "reasoning": "Lua UI kodunda bir form alani tanimi ve etiketi ('Key'), gercek WPA anahtari degil.",
+      "context": {
+        "status": "ok",
+        "context_lines": [
+          "acct_port.datatype = \"port\"",
+          "",
+          "acct_secret = s:taboption(\"encryption\", Value, \"acct_secret\", translate(\"Radius-Accounting-Secret\"))",
+          "acct_secret:depends({mode=\"ap\", encryption=\"wpa\"})",
+          "acct_secret:depends({mode=\"ap\", encryption=\"wpa2\"})",
+          "acct_secret:depends({mode=\"ap-wds\", encryption=\"wpa\"})",
+          "acct_secret:depends({mode=\"ap-wds\", encryption=\"wpa2\"})",
+          "acct_secret.rmempty = true",
+          "acct_secret.password = true",
+          "",
+          "wpakey = s:taboption(\"encryption\", Value, \"_wpa_key\", translate(\"Key\"))",
+          "wpakey:depends(\"encryption\", \"psk\")",
+          "wpakey:depends(\"encryption\", \"psk2\")",
+          "wpakey:depends(\"encryption\", \"psk+psk2\")",
+          "wpakey:depends(\"encryption\", \"psk-mixed\")",
+          "wpakey.datatype = \"wpakey\"",
+          "wpakey.rmempty = true",
+          "wpakey.password = true",
+          "",
+          "wpakey.cfgvalue = function(self, section, value)",
+          "\tlocal key = m.uci:get(\"wireless\", section, \"key\")"
+        ],
+        "matched_line_index_in_context": 10,
+        "total_file_lines": 1103
+      }
+    },
+    {
+      "finding_id": "S99_grepit_00249",
+      "file_path": "lib/netifd/hostapd.sh",
+      "matched_content": "config_add_string auth_secret",
+      "module": "S99_grepit",
+      "corroboration_count": null,
+      "verdict": "FP",
+      "reasoning": "UCI config semasinda bir alan tanimi (config_add_string), henuz deger atanmamis.",
+      "context": {
+        "status": "ok",
+        "context_lines": [
+          "\t\twpa_group_rekey wpa_pair_rekey wpa_master_rekey",
+          "\tconfig_add_boolean wpa_disable_eapol_key_retries",
+          "",
+          "\tconfig_add_boolean tdls_prohibit",
+          "",
+          "\tconfig_add_boolean rsn_preauth auth_cache",
+          "\tconfig_add_int ieee80211w",
+          "\tconfig_add_int eapol_version",
+          "",
+          "\tconfig_add_string 'auth_server:host' 'server:host'",
+          "\tconfig_add_string auth_secret",
+          "\tconfig_add_int 'auth_port:port' 'port:port'",
+          "",
+          "\tconfig_add_string acct_server",
+          "\tconfig_add_string acct_secret",
+          "\tconfig_add_int acct_port",
+          "\tconfig_add_int acct_interval",
+          "",
+          "\tconfig_add_string dae_client",
+          "\tconfig_add_string dae_secret",
+          "\tconfig_add_int dae_port"
+        ],
+        "matched_line_index_in_context": 10,
+        "total_file_lines": 854
+      }
+    },
+    {
+      "finding_id": "S99_grepit_00254",
+      "file_path": "lib/netifd/hostapd.sh",
+      "matched_content": "append bss_conf \"auth_server_shared_secret=$auth_secret\" \"$N\"",
+      "module": "S99_grepit",
+      "corroboration_count": null,
+      "verdict": "FP",
+      "reasoning": "Degisken interpolasyonu ($auth_secret) iceren kod satiri, sabit kodlu bir deger degil.",
+      "context": {
+        "status": "ok",
+        "context_lines": [
+          "\t\t\t[ -n \"$auth_server\" ] || json_get_var auth_server server",
+          "\t\t\t[ -n \"$auth_port\" ] || json_get_var auth_port port",
+          "\t\t\t[ -n \"$auth_secret\" ] || json_get_var auth_secret key",
+          "",
+          "\t\t\tset_default auth_port 1812",
+          "\t\t\tset_default dae_port 3799",
+          "",
+          "",
+          "\t\t\tappend bss_conf \"auth_server_addr=$auth_server\" \"$N\"",
+          "\t\t\tappend bss_conf \"auth_server_port=$auth_port\" \"$N\"",
+          "\t\t\tappend bss_conf \"auth_server_shared_secret=$auth_secret\" \"$N\"",
+          "",
+          "\t\t\t[ -n \"$eap_reauth_period\" ] && append bss_conf \"eap_reauth_period=$eap_reauth_period\" \"$N\"",
+          "",
+          "\t\t\t[ -n \"$dae_client\" -a -n \"$dae_secret\" ] && {",
+          "\t\t\t\tappend bss_conf \"radius_das_port=$dae_port\" \"$N\"",
+          "\t\t\t\tappend bss_conf \"radius_das_client=$dae_client $dae_secret\" \"$N\"",
+          "\t\t\t}",
+          "",
+          "\t\t\t[ -n \"$ownip\" ] && append bss_conf \"own_ip_addr=$ownip\" \"$N\"",
+          "\t\t\t[ -n \"$radius_client_addr\" ] && append bss_conf \"radius_client_addr=$radius_client_addr\" \"$N\""
+        ],
+        "matched_line_index_in_context": 10,
+        "total_file_lines": 854
+      }
+    },
+    {
+      "finding_id": "S99_grepit_00024",
+      "file_path": "etc/protocols",
+      "matched_content": "ah\\t51\\tIPSEC-AH\\t# Authentication Header [RFC2402]",
+      "module": "S99_grepit",
+      "corroboration_count": null,
+      "verdict": "FP",
+      "reasoning": "/etc/protocols dosyasindaki genel protokol dokumantasyonu (IPSEC-AH), credential degil.",
+      "context": {
+        "status": "context_not_located"
+      }
+    },
+    {
+      "finding_id": "S99_grepit_00026",
+      "file_path": "bin/uclient-fetch",
+      "matched_content": "--user=<user>\\t\\t\\tHTTP authentication username",
+      "module": "S99_grepit",
+      "corroboration_count": null,
+      "verdict": "FP",
+      "reasoning": "CLI yardim metni / placeholder ('<user>'), gercek bir kullanici adi degil.",
+      "context": {
+        "status": "binary_file_skipped"
+      }
+    },
+    {
+      "finding_id": "S99_grepit_00322",
+      "file_path": "usr/lib/lua/luci/sys.lua",
+      "matched_content": "return (pwh == nil or nixio.crypt(pass, pwh) == pwh)",
+      "module": "S99_grepit",
+      "corroboration_count": null,
+      "verdict": "FP",
+      "reasoning": "Parola dogrulama mantigini iceren kod satiri (nixio.crypt cagrisi), sabit kodlu deger degil.",
+      "context": {
+        "status": "ok",
+        "context_lines": [
+          "\tif not pwh or #pwh < 1 or pwh == \"!\" or pwh == \"x\" then",
+          "\t\treturn nil, pwe",
+          "\telse",
+          "\t\treturn pwh, pwe",
+          "\tend",
+          "end",
+          "",
+          "function user.checkpasswd(username, pass)",
+          "\tlocal pwh, pwe = user.getpasswd(username)",
+          "\tif pwe then",
+          "\t\treturn (pwh == nil or nixio.crypt(pass, pwh) == pwh)",
+          "\tend",
+          "\treturn false",
+          "end",
+          "",
+          "function user.setpasswd(username, password)",
+          "\treturn os.execute(\"(echo %s; sleep 1; echo %s) | passwd %s >/dev/null 2>&1\" %{",
+          "\t\tluci.util.shellquote(password),",
+          "\t\tluci.util.shellquote(password),",
+          "\t\tluci.util.shellquote(username)",
+          "\t})"
+        ],
+        "matched_line_index_in_context": 10,
+        "total_file_lines": 515
+      }
+    },
+    {
+      "finding_id": "S99_grepit_00066",
+      "file_path": "etc/uci-defaults/10_migrate-shadow",
+      "matched_content": "ppwd=\"$(sed -ne '/^root:/s/^root:\\\\([^:]*\\\\):.*$/\\\\1/p' /etc/passwd)\"",
+      "module": "S99_grepit",
+      "corroboration_count": null,
+      "verdict": "FP",
+      "reasoning": "Mevcut root hash'ini /etc/passwd'den okuyup tasima islemi yapan script mantigi, kendisi bir credential degeri icermiyor.",
+      "context": {
+        "status": "context_not_located"
+      }
+    },
+    {
+      "finding_id": "S108_stacs_password_search_00018",
+      "file_path": "lib/libc.so",
+      "matched_content": "",
+      "module": "S108_stacs_password_search",
+      "corroboration_count": null,
+      "verdict": "FP",
+      "reasoning": "SARIF snippet bos donmus, gorunur bir kanit yok; dosya libc.so oldugu icin (config degil) muhtemelen ayni turden FP - manuel dosya incelemesiyle teyit edilmeli.",
+      "context": {
+        "status": "binary_file_skipped"
+      }
+    }
+  ]
+}
