@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LAVA - Vulnerability Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="background-blob blob-1"></div>
+    <div class="background-blob blob-2"></div>
+
+    <div class="container">
+        <header>
+            <div class="logo">
+                <h1>LAVA</h1>
+                <span class="subtitle">AI Vulnerability Assessor</span>
+            </div>
+            
+            <div class="stats-container">
+                <div class="stat-card" id="stat-total">
+                    <span class="stat-value">0</span>
+                    <span class="stat-label">Total Findings</span>
+                </div>
+                <div class="stat-card stat-tp" id="stat-tp">
+                    <span class="stat-value">0</span>
+                    <span class="stat-label">True Positives</span>
+                </div>
+                <div class="stat-card stat-fp" id="stat-fp">
+                    <span class="stat-value">0</span>
+                    <span class="stat-label">False Positives</span>
+                </div>
+            </div>
+        </header>
+
+        <main>
+            <div class="controls">
+                <div class="search-box">
+                    <input type="text" id="searchInput" placeholder="Search files or modules...">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                </div>
+                <div class="filters">
+                    <button class="filter-btn active" data-filter="all">All</button>
+                    <button class="filter-btn" data-filter="TP">True Positives</button>
+                    <button class="filter-btn" data-filter="FP">False Positives</button>
+                </div>
+            </div>
+
+            <div class="findings-grid" id="findingsGrid">
+                <!-- Cards will be injected here by JS -->
+                <div class="loading-state">
+                    <div class="spinner"></div>
+                    <p>Loading verdicts.json...</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal for details -->
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 id="modalTitle">File Path</h2>
+                <button class="close-btn" id="closeModal">&times;</button>
+            </div>
+            <div class="modal-content">
+                <div class="badge-group" id="modalBadges"></div>
+                
+                <h3>Matched Content</h3>
+                <pre><code id="modalContent"></code></pre>
+
+                <h3>AI Reasoning</h3>
+                <div class="reasoning-box" id="modalReasoning"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
