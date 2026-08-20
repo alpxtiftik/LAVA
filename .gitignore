@@ -1,0 +1,6 @@
+__pycache__/
+*findings.json
+verdicts.json
+verdicts_test.json
+lava_iotgoat_log/
+EMBA*/

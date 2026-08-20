@@ -36,21 +36,21 @@ Instead of fine-tuning a model, LAVA uses an In-Context Learning (ICL) approach.
 The easiest way to run the entire pipeline (Parse -> Enrich -> LLM Classification) is to use the provided automation script:
 
 ```powershell
-.\run_lava.ps1 -LogDir "path/to/emba_logs"
+.\run_lava.ps1 -LogDir "lava_iotgoat_log"
 ```
-*Note: For the default IoTGoat dataset, use `.\run_lava.ps1 -LogDir "lava_iotgoat_log"`*
+> **⚠️ IMPORTANT:** Make sure the `-LogDir` argument matches the exact name of your EMBA log folder (e.g. `lava_iotgoat_log` without an 's' at the end).
 
 ### 2. Manual Pipeline
 If you prefer to run the steps manually:
 ```bash
 # 1. Parse raw EMBA logs
-python parse_emba_findings.py --log-dir "lava_iotgoat_log" --out findings.json --merged-out merged_findings.json
+python parser_and_enrichs/parse_emba_findings.py --log-dir "lava_iotgoat_log" --out findings.json --merged-out merged_findings.json
 
 # 2. Enrich findings with actual file context
-python enrich_context.py --findings merged_findings.json --log-dir "lava_iotgoat_log" --out enriched_findings.json
+python parser_and_enrichs/enrich_context.py --merged merged_findings.json --log-dir "lava_iotgoat_log" --out enriched_findings.json
 
-# 3. Classify using Local AI
-python llm_classifier.py --mode run --config config/ai_config.env --enriched enriched_findings.json --out verdicts.json
+# 3. Classify using Local AI (using ground_truth.json for few-shot examples)
+python llm_classifier.py --mode run --config config/ai_config.env --ground-truth ground_truth.json --enriched enriched_findings.json --out verdicts.json
 ```
 
 ## Viewing Results (Web Dashboard)
