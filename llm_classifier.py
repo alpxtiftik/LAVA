@@ -290,7 +290,7 @@ def run_test_mode(args, config: dict):
     test_set = data["test_set"]
 
     system_prompt = build_system_prompt(few_shot)
-    base_url = f"http://{config['LOCAL_AI_IP']}:8080"
+    base_url = f"http://{config['LOCAL_AI_IP']}:11434"
     max_chars = int(config.get("AI_MAX_CHARS_TO_ANALYSE", 5000))
 
     results = []
@@ -328,7 +328,7 @@ def run_full_mode(args, config: dict):
 
     findings = json.loads(Path(args.enriched).read_text(encoding="utf-8"))
     system_prompt = build_system_prompt(few_shot)
-    base_url = f"http://{config['LOCAL_AI_IP']}:8080"
+    base_url = f"http://{config['LOCAL_AI_IP']}:11434"
     max_chars = int(config.get("AI_MAX_CHARS_TO_ANALYSE", 5000))
 
     results = []
