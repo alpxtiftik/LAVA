@@ -8,7 +8,7 @@
       "module": "S107_deep_password_search",
       "corroboration_count": 4,
       "verdict": "TP",
-      "reasoning": "Sistem parola dosyasinda gomulu, calisan bir MD5-crypt hash; 4 farkli modul tarafindan bagimsiz dogrulanmis.",
+      "reasoning": "This is a real, working MD5-crypt hash embedded in the password file, independently corroborated by 4 different modules.",
       "context": {
         "status": "ok",
         "context_lines": [
@@ -32,7 +32,7 @@
       "module": "S99_grepit",
       "corroboration_count": 1,
       "verdict": "FP",
-      "reasoning": "Bu bir gizli anahtar degil, paket imzalarini dogrulamak icin kullanilan PUBLIC anahtar - zaten acik olmasi gereken bir dosya.",
+      "reasoning": "This is not a secret key; it is a PUBLIC key used to verify package signatures, which is meant to be public.",
       "context": {
         "status": "ok",
         "context_lines": [
@@ -50,7 +50,7 @@
       "module": "S99_grepit",
       "corroboration_count": 1,
       "verdict": "FP",
-      "reasoning": "Bu bir parola degeri degil, UCI config sisteminde bir ayarin adi/tipi (boolean) - parola auth'un acik/kapali oldugunu belirten bir flag.",
+      "reasoning": "This is not a password value; it is an option/flag name (boolean) in the UCI config system indicating whether password authentication is enabled.",
       "context": {
         "status": "ok",
         "context_lines": [
@@ -87,13 +87,11 @@
       "module": "S107_deep_password_search",
       "corroboration_count": 1,
       "verdict": "FP",
-      "reasoning": "Hash, kullanici config dosyasinda degil kutuphanenin kendi binary'sinde bulunuyor; crypt() dokumantasyon/test string'i gorunumunde, gercek bir kullanici credential'i degil.",
+      "reasoning": "The hash is found in the library's own binary rather than a user configuration file; it appears to be a crypt() documentation or test string rather than a real user credential.",
       "context": {
         "status": "binary_file_skipped"
       }
-    }
-  ],
-  "test_set": [
+    },
     {
       "finding_id": "S99_grepit_00341",
       "file_path": "etc/passwd",
@@ -101,7 +99,7 @@
       "module": "S99_grepit",
       "corroboration_count": null,
       "verdict": "FP",
-      "reasoning": "passwd dosyasindaki 'x' sadece hash'in shadow dosyasinda tutuldugunu belirtir, bu satirin kendisinde bir credential degeri yok.",
+      "reasoning": "The 'x' placeholder in the passwd file simply indicates that the hash is stored in the shadow file; this line itself does not contain any cryptographic hash or credential value.",
       "context": {
         "status": "ok",
         "context_lines": [
@@ -116,7 +114,9 @@
         "matched_line_index_in_context": 0,
         "total_file_lines": 7
       }
-    },
+    }
+  ],
+  "test_set": [
     {
       "finding_id": "S108_stacs_password_search_00015",
       "file_path": "etc/shadow",
