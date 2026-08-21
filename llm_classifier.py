@@ -77,8 +77,10 @@ Aşağıda örnekler var. Bunlardan öğren, sonra sana verilen YENİ bulguyu de
 
 {few_shot_block}
 
-ÇOK ÖNEMLİ: Cevabını SADECE aşağıdaki JSON formatında ver, başka hiçbir metin ekleme:
-{{"verdict": "TP" veya "FP", "confidence": 0.0-1.0 arası sayı, "reasoning": "1-2 cümlelik kısa gerekçe"}}
+ÇOK ÖNEMLİ KURALLAR:
+1. "reasoning" kısmını KESİNLİKLE VE SADECE TÜRKÇE yaz (İngilizce kelimeler kullanma).
+2. Cevabını SADECE aşağıdaki JSON formatında ver, başka hiçbir metin ekleme:
+{{"verdict": "TP" veya "FP", "confidence": 0.0-1.0 arası sayı, "reasoning": "1-2 cümlelik kısa TÜRKÇE gerekçe"}}
 """
 
 FEW_SHOT_ITEM_TEMPLATE = """### Örnek {n}
