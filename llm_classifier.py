@@ -57,6 +57,22 @@ Değerlendirirken şunlara dikkat et:
 - Kaç farklı EMBA modülünün aynı bulguyu bağımsız doğruladığı (corroboration_count) - yüksekse güçlü TP sinyali
 - Verilen dosya bağlamı (context_lines) - eşleşen satırın etrafındaki kod/config
 
+KRİTİK KURALLAR:
+1. Eğer "eşleşen içerik" (matched_content) somut bir değer değil, JENERİK bir modül mesajıysa
+   (örn. "flagged as password-related file" gibi - bu bir dosya sınıflandırma bayrağıdır,
+   dosyanın GERÇEK içeriği DEĞİLDİR), bu TEK BAŞINA TP kanıtı sayılmaz. Bu durumda karar
+   VERİLEN CONTEXT'E dayanmalı: context'te gerçek bir hash/parola DEĞERİ görüyorsan TP,
+   görmüyorsan (örn. tüm satırlar 'x' veya '*' placeholder içeriyorsa, ya da context hiç
+   bulunamadıysa) FP de.
+2. Eğer eşleşen kod bir DEĞİŞKENDEN okuma yapan veya KOŞULLU bir provisioning/script mantığıysa
+   (örn. "json_get_vars root_password_hash", "sed -i ... /etc/shadow", bir config dosyasından
+   değer okuyup varsa uygulayan kod), bu KENDİSİ bir hardcoded credential DEĞİLDİR - script
+   sadece başka bir kaynaktan (board.json, config) gelen değeri UYGULUYOR. Bu genellikle FP'dir,
+   çünkü gerçek değer bu dosyada değil, script'in okuduğu kaynaktadır.
+3. Context bağlamında "exact_match_located: false" görüyorsan, bu context'in dosyanın BAŞINDAN
+   alınmış bir örnek olduğunu, eşleşen asıl satırı temsil etmediğini unutma - buna göre daha
+   temkinli değerlendir, sadece dosya adına güvenip TP deme.
+
 Aşağıda örnekler var. Bunlardan öğren, sonra sana verilen YENİ bulguyu değerlendir.
 
 {few_shot_block}
@@ -113,15 +129,17 @@ def format_context_block(context: dict | None, max_chars: int) -> str:
         status = (context or {}).get("status", "context_yok")
         return f"Dosya bağlamı: mevcut değil ({status})\n"
     lines = context["context_lines"]
-    idx = context["matched_line_index_in_context"]
+    idx = context.get("matched_line_index_in_context")
+    exact = context.get("exact_match_located", idx is not None)
     rendered = []
     for i, ln in enumerate(lines):
-        marker = ">>> " if i == idx else "    "
+        marker = ">>> " if (exact and i == idx) else "    "
         rendered.append(f"{marker}{ln}")
     block = "\n".join(rendered)
     if len(block) > max_chars:
         block = block[:max_chars] + "\n... (kırpıldı)"
-    return f"Dosya bağlamı (>>> = eşleşen satır):\n{block}\n"
+    note = "" if exact else "\n[NOT: eşleşen satır tam olarak bulunamadı, bu dosyanın BAŞINDAN bir örnek - '>>>' işareti YOK, kendi kararını içeriğe bakarak ver]"
+    return f"Dosya bağlamı{' (>>> = eşleşen satır)' if exact else ''}:{note}\n{block}\n"
 
 
 def build_few_shot_block(few_shot_items: list[dict]) -> str:
@@ -272,12 +290,12 @@ def run_test_mode(args, config: dict):
     test_set = data["test_set"]
 
     system_prompt = build_system_prompt(few_shot)
-    base_url = f"http://{config['LOCAL_AI_IP']}:{config.get('LOCAL_AI_PORT', '8080')}"
+    base_url = f"http://{config['LOCAL_AI_IP']}:8080"
     max_chars = int(config.get("AI_MAX_CHARS_TO_ANALYSE", 5000))
 
     results = []
     for i, item in enumerate(test_set, start=1):
-        print(f"[{i}/{len(test_set)}] {item['finding_id']} ({item['file_path']}) değerlendiriliyor...", end=" ", flush=True)
+        print(f"[{i}/{len(test_set)}] {item['finding_id']} ({item['file_path']}) değerlendiriliyor...")
         pred = classify_item(item, base_url, config["LOCAL_AI_MODEL"], system_prompt, max_chars)
         results.append({
             "finding_id": item["finding_id"],
@@ -289,10 +307,8 @@ def run_test_mode(args, config: dict):
             "human_reasoning": item.get("reasoning"),
             "attempts": pred.get("attempts"),
         })
-        match = "[OK]" if pred["verdict"] == item["verdict"] else "[FAIL]"
-        print(f"gerçek={item['verdict']}  model={pred['verdict']}  {match}", flush=True)
-        # Iterative save without metrics yet
-        Path(args.out).write_text(json.dumps({"results": results}, indent=2, ensure_ascii=False), encoding="utf-8")
+        match = "✓" if pred["verdict"] == item["verdict"] else "✗"
+        print(f"    gerçek={item['verdict']}  model={pred['verdict']}  {match}")
 
     metrics = compute_metrics(results)
     output = {"results": results, "metrics": metrics}
@@ -312,13 +328,13 @@ def run_full_mode(args, config: dict):
 
     findings = json.loads(Path(args.enriched).read_text(encoding="utf-8"))
     system_prompt = build_system_prompt(few_shot)
-    base_url = f"http://{config['LOCAL_AI_IP']}:{config.get('LOCAL_AI_PORT', '8080')}"
+    base_url = f"http://{config['LOCAL_AI_IP']}:8080"
     max_chars = int(config.get("AI_MAX_CHARS_TO_ANALYSE", 5000))
 
     results = []
     for i, item in enumerate(findings, start=1):
         label = item.get("file_path", "?")
-        print(f"[{i}/{len(findings)}] {label} değerlendiriliyor...", end=" ", flush=True)
+        print(f"[{i}/{len(findings)}] {label} değerlendiriliyor...")
         pred = classify_item(item, base_url, config["LOCAL_AI_MODEL"], system_prompt, max_chars)
         results.append({
             "file_path": item.get("file_path"),
@@ -330,9 +346,8 @@ def run_full_mode(args, config: dict):
             "model_reasoning": pred.get("reasoning"),
             "attempts": pred.get("attempts"),
         })
-        print(f"[{pred['verdict']}]", flush=True)
-        # Iterative save
-        Path(args.out).write_text(json.dumps(results, indent=2, ensure_ascii=False), encoding="utf-8")
+
+    Path(args.out).write_text(json.dumps(results, indent=2, ensure_ascii=False), encoding="utf-8")
 
     from collections import Counter
     dist = Counter(r["predicted_verdict"] for r in results)

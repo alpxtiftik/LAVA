@@ -67,15 +67,30 @@ def extract_context(path: Path, line_no: int | None, matched_content: str, windo
                     idx = i
                     break
 
-    if idx is None:
-        return None
+    if idx is not None:
+        start = max(0, idx - window)
+        end = min(len(lines), idx + window + 1)
+        return {
+            "context_lines": lines[start:end],
+            "matched_line_index_in_context": idx - start,
+            "total_file_lines": len(lines),
+            "exact_match_located": True,
+        }
 
-    start = max(0, idx - window)
-    end = min(len(lines), idx + window + 1)
+    # Fallback: eslesen satir bulunamadi - orn. S45_pass_file_check'in
+    # jenerik "flagged as password-related file" mesaji dosyanin gercek
+    # icerigi degil, dosyanin icinde literal olarak hic gecmiyor. Bu durumda
+    # sessizce context'siz birakmak yerine dosyanin basindan bir ornek
+    # veriyoruz - model en azindan GERCEK icerigi gorsun, sadece dosya
+    # adina bakip tahmin yurutmesin.
+    if not lines:
+        return None
+    end = min(len(lines), window * 2 + 1)
     return {
-        "context_lines": lines[start:end],
-        "matched_line_index_in_context": idx - start,
+        "context_lines": lines[:end],
+        "matched_line_index_in_context": None,
         "total_file_lines": len(lines),
+        "exact_match_located": False,
     }
 
 
