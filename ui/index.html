@@ -15,7 +15,7 @@
         <header>
             <div class="logo">
                 <h1>LAVA</h1>
-                <span class="subtitle">AI Vulnerability Assessor</span>
+                <span class="subtitle">Local AI Vulnerability Auditor</span>
             </div>
             
             <div class="stats-container">
@@ -35,12 +35,23 @@
         </header>
 
         <main>
+            <div class="scan-panel">
+                <input type="text" id="logDirInput" placeholder="Enter EMBA Log Directory (e.g. lava_tplinkad7200_log)">
+                <button id="browseBtn" class="btn-secondary" title="Browse Folder">📁 Seç</button>
+                <button id="startScanBtn" class="btn-primary">▶ Start Scan</button>
+                <button id="stopScanBtn" class="btn-danger" disabled>⏹ Stop Scan</button>
+                <span id="scanStatusIndicator" class="status-indicator status-idle">IDLE</span>
+            </div>
+
             <div class="controls">
                 <div class="search-box">
-                    <input type="text" id="searchInput" placeholder="Search files or modules...">
+                    <input type="text" id="searchInput" placeholder="Search files or content...">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
                 </div>
                 <div class="filters">
+                    <select id="moduleFilter" class="filter-select">
+                        <option value="all">All Modules</option>
+                    </select>
                     <button class="filter-btn active" data-filter="all">All</button>
                     <button class="filter-btn" data-filter="TP">True Positives</button>
                     <button class="filter-btn" data-filter="FP">False Positives</button>

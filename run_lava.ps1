@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    LAVA (Local AI Vulnerability Assessor) Pipeline Runner
+    LAVA (Local AI Vulnerability Auditor) Pipeline Runner
 .DESCRIPTION
     EMBA'nin urettigi loglari alip parse eden, baglamla zenginlestiren ve
     son olarak yerel yapay zeka ile TP/FP analizini gerceklestiren ana betik.

@@ -461,3 +461,89 @@ code {
     .controls { flex-direction: column; align-items: stretch; }
     .filters { justify-content: center; }
 }
+
+
+/* Scan Panel */
+.scan-panel {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    background: var(--glass-bg);
+    padding: 1rem 1.5rem;
+    border-radius: 12px;
+    border: 1px solid var(--glass-border);
+    margin-bottom: 2rem;
+    backdrop-filter: blur(10px);
+    flex-wrap: wrap;
+}
+
+.scan-panel input {
+    flex: 1;
+    min-width: 250px;
+    padding: 0.75rem 1rem;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-family: inherit;
+}
+
+.scan-panel input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.btn-primary, .btn-danger {
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    border: none;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.3s ease;
+}
+
+.btn-primary { background: var(--accent); color: white; }
+.btn-primary:hover:not(:disabled) { background: var(--accent-hover); box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4); }
+
+.btn-danger { background: var(--danger); color: white; }
+.btn-danger:hover:not(:disabled) { background: #dc2626; box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4); }
+
+.btn-primary:disabled, .btn-danger:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.status-indicator {
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+.status-idle { color: var(--text-secondary); border: 1px solid var(--glass-border); }
+.status-running { color: var(--success); border: 1px solid var(--success); background: var(--success-glow); animation: pulse 2s infinite; }
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+
+.btn-secondary {
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    border: 1px solid var(--glass-border);
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-primary);
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.3s ease;
+}
+.btn-secondary:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: var(--text-secondary);
+}
+.btn-secondary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}

@@ -72,6 +72,10 @@ KRİTİK KURALLAR:
 3. Context bağlamında "exact_match_located: false" görüyorsan, bu context'in dosyanın BAŞINDAN
    alınmış bir örnek olduğunu, eşleşen asıl satırı temsil etmediğini unutma - buna göre daha
    temkinli değerlendir, sadece dosya adına güvenip TP deme.
+4. Eğer eşleşen içerik `/etc/passwd` veya `/etc/shadow` formatındaysa (örn. "root:x:0:0...")
+   ancak içinde `$1$`, `$5$`, `$6$`, `$2a$` vb. ile başlayan GERÇEK bir kriptografik hash barındırmıyorsa,
+   bu KESİNLİKLE bir FP'dir. 'x' veya '*' gibi karakterler sadece yer tutucudur (placeholder) ve
+   hash DEĞİLDİR. Sadece gerçek, uzun hash barındıran satırlar TP'dir.
 
 Aşağıda örnekler var. Bunlardan öğren, sonra sana verilen YENİ bulguyu değerlendir.
 

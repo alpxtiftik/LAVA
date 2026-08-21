@@ -3,6 +3,8 @@ let allFindings = [];
 document.addEventListener('DOMContentLoaded', () => {
     fetchData();
     setupEventListeners();
+    checkStatus();
+    setInterval(checkStatus, 3000);
 });
 
 async function fetchData() {
@@ -11,6 +13,7 @@ async function fetchData() {
         if (!response.ok) throw new Error('Network response was not ok');
         allFindings = await response.json();
         
+        populateModuleFilter();
         updateStats();
         renderFindings(allFindings);
     } catch (error) {
@@ -33,6 +36,29 @@ function updateStats() {
     animateValue('stat-fp', 0, fp, 1000);
 }
 
+function populateModuleFilter() {
+    const filter = document.getElementById('moduleFilter');
+    if (!filter) return;
+    
+    filter.innerHTML = '<option value="all">All Modules</option>';
+    
+    const modules = new Set();
+    allFindings.forEach(f => {
+        if (f.found_by_modules && Array.isArray(f.found_by_modules)) {
+            f.found_by_modules.forEach(m => modules.add(m));
+        } else if (f.module) {
+            modules.add(f.module);
+        }
+    });
+    
+    Array.from(modules).sort().forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m;
+        opt.textContent = m;
+        filter.appendChild(opt);
+    });
+}
+
 function renderFindings(findings) {
     const grid = document.getElementById('findingsGrid');
     grid.innerHTML = '';
@@ -51,7 +77,7 @@ function renderFindings(findings) {
             </div>
             <div class="snippet">${escapeHtml(finding.matched_content || '')}</div>
             <div class="card-footer">
-                <span>Modules: ${finding.corroboration_count}</span>
+                <span>Modules: ${(finding.found_by_modules || [finding.module || 'Unknown']).join(', ')}</span>
                 <div class="confidence">
                     <span>Conf: ${confPct}%</span>
                     <div class="confidence-bar">
@@ -71,12 +97,29 @@ function renderFindings(findings) {
 }
 
 function setupEventListeners() {
+    // Scan Controls
+    const startBtn = document.getElementById('startScanBtn');
+    const stopBtn = document.getElementById('stopScanBtn');
+    const browseBtn = document.getElementById('browseBtn');
+    
+    if (startBtn) startBtn.addEventListener('click', startScan);
+    if (stopBtn) stopBtn.addEventListener('click', stopScan);
+    if (browseBtn) browseBtn.addEventListener('click', browseFolder);
+
     // Search
     document.getElementById('searchInput').addEventListener('input', (e) => {
         filterData(e.target.value, document.querySelector('.filter-btn.active').dataset.filter);
     });
 
-    // Filter Buttons
+    // Filters
+    const modFilter = document.getElementById('moduleFilter');
+    if (modFilter) {
+        modFilter.addEventListener('change', () => {
+            const verdictFilter = document.querySelector('.filter-btn.active').dataset.filter;
+            filterData(document.getElementById('searchInput').value, verdictFilter);
+        });
+    }
+
     document.querySelectorAll('.filter-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
@@ -97,12 +140,21 @@ function setupEventListeners() {
 
 function filterData(searchTerm, verdictFilter) {
     const term = searchTerm.toLowerCase();
+    let modFilterVal = 'all';
+    const modFilter = document.getElementById('moduleFilter');
+    if (modFilter) {
+        modFilterVal = modFilter.value;
+    }
     
     const filtered = allFindings.filter(f => {
         const matchesSearch = (f.file_path || '').toLowerCase().includes(term) || 
                               (f.matched_content || '').toLowerCase().includes(term);
         const matchesVerdict = verdictFilter === 'all' || f.predicted_verdict === verdictFilter;
-        return matchesSearch && matchesVerdict;
+        
+        const mods = f.found_by_modules || [f.module];
+        const matchesModule = modFilterVal === 'all' || mods.includes(modFilterVal);
+        
+        return matchesSearch && matchesVerdict && matchesModule;
     });
 
     renderFindings(filtered);
@@ -154,4 +206,93 @@ function animateValue(id, start, end, duration) {
         }
     };
     window.requestAnimationFrame(step);
+}
+
+// Scan Control API Calls
+async function checkStatus() {
+    try {
+        const res = await fetch('/api/status');
+        if (!res.ok) return;
+        const data = await res.json();
+        const indicator = document.getElementById('scanStatusIndicator');
+        const startBtn = document.getElementById('startScanBtn');
+        const stopBtn = document.getElementById('stopScanBtn');
+        const logInput = document.getElementById('logDirInput');
+        
+        if (!indicator) return;
+
+        if (data.running) {
+            indicator.textContent = 'RUNNING...';
+            indicator.className = 'status-indicator status-running';
+            startBtn.disabled = true;
+            stopBtn.disabled = false;
+            logInput.disabled = true;
+            if (document.getElementById('browseBtn')) document.getElementById('browseBtn').disabled = true;
+        } else {
+            // If it was running and now it's not, we should refresh the data
+            if (indicator.textContent === 'RUNNING...') {
+                fetchData();
+            }
+            indicator.textContent = 'IDLE';
+            indicator.className = 'status-indicator status-idle';
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+            logInput.disabled = false;
+            if (document.getElementById('browseBtn')) document.getElementById('browseBtn').disabled = false;
+        }
+    } catch(e) {
+        console.error("Status check failed", e);
+    }
+}
+
+async function browseFolder() {
+    if (window.pywebview && window.pywebview.api) {
+        try {
+            const path = await window.pywebview.api.open_folder_dialog();
+            if (path) {
+                document.getElementById('logDirInput').value = path;
+            }
+        } catch (e) {
+            console.error("Folder selection failed:", e);
+        }
+    } else {
+        alert("Native file browser is only available in the LAVA Desktop App (LAVA_UI.exe).");
+    }
+}
+
+async function startScan() {
+    const logDir = document.getElementById('logDirInput').value.trim();
+    if (!logDir) {
+        alert("Please enter an EMBA Log Directory (e.g. lava_tplinkad7200_log)");
+        return;
+    }
+    
+    try {
+        const res = await fetch('/api/start', {
+            method: 'POST',
+            body: JSON.stringify({ logDir })
+        });
+        if (!res.ok) {
+            const err = await res.text();
+            alert("Failed to start scan: " + err);
+        } else {
+            checkStatus();
+        }
+    } catch (e) {
+        alert("Error starting scan: " + e.message);
+    }
+}
+
+async function stopScan() {
+    try {
+        const res = await fetch('/api/stop', { method: 'POST' });
+        if (!res.ok) {
+            const err = await res.text();
+            alert("Failed to stop scan: " + err);
+        } else {
+            checkStatus();
+        }
+    } catch (e) {
+        alert("Error stopping scan: " + e.message);
+    }
 }
