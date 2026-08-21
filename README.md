@@ -32,16 +32,34 @@ Instead of fine-tuning a model, LAVA uses an In-Context Learning (ICL) approach.
 ## Usage
 
 ### 1. The Desktop Application (Recommended)
-You can manage the entire pipeline natively from the UI:
-1. Run `dist/LAVA_UI.exe` (or build it using `.\build_ui.ps1`).
-2. Click **Browse (📁 Seç)** and select your EMBA log folder (e.g., `emba_iotgoat_log`).
+You can manage the entire pipeline natively from the UI. First, you need to compile the application for your specific Operating System:
+
+**Windows:**
+```powershell
+.\build_ui.ps1
+```
+
+**Linux / macOS:**
+```bash
+./build_ui.sh
+```
+
+After building:
+1. Run `dist/LAVA_UI/LAVA_UI` (or `LAVA_UI.exe` on Windows).
+2. Click **Browse (📁 Select)** and select your EMBA log folder (e.g., `emba_iotgoat_log`).
 3. Click **Start Scan**. The UI will show a real-time status and automatically populate findings once they are analyzed.
 
-### 2. Automated CLI Pipeline (Windows/Linux)
-If you prefer running the orchestration script from the terminal:
+### 2. Automated CLI Pipeline
+If you prefer running the orchestration script from the terminal instead of the GUI:
 
+**Windows:**
 ```powershell
 .\run_lava.ps1 -LogDir "emba_iotgoat_log"
+```
+
+**Linux / macOS:**
+```bash
+bash run_lava.sh -LogDir "emba_iotgoat_log"
 ```
 > **⚠️ IMPORTANT:** Make sure the `-LogDir` argument matches the exact name of your EMBA log folder (e.g. `emba_iotgoat_log`).
 
