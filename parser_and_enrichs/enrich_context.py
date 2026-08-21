@@ -20,19 +20,31 @@ def find_extraction_roots(log_dir: Path) -> list[Path]:
     """EMBA'nin olusturdugu tum '<...>_extract' dizinlerini bulur (squashfs,
     fat, vs. birden fazla partisyon olabilir). En spesifik/derin olanlar
     once denenir ki dogru dosyayi yanlislikla baska bir extraction'dan almayalim."""
-    roots = [p for p in log_dir.rglob("*_extract") if p.is_dir()]
+    roots = [p for p in log_dir.rglob("*extract*") if p.is_dir()]
     roots.sort(key=lambda p: len(str(p)), reverse=True)
     return roots
 
 
-def resolve_real_path(relative_path: str, roots: list[Path]) -> Path | None:
+def resolve_real_path(relative_path: str, log_dir: Path, roots: list[Path]) -> Path | None:
     """normalize_path() tarafindan kisaltilmis path'i (orn. 'etc/shadow')
     gercek extraction dizinindeki fiziksel dosyaya geri baglar."""
+    if relative_path.startswith("/logs/"):
+        candidate = log_dir / relative_path[6:]
+        if candidate.is_file():
+            return candidate
+
     rel = relative_path.lstrip("/")
     for root in roots:
         candidate = root / rel
         if candidate.is_file():
             return candidate
+            
+    # Fallback: eger sadece dosya adi varsa, root icinde ara
+    filename = Path(relative_path).name
+    for root in roots:
+        for p in root.rglob(filename):
+            if p.is_file():
+                return p
     return None
 
 
@@ -102,7 +114,7 @@ def enrich(merged_findings: list[dict], log_dir: Path, window: int) -> tuple[int
 
     for group in merged_findings:
         rel_path = group["file_path"]
-        real_path = resolve_real_path(rel_path, roots)
+        real_path = resolve_real_path(rel_path, log_dir, roots)
 
         if real_path is None:
             group["context"] = {"status": "file_not_found"}
