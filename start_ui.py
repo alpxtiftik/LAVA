@@ -85,7 +85,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                         cwd=os.getcwd()
                     )
                 else:
-                    cmd = ["pwsh", "-ExecutionPolicy", "Bypass", "-File", "run_lava.ps1", "-LogDir", log_dir]
+                    cmd = ["bash", "run_lava.sh", "-LogDir", log_dir]
                     scan_process = subprocess.Popen(
                         cmd, 
                         preexec_fn=os.setsid,
