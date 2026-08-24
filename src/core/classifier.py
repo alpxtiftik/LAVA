@@ -362,6 +362,10 @@ def run_full_mode(args, config: dict):
 
     from collections import Counter
     dist = Counter(r["predicted_verdict"] for r in results)
+    
+    # Her durumda (0 bulgu olsa bile) dosyayı oluştur
+    Path(args.out).write_text(json.dumps(results, indent=2, ensure_ascii=False), encoding="utf-8")
+    
     print("\n=== ÖZET ===")
     for k, v in dist.items():
         print(f"  {k}: {v}")
