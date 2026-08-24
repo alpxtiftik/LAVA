@@ -43,18 +43,24 @@ class Api:
                 CREATE_NEW_PROCESS_GROUP = 0x00000200
                 ps1_path = os.path.join(APP_DIR, "cli", "run_lava.ps1")
                 cmd = ["powershell", "-ExecutionPolicy", "Bypass", "-File", ps1_path, "-LogDir", log_dir]
+                log_out = open(os.path.join(APP_DIR, "lava_scan.log"), "w", encoding="utf-8")
                 scan_process = subprocess.Popen(
                     cmd, 
                     creationflags=CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP,
-                    cwd=APP_DIR
+                    cwd=APP_DIR,
+                    stdout=log_out,
+                    stderr=subprocess.STDOUT
                 )
             else:
                 sh_path = os.path.join(APP_DIR, "cli", "run_lava.sh")
                 cmd = ["bash", sh_path, "-LogDir", log_dir]
+                log_out = open(os.path.join(APP_DIR, "lava_scan.log"), "w", encoding="utf-8")
                 scan_process = subprocess.Popen(
                     cmd, 
                     preexec_fn=os.setsid,
-                    cwd=APP_DIR
+                    cwd=APP_DIR,
+                    stdout=log_out,
+                    stderr=subprocess.STDOUT
                 )
             return {"status": "success", "message": "Started"}
         except Exception as e:
