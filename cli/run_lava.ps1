@@ -23,6 +23,19 @@ if (-not (Test-Path -Path $OutDir)) {
     New-Item -ItemType Directory -Path $OutDir | Out-Null
 }
 
+$PidFile = Join-Path -Path $OutDir -ChildPath "lava.pid"
+if (Test-Path $PidFile) {
+    $OldPid = Get-Content $PidFile
+    $OldProcess = Get-Process -Id $OldPid -ErrorAction SilentlyContinue
+    if ($OldProcess) {
+        Write-Host "Uyari: Bu klasorde onceki bir tarama devam ediyor (PID: $OldPid). Kapatiliyor..." -ForegroundColor Yellow
+        taskkill /F /T /PID $OldPid 2>$null
+        Start-Sleep -Seconds 1
+    }
+}
+$PID | Out-File -FilePath $PidFile -Encoding UTF8
+
+
 $FindingsFile = Join-Path -Path $OutDir -ChildPath "findings.json"
 $MergedFile = Join-Path -Path $OutDir -ChildPath "merged_findings.json"
 $EnrichedFile = Join-Path -Path $OutDir -ChildPath "enriched_findings.json"

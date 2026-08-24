@@ -18,6 +18,18 @@ fi
 OUTDIR="$LOGDIR/lava_out"
 mkdir -p "$OUTDIR"
 
+PID_FILE="$OUTDIR/lava.pid"
+if [ -f "$PID_FILE" ]; then
+    OLD_PID=$(cat "$PID_FILE")
+    if ps -p "$OLD_PID" > /dev/null 2>&1; then
+        echo "Uyari: Bu klasorde onceki bir tarama devam ediyor (PID: $OLD_PID). Kapatiliyor..."
+        kill -9 "$OLD_PID" 2>/dev/null
+        sleep 1
+    fi
+fi
+echo $$ > "$PID_FILE"
+
+
 FINDINGS_FILE="$OUTDIR/findings.json"
 MERGED_FILE="$OUTDIR/merged_findings.json"
 ENRICHED_FILE="$OUTDIR/enriched_findings.json"

@@ -157,7 +157,7 @@ if __name__ == "__main__":
     webview.start()
     
     print("\n[!] Uygulama sonlandırıldı.")
-    if scan_process and scan_process.poll() is None:
+    if 'scan_process' in globals() and scan_process and scan_process.poll() is None:
         try:
             if sys.platform == "win32":
                 subprocess.call(['taskkill', '/F', '/T', '/PID', str(scan_process.pid)], creationflags=subprocess.CREATE_NO_WINDOW)
