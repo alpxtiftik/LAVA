@@ -69,6 +69,9 @@ EXTRACT_MARKERS = [
     "squashfs_v4_le_extract/",
     "fat_extract/",
     "unblob_extracted/firmware_extract/",
+    "squashfs-root/",  # binwalk'ın klasik cpio/squashfs extraction dizini
+    "cpio-root/",
+    "jffs2-root/",
 ]
 
 _fid_counter = 0
