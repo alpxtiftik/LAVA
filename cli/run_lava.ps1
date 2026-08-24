@@ -18,6 +18,16 @@ param(
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.Encoding]::UTF8
 
+$OutDir = Join-Path -Path $LogDir -ChildPath "lava_out"
+if (-not (Test-Path -Path $OutDir)) {
+    New-Item -ItemType Directory -Path $OutDir | Out-Null
+}
+
+$FindingsFile = Join-Path -Path $OutDir -ChildPath "findings.json"
+$MergedFile = Join-Path -Path $OutDir -ChildPath "merged_findings.json"
+$EnrichedFile = Join-Path -Path $OutDir -ChildPath "enriched_findings.json"
+$VerdictsFile = Join-Path -Path $OutDir -ChildPath "verdicts.json"
+$ReportFile = Join-Path -Path $OutDir -ChildPath "lava_report.html"
 
 Write-Host "=========================================" -ForegroundColor Cyan
 Write-Host "LAVA Pipeline Baslatiliyor..." -ForegroundColor Cyan
@@ -25,21 +35,27 @@ Write-Host "=========================================" -ForegroundColor Cyan
 
 # 1. Parse
 Write-Host "[1/3] EMBA loglari ayristiriliyor (parse)..." -ForegroundColor Yellow
-py parser_and_enrichs/parse_emba_findings.py --log-dir "$LogDir" --out findings.json --merged-out merged_findings.json
+py parser_and_enrichs/parse_emba_findings.py --log-dir "$LogDir" --out "$FindingsFile" --merged-out "$MergedFile"
 if ($LASTEXITCODE -ne 0) { Write-Host "Hata: parse_emba_findings.py basarisiz oldu!" -ForegroundColor Red; exit $LASTEXITCODE }
 Write-Host "[OK] Ayristirma tamamlandi." -ForegroundColor Green
 
 # 2. Enrich
 Write-Host "`n[2/3] Baglam olusturuluyor (enrich)..." -ForegroundColor Yellow
-py parser_and_enrichs/enrich_context.py --merged merged_findings.json --log-dir "$LogDir" --out enriched_findings.json
+py parser_and_enrichs/enrich_context.py --merged "$MergedFile" --log-dir "$LogDir" --out "$EnrichedFile"
 if ($LASTEXITCODE -ne 0) { Write-Host "Hata: enrich_context.py basarisiz oldu!" -ForegroundColor Red; exit $LASTEXITCODE }
 Write-Host "[OK] Baglam dosyalari (context) basariyla eklendi." -ForegroundColor Green
 
 # 3. Classify (AI)
 Write-Host "`n[3/3] LLM Siniflandirma Basliyor (Bu adim uzun surebilir)..." -ForegroundColor Yellow
-py llm_classifier.py --mode run --config config/ai_config.env --ground-truth ground_truth.json --enriched enriched_findings.json --out verdicts.json
+py llm_classifier.py --mode run --config config/ai_config.env --ground-truth ground_truth.json --enriched "$EnrichedFile" --out "$VerdictsFile"
 if ($LASTEXITCODE -ne 0) { Write-Host "Hata: llm_classifier.py basarisiz oldu!" -ForegroundColor Red; exit $LASTEXITCODE }
-Write-Host "[OK] Siniflandirma tamamlandi! Sonuclar verdicts.json dosyasina yazildi." -ForegroundColor Green
+Write-Host "[OK] Siniflandirma tamamlandi! Sonuclar $VerdictsFile dosyasina yazildi." -ForegroundColor Green
+
+# 4. Generate HTML Report
+Write-Host "`n[4/4] HTML Raporu olusturuluyor..." -ForegroundColor Yellow
+py cli/generate_html_report.py --verdicts "$VerdictsFile" --out "$ReportFile"
+if ($LASTEXITCODE -ne 0) { Write-Host "Hata: generate_html_report.py basarisiz oldu!" -ForegroundColor Red; exit $LASTEXITCODE }
+Write-Host "[OK] Rapor tamamlandi! Cikti: $ReportFile" -ForegroundColor Green
 
 Write-Host "`n=========================================" -ForegroundColor Cyan
 Write-Host "LAVA Tamamlandi!" -ForegroundColor Cyan

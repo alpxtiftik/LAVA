@@ -86,8 +86,10 @@ class Api:
         is_running = scan_process is not None and scan_process.poll() is None
         return {"running": is_running}
 
-    def get_verdicts(self):
-        verdicts_path = os.path.join(APP_DIR, "verdicts.json")
+    def get_verdicts(self, log_dir):
+        if not log_dir:
+            return []
+        verdicts_path = os.path.join(log_dir, "lava_out", "verdicts.json")
         if os.path.exists(verdicts_path):
             try:
                 with open(verdicts_path, "r", encoding="utf-8") as f:
@@ -96,11 +98,45 @@ class Api:
                 return {"error": str(e)}
         return []
 
-if __name__ == "__main__":
-    verdicts_path = os.path.join(APP_DIR, "verdicts.json")
-    if not os.path.exists(verdicts_path):
-        print("[!] UYARI: verdicts.json mevcut dizinde bulunamadı. Uygulama veri gösteremeyebilir.", file=sys.stderr)
+    def get_total_findings(self, log_dir):
+        if not log_dir:
+            return {"total": 0}
+        enriched_path = os.path.join(log_dir, "lava_out", "enriched_findings.json")
+        if os.path.exists(enriched_path):
+            try:
+                with open(enriched_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    return {"total": len(data)}
+            except Exception:
+                pass
+        return {"total": 0}
+
+    def export_html(self, log_dir):
+        if not log_dir:
+            return {"status": "error", "message": "logDir required"}
+            
+        out_dir = os.path.join(log_dir, "lava_out")
+        verdicts_file = os.path.join(out_dir, "verdicts.json")
+        report_file = os.path.join(out_dir, "lava_report.html")
         
+        if not os.path.exists(verdicts_file):
+            return {"status": "error", "message": "No verdicts.json found. Please run a scan first."}
+            
+        try:
+            generator_script = os.path.join(APP_DIR, "cli", "generate_html_report.py")
+            cmd = ["py", generator_script, "--verdicts", verdicts_file, "--out", report_file]
+            
+            # Subprocess without console window on Windows
+            if sys.platform == "win32":
+                subprocess.check_call(cmd, creationflags=subprocess.CREATE_NO_WINDOW)
+            else:
+                subprocess.check_call(cmd)
+                
+            return {"status": "success", "path": report_file}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
+if __name__ == "__main__":
     html_file = os.path.join(DIRECTORY, "ui", "index.html")
     print(f"[*] LAVA Masaüstü Arayüzü başlatılıyor...")
     

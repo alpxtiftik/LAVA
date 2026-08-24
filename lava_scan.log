@@ -1,0 +1,17 @@
+=========================================
+LAVA Pipeline Baslatiliyor...
+=========================================
+[1/3] EMBA loglari ayristiriliyor (parse)...
+[+] Toplam ham finding: 1662
+[+] Modül daðýlýmý:
+      S106_deep_key_search: 4
+      S108_stacs_password_search: 10
+      S45_pass_file_check: 7
+      S99_grepit: 1641
+[+] Birleþtirme sonrasý benzersiz finding: 1214
+[+] Birden fazla modül tarafýndan doðrulanan: 0
+[+] S99_grepit'te binary çöp olarak atlanan blok: 217
+[+] Çýktýlar: findings.json, merged_findings.json
+[OK] Ayristirma tamamlandi.
+
+[2/3] Baglam olusturuluyor (enrich)...

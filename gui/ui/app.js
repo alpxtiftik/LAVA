@@ -1,4 +1,5 @@
 let allFindings = [];
+let totalFindings = 0;
 
 window.addEventListener('pywebviewready', () => {
     fetchData();
@@ -19,7 +20,16 @@ async function fetchData() {
         if (!window.pywebview || !window.pywebview.api) {
             throw new Error('PyWebView API not available.');
         }
-        allFindings = await window.pywebview.api.get_verdicts();
+        const logDir = document.getElementById('logDirInput') ? document.getElementById('logDirInput').value.trim() : '';
+        if (!logDir) {
+            document.getElementById('findingsGrid').innerHTML = '<div class="loading-state"><p>Please select an EMBA Log Directory to view findings.</p></div>';
+            return;
+        }
+
+        const totalRes = await window.pywebview.api.get_total_findings(logDir);
+        totalFindings = totalRes.total || 0;
+
+        allFindings = await window.pywebview.api.get_verdicts(logDir);
         if (allFindings.error) {
             throw new Error(allFindings.error);
         }
@@ -43,7 +53,13 @@ function updateStats() {
     const fp = allFindings.filter(f => f.predicted_verdict === 'FP').length;
 
     const elTotal = document.getElementById('stat-total');
-    if (elTotal) elTotal.querySelector('.stat-value').innerHTML = total;
+    if (elTotal) {
+        if (totalFindings > 0) {
+            elTotal.querySelector('.stat-value').innerHTML = `${total} / ${totalFindings}`;
+        } else {
+            elTotal.querySelector('.stat-value').innerHTML = total;
+        }
+    }
     
     const elTp = document.getElementById('stat-tp');
     if (elTp) elTp.querySelector('.stat-value').innerHTML = tp;
@@ -120,10 +136,12 @@ function setupEventListeners() {
     const startBtn = document.getElementById('startScanBtn');
     const stopBtn = document.getElementById('stopScanBtn');
     const browseBtn = document.getElementById('browseBtn');
+    const exportBtn = document.getElementById('exportHtmlBtn');
     
     if (startBtn) startBtn.addEventListener('click', startScan);
     if (stopBtn) stopBtn.addEventListener('click', stopScan);
     if (browseBtn) browseBtn.addEventListener('click', browseFolder);
+    if (exportBtn) exportBtn.addEventListener('click', exportHtml);
 
     // Search
     document.getElementById('searchInput').addEventListener('input', (e) => {
@@ -291,6 +309,7 @@ async function browseFolder() {
             const path = await window.pywebview.api.open_folder_dialog();
             if (path) {
                 document.getElementById('logDirInput').value = path;
+                fetchData();
             }
         } catch (e) {
             console.error("Folder selection failed:", e);
@@ -335,5 +354,25 @@ async function stopScan() {
         }
     } catch (e) {
         alert("Error stopping scan: " + e.message);
+    }
+}
+
+async function exportHtml() {
+    const logDir = document.getElementById('logDirInput').value.trim();
+    if (!logDir) {
+        alert("Please select a Log Directory first.");
+        return;
+    }
+    if (window.pywebview && window.pywebview.api) {
+        try {
+            const res = await window.pywebview.api.export_html(logDir);
+            if (res.status === 'success') {
+                alert("HTML Report generated successfully at:\n" + res.path);
+            } else {
+                alert("Failed to generate report: " + res.message);
+            }
+        } catch (e) {
+            alert("Error exporting HTML: " + e.message);
+        }
     }
 }
