@@ -170,8 +170,8 @@ def generate_report(verdicts_file: str, out_file: str):
         v_class = v.lower()
         
         path = str(f.get("file_path", "Unknown"))
-        content = str(f.get("matched_content", "")).replace("<", "&lt;").replace(">", "&gt;")
-        reasoning = str(f.get("model_reasoning", ""))
+        content = str(f.get("matched_content", "")).replace("\\n", "\n").replace("<", "&lt;").replace(">", "&gt;")
+        reasoning = str(f.get("model_reasoning", "")).replace("\\n", "<br>")
         conf = f.get("confidence")
         conf_str = f"{int(conf*100)}%" if conf is not None else "N/A"
         modules = ", ".join(f.get("found_by_modules", [f.get("module", "Unknown")]))

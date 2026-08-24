@@ -132,6 +132,9 @@ class Api:
             else:
                 subprocess.check_call(cmd)
                 
+            import webbrowser
+            webbrowser.open("file://" + os.path.abspath(report_file))
+                
             return {"status": "success", "path": report_file}
         except Exception as e:
             return {"status": "error", "message": str(e)}
