@@ -42,9 +42,17 @@ function updateStats() {
     const tp = allFindings.filter(f => f.predicted_verdict === 'TP').length;
     const fp = allFindings.filter(f => f.predicted_verdict === 'FP').length;
 
-    animateValue('stat-total', 0, total, 1000);
-    animateValue('stat-tp', 0, tp, 1000);
-    animateValue('stat-fp', 0, fp, 1000);
+    const elTotal = document.getElementById('stat-total');
+    if (elTotal) elTotal.querySelector('.stat-value').innerHTML = total;
+    
+    const elTp = document.getElementById('stat-tp');
+    if (elTp) elTp.querySelector('.stat-value').innerHTML = tp;
+    
+    const elFp = document.getElementById('stat-fp');
+    if (elFp) elFp.querySelector('.stat-value').innerHTML = fp;
+    
+    // Also update raw JSON view if it's currently visible
+    updateRawJsonView();
 }
 
 function populateModuleFilter() {
@@ -140,13 +148,48 @@ function setupEventListeners() {
     });
 
     // Modal Close
-    document.getElementById('closeModal').addEventListener('click', closeModal);
-    document.getElementById('modalOverlay').addEventListener('click', (e) => {
-        if (e.target.id === 'modalOverlay') closeModal();
-    });
+    const closeBtn = document.getElementById('closeModal');
+    if (closeBtn) closeBtn.addEventListener('click', closeModal);
+    
+    const overlay = document.getElementById('modalOverlay');
+    if (overlay) {
+        overlay.addEventListener('click', (e) => {
+            if (e.target.id === 'modalOverlay') closeModal();
+        });
+    }
+    
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') closeModal();
     });
+
+    // View Toggles
+    const toggleBtn = document.getElementById('toggleViewBtn');
+    if (toggleBtn) {
+        toggleBtn.addEventListener('click', () => {
+            const gridView = document.getElementById('findingsGrid');
+            const rawView = document.getElementById('rawJsonView');
+            
+            if (gridView.classList.contains('hidden')) {
+                // Switch to Grid View
+                gridView.classList.remove('hidden');
+                rawView.classList.add('hidden');
+                toggleBtn.textContent = '{} View Raw JSON';
+            } else {
+                // Switch to Raw View
+                gridView.classList.add('hidden');
+                rawView.classList.remove('hidden');
+                toggleBtn.textContent = '⊞ View Cards';
+                updateRawJsonView();
+            }
+        });
+    }
+}
+
+function updateRawJsonView() {
+    const rawContent = document.getElementById('rawJsonContent');
+    if (rawContent && !document.getElementById('rawJsonView').classList.contains('hidden')) {
+        rawContent.textContent = JSON.stringify(allFindings, null, 4);
+    }
 }
 
 function filterData(searchTerm, verdictFilter) {
@@ -203,22 +246,6 @@ function escapeHtml(unsafe) {
          .replace(/'/g, "&#039;");
 }
 
-function animateValue(id, start, end, duration) {
-    const obj = document.getElementById(id);
-    if (!obj) return;
-    const valueSpan = obj.querySelector('.stat-value');
-    let startTimestamp = null;
-    const step = (timestamp) => {
-        if (!startTimestamp) startTimestamp = timestamp;
-        const progress = Math.min((timestamp - startTimestamp) / duration, 1);
-        valueSpan.innerHTML = Math.floor(progress * (end - start) + start);
-        if (progress < 1) {
-            window.requestAnimationFrame(step);
-        }
-    };
-    window.requestAnimationFrame(step);
-}
-
 // Scan Control API Calls
 async function checkStatus() {
     if (!window.pywebview || !window.pywebview.api) return;
@@ -238,8 +265,11 @@ async function checkStatus() {
             stopBtn.disabled = false;
             logInput.disabled = true;
             if (document.getElementById('browseBtn')) document.getElementById('browseBtn').disabled = true;
+            
+            // Fetch live data while running
+            fetchData();
         } else {
-            // If it was running and now it's not, we should refresh the data
+            // If it was running and now it's not, refresh one last time
             if (indicator.textContent === 'RUNNING...') {
                 fetchData();
             }
@@ -273,7 +303,7 @@ async function browseFolder() {
 async function startScan() {
     const logDir = document.getElementById('logDirInput').value.trim();
     if (!logDir) {
-        alert("Please enter an EMBA Log Directory (e.g. lava_tplinkad7200_log)");
+        alert("Please enter an EMBA Log Directory (e.g. emba_example_log)");
         return;
     }
     

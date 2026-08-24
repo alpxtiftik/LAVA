@@ -8,9 +8,6 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div class="background-blob blob-1"></div>
-    <div class="background-blob blob-2"></div>
-
     <div class="container">
         <header>
             <div class="logo">
@@ -56,6 +53,9 @@
                     <button class="filter-btn" data-filter="TP">True Positives</button>
                     <button class="filter-btn" data-filter="FP">False Positives</button>
                 </div>
+                <div class="view-toggle">
+                    <button id="toggleViewBtn" class="btn-secondary">{} View Raw JSON</button>
+                </div>
             </div>
 
             <div class="findings-grid" id="findingsGrid">
@@ -64,6 +64,14 @@
                     <div class="spinner"></div>
                     <p>Loading verdicts.json...</p>
                 </div>
+            </div>
+
+            <!-- Raw JSON View Container -->
+            <div id="rawJsonView" class="hidden">
+                <div class="raw-header">
+                    <h3>Raw verdicts.json</h3>
+                </div>
+                <pre><code id="rawJsonContent"></code></pre>
             </div>
         </main>
     </div>
