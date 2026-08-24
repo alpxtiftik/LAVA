@@ -26,7 +26,7 @@ HTML_TEMPLATE = """
             margin: 0; padding: 20px;
         }
         .container { max-width: 1200px; margin: 0 auto; }
-        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; border-bottom: 1px solid var(--border); padding-bottom: 20px; }
+        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 20px; flex-wrap: wrap; gap: 20px;}
         h1 { margin: 0; color: var(--text); font-size: 2rem; }
         .subtitle { color: var(--text-secondary); font-family: monospace; }
         .stats { display: flex; gap: 20px; }
@@ -39,21 +39,28 @@ HTML_TEMPLATE = """
         .stat-tp { color: var(--danger); text-shadow: 0 0 10px var(--danger-glow); border-color: rgba(239, 68, 68, 0.3); }
         .stat-fp { color: var(--success); text-shadow: 0 0 10px var(--success-glow); border-color: rgba(34, 197, 94, 0.3); }
         
+        .controls { display: flex; gap: 15px; margin-bottom: 20px; }
+        .search-input { flex-grow: 1; padding: 10px 15px; background: #000; border: 1px solid var(--border); color: #fff; border-radius: 6px; font-size: 1rem; }
+        .filter-btn { padding: 10px 20px; background: var(--surface); border: 1px solid var(--border); color: var(--text-secondary); border-radius: 6px; cursor: pointer; transition: all 0.2s; }
+        .filter-btn:hover { background: var(--surface-hover); color: #fff; }
+        .filter-btn.active { background: rgba(59, 130, 246, 0.1); border-color: var(--primary); color: var(--primary); }
+
         .finding-card {
             background: var(--surface); border: 1px solid var(--glass-border);
             border-radius: 8px; padding: 20px; margin-bottom: 20px;
         }
+        .finding-card.hidden { display: none; }
         .verdict-tp { border-left: 4px solid var(--danger); box-shadow: 0 4px 20px rgba(239,68,68,0.05); }
         .verdict-fp { border-left: 4px solid var(--success); opacity: 0.8; }
         .card-header { display: flex; justify-content: space-between; margin-bottom: 15px; }
-        .file-path { font-family: monospace; font-size: 1.1rem; color: var(--primary); }
+        .file-path { font-family: monospace; font-size: 1.1rem; color: var(--primary); word-break: break-all; }
         .badge { padding: 4px 10px; border-radius: 4px; font-weight: bold; font-size: 0.9rem; }
         .badge-tp { background: rgba(239, 68, 68, 0.1); color: var(--danger); border: 1px solid rgba(239, 68, 68, 0.3); }
         .badge-fp { background: rgba(34, 197, 94, 0.1); color: var(--success); border: 1px solid rgba(34, 197, 94, 0.3); }
         
         pre { background: #000; padding: 15px; border-radius: 6px; overflow-x: auto; color: #0f0; border: 1px solid var(--border); font-size: 0.9rem; }
         .reasoning { margin-top: 15px; padding: 15px; background: rgba(255,255,255,0.02); border-left: 3px solid var(--primary); color: var(--text-secondary); line-height: 1.5; font-style: italic; }
-        .meta { display: flex; gap: 15px; margin-top: 15px; font-size: 0.85rem; color: var(--text-secondary); }
+        .meta { display: flex; gap: 15px; margin-top: 15px; font-size: 0.85rem; color: var(--text-secondary); flex-wrap: wrap; }
     </style>
 </head>
 <body>
@@ -65,24 +72,68 @@ HTML_TEMPLATE = """
             </div>
             <div class="stats">
                 <div class="stat-card">
-                    <span class="stat-value">{total}</span>
+                    <span class="stat-value">[[TOTAL]]</span>
                     <span class="stat-label">Total Findings</span>
                 </div>
                 <div class="stat-card stat-tp">
-                    <span class="stat-value">{tp}</span>
+                    <span class="stat-value">[[TP]]</span>
                     <span class="stat-label">True Positives</span>
                 </div>
                 <div class="stat-card stat-fp">
-                    <span class="stat-value">{fp}</span>
+                    <span class="stat-value">[[FP]]</span>
                     <span class="stat-label">False Positives</span>
                 </div>
             </div>
         </header>
+
+        <div class="controls">
+            <input type="text" id="searchInput" class="search-input" placeholder="Search in paths or contents...">
+            <button class="filter-btn active" data-filter="all">All</button>
+            <button class="filter-btn" data-filter="TP">True Positives</button>
+            <button class="filter-btn" data-filter="FP">False Positives</button>
+        </div>
         
-        <main>
-            {cards_html}
+        <main id="findingsList">
+[[CARDS]]
         </main>
     </div>
+
+    <script>
+        const searchInput = document.getElementById('searchInput');
+        const filterBtns = document.querySelectorAll('.filter-btn');
+        const cards = document.querySelectorAll('.finding-card');
+
+        function filterCards() {
+            const term = searchInput.value.toLowerCase();
+            const activeFilter = document.querySelector('.filter-btn.active').dataset.filter;
+
+            cards.forEach(card => {
+                const text = card.textContent.toLowerCase();
+                const isTP = card.classList.contains('verdict-tp');
+                const isFP = card.classList.contains('verdict-fp');
+                
+                let matchesFilter = true;
+                if (activeFilter === 'TP' && !isTP) matchesFilter = false;
+                if (activeFilter === 'FP' && !isFP) matchesFilter = false;
+
+                if (matchesFilter && text.includes(term)) {
+                    card.classList.remove('hidden');
+                } else {
+                    card.classList.add('hidden');
+                }
+            });
+        }
+
+        searchInput.addEventListener('input', filterCards);
+
+        filterBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                filterBtns.forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+                filterCards();
+            });
+        });
+    </script>
 </body>
 </html>
 """
@@ -99,11 +150,9 @@ def generate_report(verdicts_file: str, out_file: str):
             print(f"Error parsing JSON: {e}")
             sys.exit(1)
             
-    # Sadece array bekliyoruz
     if not isinstance(findings, list):
         findings = []
 
-    # Sort: TPs first, then FPs, then ERRORs
     def sort_key(f):
         v = str(f.get("predicted_verdict", "")).upper()
         if v == "TP": return 0
@@ -147,12 +196,10 @@ def generate_report(verdicts_file: str, out_file: str):
         '''
         cards.append(card)
         
-    html_content = HTML_TEMPLATE.format(
-        total=len(findings),
-        tp=tp_count,
-        fp=fp_count,
-        cards_html="\\n".join(cards)
-    )
+    html_content = HTML_TEMPLATE.replace("[[TOTAL]]", str(len(findings)))
+    html_content = html_content.replace("[[TP]]", str(tp_count))
+    html_content = html_content.replace("[[FP]]", str(fp_count))
+    html_content = html_content.replace("[[CARDS]]", "\\n".join(cards))
     
     with open(out_file, "w", encoding="utf-8") as f:
         f.write(html_content)
