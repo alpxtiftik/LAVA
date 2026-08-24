@@ -24,9 +24,9 @@ Write-Host "`n[2/3] PyInstaller çalıştırılıyor (Bu işlem biraz sürebilir
 # PyInstaller ayarları:
 # --noconsole: Arka planda siyah cmd penceresi açılmasın
 # --onefile: Tek bir .exe çıktısı versin
-# --add-data "gui/ui;ui": Arayüz kodlarını (HTML/CSS/JS) pakete dahil et
+# --add-data "src/gui/ui;ui": Arayüz kodlarını (HTML/CSS/JS) pakete dahil et
 # --name "LAVA_UI": Çıktı dosyasının adı
-pyinstaller --noconsole --onefile --add-data "gui/ui;ui" --name "LAVA_UI" gui/gui_main.py
+pyinstaller --noconsole --onefile --add-data "src/gui/ui;ui" --name "LAVA_UI" src/gui/gui_main.py
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Hata: PyInstaller derlemesi başarısız oldu!" -ForegroundColor Red

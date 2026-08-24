@@ -14,8 +14,8 @@ if getattr(sys, 'frozen', False):
     APP_DIR = os.path.dirname(sys.executable)
 else:
     DIRECTORY = os.path.dirname(os.path.abspath(__file__))
-    # Uygulama kök dizini LAVA klasörüdür
-    APP_DIR = os.path.dirname(DIRECTORY)
+    # Uygulama kök dizini LAVA klasörüdür (src/gui -> üstü src -> üstü LAVA)
+    APP_DIR = os.path.dirname(os.path.dirname(DIRECTORY))
 
 class Api:
     def open_folder_dialog(self):
@@ -41,7 +41,7 @@ class Api:
             if sys.platform == "win32":
                 CREATE_NO_WINDOW = 0x08000000
                 CREATE_NEW_PROCESS_GROUP = 0x00000200
-                ps1_path = os.path.join(APP_DIR, "cli", "run_lava.ps1")
+                ps1_path = os.path.join(APP_DIR, "scripts", "run_lava.ps1")
                 cmd = ["powershell", "-ExecutionPolicy", "Bypass", "-File", ps1_path, "-LogDir", log_dir]
                 log_out = open(os.path.join(APP_DIR, "lava_scan.log"), "w", encoding="utf-8")
                 scan_process = subprocess.Popen(
@@ -52,7 +52,7 @@ class Api:
                     stderr=subprocess.STDOUT
                 )
             else:
-                sh_path = os.path.join(APP_DIR, "cli", "run_lava.sh")
+                sh_path = os.path.join(APP_DIR, "scripts", "run_lava.sh")
                 cmd = ["bash", sh_path, "-LogDir", log_dir]
                 log_out = open(os.path.join(APP_DIR, "lava_scan.log"), "w", encoding="utf-8")
                 scan_process = subprocess.Popen(
@@ -123,7 +123,7 @@ class Api:
             return {"status": "error", "message": "No verdicts.json found. Please run a scan first."}
             
         try:
-            generator_script = os.path.join(APP_DIR, "cli", "generate_html_report.py")
+            generator_script = os.path.join(APP_DIR, "src", "reporting", "html_report.py")
             cmd = ["py", generator_script, "--verdicts", verdicts_file, "--out", report_file]
             
             # Subprocess without console window on Windows

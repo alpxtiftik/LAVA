@@ -48,26 +48,26 @@ Write-Host "=========================================" -ForegroundColor Cyan
 
 # 1. Parse
 Write-Host "[1/3] EMBA loglari ayristiriliyor (parse)..." -ForegroundColor Yellow
-py parser_and_enrichs/parse_emba_findings.py --log-dir "$LogDir" --out "$FindingsFile" --merged-out "$MergedFile"
-if ($LASTEXITCODE -ne 0) { Write-Host "Hata: parse_emba_findings.py basarisiz oldu!" -ForegroundColor Red; exit $LASTEXITCODE }
+py src/core/parser.py --log-dir "$LogDir" --out "$FindingsFile" --merged-out "$MergedFile"
+if ($LASTEXITCODE -ne 0) { Write-Host "Hata: parser.py basarisiz oldu!" -ForegroundColor Red; exit $LASTEXITCODE }
 Write-Host "[OK] Ayristirma tamamlandi." -ForegroundColor Green
 
 # 2. Enrich
 Write-Host "`n[2/3] Baglam olusturuluyor (enrich)..." -ForegroundColor Yellow
-py parser_and_enrichs/enrich_context.py --merged "$MergedFile" --log-dir "$LogDir" --out "$EnrichedFile"
-if ($LASTEXITCODE -ne 0) { Write-Host "Hata: enrich_context.py basarisiz oldu!" -ForegroundColor Red; exit $LASTEXITCODE }
+py src/core/enricher.py --merged "$MergedFile" --log-dir "$LogDir" --out "$EnrichedFile"
+if ($LASTEXITCODE -ne 0) { Write-Host "Hata: enricher.py basarisiz oldu!" -ForegroundColor Red; exit $LASTEXITCODE }
 Write-Host "[OK] Baglam dosyalari (context) basariyla eklendi." -ForegroundColor Green
 
 # 3. Classify (AI)
 Write-Host "`n[3/3] LLM Siniflandirma Basliyor (Bu adim uzun surebilir)..." -ForegroundColor Yellow
-py llm_classifier.py --mode run --config config/ai_config.env --ground-truth ground_truth.json --enriched "$EnrichedFile" --out "$VerdictsFile"
-if ($LASTEXITCODE -ne 0) { Write-Host "Hata: llm_classifier.py basarisiz oldu!" -ForegroundColor Red; exit $LASTEXITCODE }
+py src/core/classifier.py --mode run --config config/ai_config.env --ground-truth ground_truth.json --enriched "$EnrichedFile" --out "$VerdictsFile"
+if ($LASTEXITCODE -ne 0) { Write-Host "Hata: classifier.py basarisiz oldu!" -ForegroundColor Red; exit $LASTEXITCODE }
 Write-Host "[OK] Siniflandirma tamamlandi! Sonuclar $VerdictsFile dosyasina yazildi." -ForegroundColor Green
 
 # 4. Generate HTML Report
 Write-Host "`n[4/4] HTML Raporu olusturuluyor..." -ForegroundColor Yellow
-py cli/generate_html_report.py --verdicts "$VerdictsFile" --out "$ReportFile"
-if ($LASTEXITCODE -ne 0) { Write-Host "Hata: generate_html_report.py basarisiz oldu!" -ForegroundColor Red; exit $LASTEXITCODE }
+py src/reporting/html_report.py --verdicts "$VerdictsFile" --out "$ReportFile"
+if ($LASTEXITCODE -ne 0) { Write-Host "Hata: html_report.py basarisiz oldu!" -ForegroundColor Red; exit $LASTEXITCODE }
 Write-Host "[OK] Rapor tamamlandi! Cikti: $ReportFile" -ForegroundColor Green
 
 Write-Host "`n=========================================" -ForegroundColor Cyan

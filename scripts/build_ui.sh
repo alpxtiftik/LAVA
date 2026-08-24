@@ -11,8 +11,7 @@ echo "========================================="
 echo "[1/3] Kütüphaneler kontrol ediliyor..."
 pip3 install -r requirements.txt
 
-echo -e "\n[2/3] PyInstaller çalıştırılıyor (Bu işlem biraz sürebilir)..."
-pyinstaller --noconsole --onefile --add-data "gui/ui:ui" --name "LAVA_UI" gui/gui_main.py
+pyinstaller --noconsole --onefile --add-data "src/gui/ui:ui" --name "LAVA_UI" src/gui/gui_main.py
 
 if [ $? -ne 0 ]; then
     echo "Hata: PyInstaller derlemesi başarısız oldu!"
