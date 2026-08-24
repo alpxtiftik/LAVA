@@ -71,7 +71,7 @@ class Api:
         if scan_process and scan_process.poll() is None:
             try:
                 if sys.platform == "win32":
-                    os.kill(scan_process.pid, signal.CTRL_BREAK_EVENT)
+                    subprocess.call(['taskkill', '/F', '/T', '/PID', str(scan_process.pid)], creationflags=subprocess.CREATE_NO_WINDOW)
                 else:
                     os.killpg(os.getpgid(scan_process.pid), signal.SIGTERM)
                 scan_process.terminate()
@@ -121,7 +121,7 @@ if __name__ == "__main__":
     if scan_process and scan_process.poll() is None:
         try:
             if sys.platform == "win32":
-                os.kill(scan_process.pid, signal.CTRL_BREAK_EVENT)
+                subprocess.call(['taskkill', '/F', '/T', '/PID', str(scan_process.pid)], creationflags=subprocess.CREATE_NO_WINDOW)
             else:
                 os.killpg(os.getpgid(scan_process.pid), signal.SIGTERM)
             scan_process.terminate()
