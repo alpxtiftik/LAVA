@@ -36,12 +36,12 @@ You can manage the entire pipeline natively from the UI. First, you need to comp
 
 **Windows:**
 ```powershell
-.\gui\build_ui.ps1
+.\scripts\build_ui.ps1
 ```
 
 **Linux / macOS:**
 ```bash
-bash gui/build_ui.sh
+bash scripts/build_ui.sh
 ```
 
 After building:
@@ -54,12 +54,12 @@ If you prefer running the orchestration script from the terminal instead of the 
 
 **Windows:**
 ```powershell
-.\cli\run_lava.ps1 -LogDir "emba_iotgoat_log"
+.\scripts\run_lava.ps1 -LogDir "emba_iotgoat_log"
 ```
 
 **Linux / macOS:**
 ```bash
-bash cli/run_lava.sh -LogDir "emba_iotgoat_log"
+bash scripts/run_lava.sh -LogDir "emba_iotgoat_log"
 ```
 > **⚠️ IMPORTANT:** Make sure the `-LogDir` argument matches the exact name of your EMBA log folder (e.g. `emba_iotgoat_log`).
 
@@ -67,13 +67,13 @@ bash cli/run_lava.sh -LogDir "emba_iotgoat_log"
 If you prefer to run the steps manually:
 ```bash
 # 1. Parse raw EMBA logs
-python parser_and_enrichs/parse_emba_findings.py --log-dir "emba_iotgoat_log" --out findings.json --merged-out merged_findings.json
+python src/core/parser.py --log-dir "emba_iotgoat_log" --out findings.json --merged-out merged_findings.json
 
 # 2. Enrich findings with actual file context
-python parser_and_enrichs/enrich_context.py --merged merged_findings.json --log-dir "emba_iotgoat_log" --out enriched_findings.json
+python src/core/enricher.py --merged merged_findings.json --log-dir "emba_iotgoat_log" --out enriched_findings.json
 
 # 3. Classify using Local AI
-python llm_classifier.py --mode run --config config/ai_config.env --ground-truth ground_truth.json --enriched enriched_findings.json --out verdicts.json
+python src/core/classifier.py --mode run --config config/ai_config.env --ground-truth ground_truth.json --enriched enriched_findings.json --out verdicts.json
 ```
 
 ## License
