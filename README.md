@@ -36,16 +36,16 @@ You can manage the entire pipeline natively from the UI. First, you need to comp
 
 **Windows:**
 ```powershell
-.\build_ui.ps1
+.\gui\build_ui.ps1
 ```
 
 **Linux / macOS:**
 ```bash
-./build_ui.sh
+bash gui/build_ui.sh
 ```
 
 After building:
-1. Run `dist/LAVA_UI/LAVA_UI` (or `LAVA_UI.exe` on Windows).
+1. Run `LAVA_UI` (or `LAVA_UI.exe` on Windows).
 2. Click **Browse (📁 Select)** and select your EMBA log folder (e.g., `emba_iotgoat_log`).
 3. Click **Start Scan**. The UI will show a real-time status and automatically populate findings once they are analyzed.
 
@@ -54,12 +54,12 @@ If you prefer running the orchestration script from the terminal instead of the 
 
 **Windows:**
 ```powershell
-.\run_lava.ps1 -LogDir "emba_iotgoat_log"
+.\cli\run_lava.ps1 -LogDir "emba_iotgoat_log"
 ```
 
 **Linux / macOS:**
 ```bash
-bash run_lava.sh -LogDir "emba_iotgoat_log"
+bash cli/run_lava.sh -LogDir "emba_iotgoat_log"
 ```
 > **⚠️ IMPORTANT:** Make sure the `-LogDir` argument matches the exact name of your EMBA log folder (e.g. `emba_iotgoat_log`).
 

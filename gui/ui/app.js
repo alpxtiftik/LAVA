@@ -1,17 +1,28 @@
 let allFindings = [];
 
-document.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('pywebviewready', () => {
     fetchData();
     setupEventListeners();
     checkStatus();
     setInterval(checkStatus, 3000);
 });
 
+setTimeout(() => {
+    if (!window.pywebview) {
+        const grid = document.getElementById('findingsGrid');
+        if (grid) grid.innerHTML = '<div class="loading-state"><p style="color: var(--danger)">PyWebView not detected. Please run LAVA_UI.exe</p></div>';
+    }
+}, 2000);
+
 async function fetchData() {
     try {
-        const response = await fetch('/verdicts.json');
-        if (!response.ok) throw new Error('Network response was not ok');
-        allFindings = await response.json();
+        if (!window.pywebview || !window.pywebview.api) {
+            throw new Error('PyWebView API not available.');
+        }
+        allFindings = await window.pywebview.api.get_verdicts();
+        if (allFindings.error) {
+            throw new Error(allFindings.error);
+        }
         
         populateModuleFilter();
         updateStats();
@@ -210,10 +221,9 @@ function animateValue(id, start, end, duration) {
 
 // Scan Control API Calls
 async function checkStatus() {
+    if (!window.pywebview || !window.pywebview.api) return;
     try {
-        const res = await fetch('/api/status');
-        if (!res.ok) return;
-        const data = await res.json();
+        const data = await window.pywebview.api.get_status();
         const indicator = document.getElementById('scanStatusIndicator');
         const startBtn = document.getElementById('startScanBtn');
         const stopBtn = document.getElementById('stopScanBtn');
@@ -267,14 +277,15 @@ async function startScan() {
         return;
     }
     
+    if (!window.pywebview || !window.pywebview.api) {
+        alert("Native API is not available.");
+        return;
+    }
+
     try {
-        const res = await fetch('/api/start', {
-            method: 'POST',
-            body: JSON.stringify({ logDir })
-        });
-        if (!res.ok) {
-            const err = await res.text();
-            alert("Failed to start scan: " + err);
+        const res = await window.pywebview.api.start_scan(logDir);
+        if (res.status === 'error') {
+            alert("Failed to start scan: " + res.message);
         } else {
             checkStatus();
         }
@@ -284,11 +295,11 @@ async function startScan() {
 }
 
 async function stopScan() {
+    if (!window.pywebview || !window.pywebview.api) return;
     try {
-        const res = await fetch('/api/stop', { method: 'POST' });
-        if (!res.ok) {
-            const err = await res.text();
-            alert("Failed to stop scan: " + err);
+        const res = await window.pywebview.api.stop_scan();
+        if (res.status === 'error') {
+            alert("Failed to stop scan: " + res.message);
         } else {
             checkStatus();
         }

@@ -2,8 +2,11 @@
 .SYNOPSIS
     LAVA Arayüzü Derleme (Build) Scripti
 .DESCRIPTION
-    start_ui.py ve ui/ klasörünü tek bir LAVA_UI.exe dosyasına dönüştürür.
+    gui/gui_main.py ve gui/ui/ klasörünü tek bir LAVA_UI.exe dosyasına dönüştürür.
 #>
+
+# Scriptin bulunduğu klasörden bağımsız olarak ana dizine geç
+Set-Location "$PSScriptRoot\.."
 
 Write-Host "=========================================" -ForegroundColor Cyan
 Write-Host "LAVA UI Masaüstü Uygulaması Derleniyor..." -ForegroundColor Cyan
@@ -17,9 +20,9 @@ Write-Host "`n[2/3] PyInstaller çalıştırılıyor (Bu işlem biraz sürebilir
 # PyInstaller ayarları:
 # --noconsole: Arka planda siyah cmd penceresi açılmasın
 # --onefile: Tek bir .exe çıktısı versin
-# --add-data "ui;ui": Arayüz kodlarını (HTML/CSS/JS) pakete dahil et (Windows için ayraç noktalı virgüldür ;)
+# --add-data "gui/ui;ui": Arayüz kodlarını (HTML/CSS/JS) pakete dahil et
 # --name "LAVA_UI": Çıktı dosyasının adı
-pyinstaller --noconsole --onefile --add-data "ui;ui" --name "LAVA_UI" start_ui.py
+pyinstaller --noconsole --onefile --add-data "gui/ui;ui" --name "LAVA_UI" gui/gui_main.py
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Hata: PyInstaller derlemesi başarısız oldu!" -ForegroundColor Red
@@ -30,8 +33,12 @@ Write-Host "`n[3/3] Derleme tamamlandı. Geçici dosyalar temizleniyor..." -Fore
 # Gereksiz geçici dosyaları temizle
 Remove-Item -Recurse -Force build
 Remove-Item LAVA_UI.spec
+# LAVA_UI.exe'yi ana dizine taşı
+Move-Item -Force dist\LAVA_UI.exe .\LAVA_UI.exe
+Remove-Item -Recurse -Force dist
 
 Write-Host "`n=========================================" -ForegroundColor Cyan
 Write-Host "[OK] LAVA_UI.exe başarıyla oluşturuldu!" -ForegroundColor Green
-Write-Host "Çıktı klasörü: .\dist\LAVA_UI.exe" -ForegroundColor Green
+Write-Host "Çıktı dosyası: .\LAVA_UI.exe" -ForegroundColor Green
+Write-Host "Lütfen uygulamayı başlatmak için LAVA_UI.exe'ye çift tıklayın." -ForegroundColor Green
 Write-Host "=========================================" -ForegroundColor Cyan

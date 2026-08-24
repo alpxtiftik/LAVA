@@ -20,13 +20,13 @@ Write-Host "=========================================" -ForegroundColor Cyan
 
 # 1. Parse
 Write-Host "[1/3] EMBA loglari ayristiriliyor (parse)..." -ForegroundColor Yellow
-py parser_and_enrichs/parse_emba_findings.py --log-dir $LogDir --out findings.json --merged-out merged_findings.json
+py parser_and_enrichs/parse_emba_findings.py --log-dir "$LogDir" --out findings.json --merged-out merged_findings.json
 if ($LASTEXITCODE -ne 0) { Write-Host "Hata: parse_emba_findings.py basarisiz oldu!" -ForegroundColor Red; exit $LASTEXITCODE }
 Write-Host "[OK] Ayristirma tamamlandi." -ForegroundColor Green
 
 # 2. Enrich
 Write-Host "`n[2/3] Baglam olusturuluyor (enrich)..." -ForegroundColor Yellow
-py parser_and_enrichs/enrich_context.py --merged merged_findings.json --log-dir $LogDir --out enriched_findings.json
+py parser_and_enrichs/enrich_context.py --merged merged_findings.json --log-dir "$LogDir" --out enriched_findings.json
 if ($LASTEXITCODE -ne 0) { Write-Host "Hata: enrich_context.py basarisiz oldu!" -ForegroundColor Red; exit $LASTEXITCODE }
 Write-Host "[OK] Baglam dosyalari (context) basariyla eklendi." -ForegroundColor Green
 
