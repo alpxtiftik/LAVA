@@ -5,6 +5,10 @@
     gui/gui_main.py ve gui/ui/ klasörünü tek bir LAVA_UI.exe dosyasına dönüştürür.
 #>
 
+# Konsol çıktısını UTF-8 olarak ayarla (Türkçe karakterlerin bozulmaması için)
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+
 # Scriptin bulunduğu klasörden bağımsız olarak ana dizine geç
 Set-Location "$PSScriptRoot\.."
 

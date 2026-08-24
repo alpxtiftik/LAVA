@@ -14,6 +14,11 @@ param(
     [string]$LogDir
 )
 
+# Konsol çıktısını UTF-8 olarak ayarla (Türkçe karakterlerin bozulmaması için)
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+
+
 Write-Host "=========================================" -ForegroundColor Cyan
 Write-Host "LAVA Pipeline Baslatiliyor..." -ForegroundColor Cyan
 Write-Host "=========================================" -ForegroundColor Cyan
@@ -38,5 +43,5 @@ Write-Host "[OK] Siniflandirma tamamlandi! Sonuclar verdicts.json dosyasina yazi
 
 Write-Host "`n=========================================" -ForegroundColor Cyan
 Write-Host "LAVA Tamamlandi!" -ForegroundColor Cyan
-Write-Host "Sonuclari incelemek icin arayuzu baslatin: py start_ui.py" -ForegroundColor Cyan
+Write-Host "Sonuclari incelemek icin arayuzu baslatin: LAVA_UI.exe" -ForegroundColor Cyan
 Write-Host "=========================================" -ForegroundColor Cyan
