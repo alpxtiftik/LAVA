@@ -8,9 +8,19 @@ echo "========================================="
 echo "LAVA UI Masaüstü Uygulaması Derleniyor..."
 echo "========================================="
 
-echo "[1/3] Kütüphaneler kontrol ediliyor..."
-pip3 install -r requirements.txt
+echo "[1/3] Kütüphaneler kontrol ediliyor (Sanal Ortam/venv)..."
 
+# Create a virtual environment if it doesn't exist
+if [ ! -d "venv" ]; then
+    python3 -m venv --system-site-packages venv
+fi
+
+# Activate the virtual environment
+source venv/bin/activate
+
+pip install -r requirements.txt
+
+echo "[2/3] PyInstaller ile derleniyor..."
 pyinstaller --noconsole --onefile --add-data "src/gui/ui:ui" --name "LAVA_UI" src/gui/gui_main.py
 
 if [ $? -ne 0 ]; then
