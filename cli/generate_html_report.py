@@ -199,7 +199,7 @@ def generate_report(verdicts_file: str, out_file: str):
     html_content = HTML_TEMPLATE.replace("[[TOTAL]]", str(len(findings)))
     html_content = html_content.replace("[[TP]]", str(tp_count))
     html_content = html_content.replace("[[FP]]", str(fp_count))
-    html_content = html_content.replace("[[CARDS]]", "\\n".join(cards))
+    html_content = html_content.replace("[[CARDS]]", "\n".join(cards))
     
     with open(out_file, "w", encoding="utf-8") as f:
         f.write(html_content)
