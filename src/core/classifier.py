@@ -22,6 +22,7 @@ Kullanim:
         --enriched enriched_findings.json --out verdicts.json
 """
 
+import os
 import argparse
 import json
 import re
@@ -29,6 +30,12 @@ import time
 from pathlib import Path
 
 import requests
+
+def atomic_save(data: dict | list, file_path: str):
+    path = Path(file_path)
+    tmp_path = path.with_suffix(path.suffix + ".tmp")
+    tmp_path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    os.replace(tmp_path, path)
 
 # ---------------------------------------------------------------------------
 # Modele hatirlatma amacli sabit bilgi notu - kucuk modellerin hash format
@@ -319,11 +326,11 @@ def run_test_mode(args, config: dict):
 
         # Her döngü adımında ara kayıt (metrikler hariç)
         output = {"results": results, "metrics": {}}
-        Path(args.out).write_text(json.dumps(output, indent=2, ensure_ascii=False), encoding="utf-8")
+        atomic_save(output, args.out)
 
     metrics = compute_metrics(results)
     output = {"results": results, "metrics": metrics}
-    Path(args.out).write_text(json.dumps(output, indent=2, ensure_ascii=False), encoding="utf-8")
+    atomic_save(output, args.out)
 
     print("\n=== SONUÇLAR ===")
     for k, v in metrics.items():
@@ -359,13 +366,13 @@ def run_full_mode(args, config: dict):
         })
         
         # Her adımda sonuçları kaydet (Ctrl+C kesintilerine karşı)
-        Path(args.out).write_text(json.dumps(results, indent=2, ensure_ascii=False), encoding="utf-8")
+        atomic_save(results, args.out)
 
     from collections import Counter
     dist = Counter(r["predicted_verdict"] for r in results)
     
     # Her durumda (0 bulgu olsa bile) dosyayı oluştur
-    Path(args.out).write_text(json.dumps(results, indent=2, ensure_ascii=False), encoding="utf-8")
+    atomic_save(results, args.out)
     
     print("\n=== ÖZET ===")
     for k, v in dist.items():
