@@ -149,6 +149,19 @@ function setupEventListeners() {
     if (browseBtn) browseBtn.addEventListener('click', browseFolder);
     if (exportBtn) exportBtn.addEventListener('click', exportHtml);
 
+    // Mode Toggle
+    document.querySelectorAll('input[name="scanMode"]').forEach(radio => {
+        radio.addEventListener('change', (e) => {
+            const input = document.getElementById('logDirInput');
+            if (e.target.value === 'firmware') {
+                input.placeholder = "Enter Firmware File Path (e.g. firmware.bin)";
+            } else {
+                input.placeholder = "Enter EMBA Log Directory (e.g. emba_firmware_log)";
+            }
+            input.value = "";
+        });
+    });
+
     // Search
     document.getElementById('searchInput').addEventListener('input', (e) => {
         filterData(e.target.value, document.querySelector('.filter-btn.active').dataset.filter);
@@ -317,10 +330,18 @@ async function checkStatus() {
 async function browseFolder() {
     if (window.pywebview && window.pywebview.api) {
         try {
-            const path = await window.pywebview.api.open_folder_dialog();
+            const mode = document.querySelector('input[name="scanMode"]:checked').value;
+            let path = "";
+            if (mode === 'firmware') {
+                path = await window.pywebview.api.open_file_dialog();
+            } else {
+                path = await window.pywebview.api.open_folder_dialog();
+            }
             if (path) {
                 document.getElementById('logDirInput').value = path;
-                fetchData();
+                if (mode === 'log') {
+                    fetchData();
+                }
             }
         } catch (e) {
             console.error("Folder selection failed:", e);
@@ -331,9 +352,11 @@ async function browseFolder() {
 }
 
 async function startScan() {
-    const logDir = document.getElementById('logDirInput').value.trim();
-    if (!logDir) {
-        alert("Please enter an EMBA Log Directory (e.g. emba_example_log)");
+    const inputPath = document.getElementById('logDirInput').value.trim();
+    const mode = document.querySelector('input[name="scanMode"]:checked').value;
+    
+    if (!inputPath) {
+        alert("Please enter a path first.");
         return;
     }
     
@@ -343,10 +366,17 @@ async function startScan() {
     }
 
     try {
-        const res = await window.pywebview.api.start_scan(logDir);
+        const res = await window.pywebview.api.start_scan(inputPath, mode);
         if (res.status === 'error') {
             alert("Failed to start scan: " + res.message);
         } else {
+            if (res.log_dir) {
+                // In firmware mode, the backend auto-generates the log_dir path
+                document.getElementById('logDirInput').value = res.log_dir;
+                // Switch mode back to log so that if user stops, they are left on the log view
+                document.querySelector('input[value="log"]').checked = true;
+                document.getElementById('logDirInput').placeholder = "Enter EMBA Log Directory (e.g. emba_firmware_log)";
+            }
             checkStatus();
         }
     } catch (e) {

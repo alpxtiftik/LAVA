@@ -28,11 +28,21 @@ class Api:
             print(f"Dialog error: {e}")
         return ""
 
-    def start_scan(self, log_dir):
+    def open_file_dialog(self):
+        try:
+            window = webview.windows[0]
+            result = window.create_file_dialog(webview.OPEN_DIALOG, allow_multiple=False)
+            if result and len(result) > 0:
+                return result[0]
+        except Exception as e:
+            print(f"Dialog error: {e}")
+        return ""
+
+    def start_scan(self, input_path, mode="log"):
         global scan_process
-        log_dir = log_dir.strip()
-        if not log_dir:
-            return {"status": "error", "message": "logDir required"}
+        input_path = input_path.strip()
+        if not input_path:
+            return {"status": "error", "message": "Input path required"}
         
         if scan_process and scan_process.poll() is None:
             return {"status": "error", "message": "Scan already running"}
@@ -41,8 +51,15 @@ class Api:
             if sys.platform == "win32":
                 CREATE_NO_WINDOW = 0x08000000
                 CREATE_NEW_PROCESS_GROUP = 0x00000200
-                ps1_path = os.path.join(APP_DIR, "scripts", "run_lava.ps1")
-                cmd = ["powershell", "-ExecutionPolicy", "Bypass", "-File", ps1_path, "-LogDir", log_dir]
+                
+                if mode == "firmware":
+                    ps1_path = os.path.join(APP_DIR, "scripts", "run_emba_lava.ps1")
+                    log_dir = os.path.join(os.path.dirname(input_path), "emba_logs_" + os.path.basename(input_path))
+                    cmd = ["powershell", "-ExecutionPolicy", "Bypass", "-File", ps1_path, "-FirmwarePath", input_path, "-LogDir", log_dir]
+                else:
+                    ps1_path = os.path.join(APP_DIR, "scripts", "run_lava.ps1")
+                    cmd = ["powershell", "-ExecutionPolicy", "Bypass", "-File", ps1_path, "-LogDir", input_path]
+                    
                 log_out = open(os.path.join(APP_DIR, "lava_scan.log"), "w", encoding="utf-8")
                 scan_process = subprocess.Popen(
                     cmd, 
@@ -52,8 +69,14 @@ class Api:
                     stderr=subprocess.STDOUT
                 )
             else:
-                sh_path = os.path.join(APP_DIR, "scripts", "run_lava.sh")
-                cmd = ["bash", sh_path, "-LogDir", log_dir]
+                if mode == "firmware":
+                    sh_path = os.path.join(APP_DIR, "scripts", "run_emba_lava.sh")
+                    log_dir = os.path.join(os.path.dirname(input_path), "emba_logs_" + os.path.basename(input_path))
+                    cmd = ["bash", sh_path, "-FirmwarePath", input_path, "-LogDir", log_dir]
+                else:
+                    sh_path = os.path.join(APP_DIR, "scripts", "run_lava.sh")
+                    cmd = ["bash", sh_path, "-LogDir", input_path]
+                    
                 log_out = open(os.path.join(APP_DIR, "lava_scan.log"), "w", encoding="utf-8")
                 scan_process = subprocess.Popen(
                     cmd, 
@@ -62,7 +85,11 @@ class Api:
                     stdout=log_out,
                     stderr=subprocess.STDOUT
                 )
-            return {"status": "success", "message": "Started"}
+            
+            msg = f"Started LAVA pipeline for {input_path}"
+            if mode == "firmware":
+                msg = f"Started EMBA + LAVA pipeline for firmware {input_path}"
+            return {"status": "success", "message": msg, "log_dir": log_dir if mode == "firmware" else input_path}
         except Exception as e:
             return {"status": "error", "message": str(e)}
 

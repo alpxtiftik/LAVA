@@ -32,9 +32,19 @@
         </header>
 
         <main>
+            <div class="mode-toggle" style="margin-bottom: 1rem; display: flex; gap: 1rem; align-items: center;">
+                <label style="color: var(--text-secondary); font-weight: 600;">Mode:</label>
+                <label style="color: var(--text-primary); cursor: pointer;">
+                    <input type="radio" name="scanMode" value="log" checked> Analyze EMBA Log Directory
+                </label>
+                <label style="color: var(--text-primary); cursor: pointer;">
+                    <input type="radio" name="scanMode" value="firmware"> Full Pipeline (Scan Firmware)
+                </label>
+            </div>
+
             <div class="scan-panel">
                 <input type="text" id="logDirInput" placeholder="Enter EMBA Log Directory (e.g. emba_firmware_log)">
-                <button id="browseBtn" class="btn-secondary" title="Browse Folder">📁 Select</button>
+                <button id="browseBtn" class="btn-secondary" title="Browse">📁 Select</button>
                 <button id="startScanBtn" class="btn-primary">▶ Start Scan</button>
                 <button id="stopScanBtn" class="btn-danger" disabled>⏹ Stop Scan</button>
                 <span id="scanStatusIndicator" class="status-indicator status-idle">IDLE</span>
