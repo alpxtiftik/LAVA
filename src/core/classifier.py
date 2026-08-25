@@ -113,6 +113,7 @@ def load_ai_config(config_path: Path) -> dict:
         "LOCAL_AI_IP": "127.0.0.1",
         "LOCAL_AI_MODEL": "",
         "AI_MAX_CHARS_TO_ANALYSE": "5000",
+        "LOCAL_AI_PORT": "11434",
     }
     if not config_path.exists():
         return config
@@ -296,7 +297,7 @@ def run_test_mode(args, config: dict):
     test_set = data["test_set"]
 
     system_prompt = build_system_prompt(few_shot)
-    base_url = f"http://{config['LOCAL_AI_IP']}:11434"
+    base_url = f"http://{config['LOCAL_AI_IP']}:{config['LOCAL_AI_PORT']}"
     max_chars = int(config.get("AI_MAX_CHARS_TO_ANALYSE", 5000))
 
     results = []
@@ -338,7 +339,7 @@ def run_full_mode(args, config: dict):
 
     findings = json.loads(Path(args.enriched).read_text(encoding="utf-8"))
     system_prompt = build_system_prompt(few_shot)
-    base_url = f"http://{config['LOCAL_AI_IP']}:11434"
+    base_url = f"http://{config['LOCAL_AI_IP']}:{config['LOCAL_AI_PORT']}"
     max_chars = int(config.get("AI_MAX_CHARS_TO_ANALYSE", 5000))
 
     results = []
