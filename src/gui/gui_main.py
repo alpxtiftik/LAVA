@@ -83,8 +83,10 @@ class Api:
 
     def get_status(self):
         global scan_process
-        is_running = scan_process is not None and scan_process.poll() is None
-        return {"running": is_running}
+        if scan_process is not None:
+            poll = scan_process.poll()
+            return {"running": poll is None, "exit_code": poll}
+        return {"running": False}
 
     def get_verdicts(self, log_dir):
         if not log_dir:

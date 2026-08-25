@@ -290,6 +290,11 @@ async function checkStatus() {
             // If it was running and now it's not, refresh one last time
             if (indicator.textContent === 'RUNNING...') {
                 fetchData();
+                if (data.exit_code === 0) {
+                    alert("Scan completed successfully!");
+                } else if (data.exit_code !== null && data.exit_code !== undefined && data.exit_code !== 1) { // 1 is taskkill error on stop, mostly ignore
+                    alert("Scan failed or was stopped (exit code: " + data.exit_code + "). Check lava_scan.log for details.");
+                }
             }
             indicator.textContent = 'IDLE';
             indicator.className = 'status-indicator status-idle';
