@@ -14,6 +14,7 @@ import argparse
 import csv
 import json
 import re
+import sys
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -283,6 +284,13 @@ def main():
     args = ap.parse_args()
 
     log_dir = Path(args.log_dir)
+    
+    if not (log_dir / "csv_logs").exists() and not (log_dir / "s99_grepit").exists():
+        print(f"[!] HATA: Secilen klasor gecerli bir EMBA log dizini degil!")
+        print(f"    '{log_dir}' icinde 'csv_logs' veya 's99_grepit' klasorleri bulunamadi.")
+        print(f"    Eger EMBA loglarini zip'ten cikardiysaniz, bir alt klasoru secmis olabilirsiniz.")
+        print(f"    Lutfen icinde 'csv_logs', 'firmware' vb. klasorlerin oldugu asil log dizinini secin.")
+        sys.exit(1)
 
     all_findings: list[dict] = []
     all_findings += parse_s45(log_dir / "csv_logs" / "s45_pass_file_check.csv")
