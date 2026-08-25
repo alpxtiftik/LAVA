@@ -27,20 +27,29 @@ def find_extraction_roots(log_dir: Path) -> list[Path]:
 
 def resolve_real_path(relative_path: str, log_dir: Path, roots: list[Path]) -> Path | None:
     """normalize_path() tarafindan kisaltilmis path'i (orn. 'etc/shadow')
-    gercek extraction dizinindeki fiziksel dosyaya geri baglar."""
+    gercek extraction dizinindeki fiziksel dosyaya geri baglar.
+    Path traversal saldirilarini engellemek icin is_relative_to kullanir."""
     if relative_path.startswith("/logs/"):
-        candidate = log_dir / relative_path[6:]
-        if candidate.is_file():
-            return candidate
+        candidate = (log_dir / relative_path[6:]).resolve()
+        try:
+            if candidate.is_relative_to(log_dir.resolve()) and candidate.is_file():
+                return candidate
+        except ValueError:
+            pass
 
     rel = relative_path.lstrip("/")
     for root in roots:
-        candidate = root / rel
-        if candidate.is_file():
-            return candidate
+        candidate = (root / rel).resolve()
+        try:
+            if candidate.is_relative_to(root.resolve()) and candidate.is_file():
+                return candidate
+        except ValueError:
+            pass
             
     # Fallback: eger sadece dosya adi varsa, root icinde ara
     filename = Path(relative_path).name
+    if "/" in filename or "\\" in filename:
+        return None  # Prevent weird names that might bypass traversal
     for root in roots:
         for p in root.rglob(filename):
             if p.is_file():
