@@ -1,5 +1,6 @@
 import os
 import sys
+# pyrefly: ignore [missing-import]
 import webview
 import subprocess
 import signal
@@ -165,7 +166,8 @@ class Api:
             
         try:
             generator_script = os.path.join(APP_DIR, "src", "reporting", "html_report.py")
-            cmd = ["py", generator_script, "--verdicts", verdicts_file, "--out", report_file]
+            python_exec = "py" if sys.platform == "win32" else "python3"
+            cmd = [python_exec, generator_script, "--verdicts", verdicts_file, "--out", report_file]
             
             # Subprocess without console window on Windows
             if sys.platform == "win32":

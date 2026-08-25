@@ -8,3 +8,5 @@ build/
 *.spec
 *.exe
 *.log
+venv/
+LAVA_UI
