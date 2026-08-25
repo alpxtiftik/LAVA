@@ -98,7 +98,7 @@ FEW_SHOT_ITEM_TEMPLATE = """### Örnek {n}
 Dosya: {file_path}
 Modül: {module}
 Eşleşen içerik: {matched_content}
-Doğru cevap: {{"verdict": "{verdict}", "reasoning": "{reasoning}"}}
+Doğru cevap: {{"verdict": "{verdict}", "confidence": 0.99, "reasoning": "{reasoning}"}}
 """
 
 USER_PROMPT_TEMPLATE = """Şimdi bu bulguyu değerlendir:
@@ -233,9 +233,22 @@ def parse_verdict_response(raw_text: str) -> dict | None:
     verdict = str(parsed.get("verdict", "")).strip().upper()
     if verdict not in ("TP", "FP"):
         return None
+        
+    conf_raw = parsed.get("confidence")
+    conf = 0.0
+    if conf_raw is not None:
+        try:
+            conf_val = float(conf_raw)
+            if conf_val > 1.0:
+                conf = conf_val / 100.0  # Normalize 80 to 0.80
+            else:
+                conf = conf_val
+        except (ValueError, TypeError):
+            pass
+
     return {
         "verdict": verdict,
-        "confidence": parsed.get("confidence"),
+        "confidence": conf,
         "reasoning": parsed.get("reasoning", ""),
     }
 
