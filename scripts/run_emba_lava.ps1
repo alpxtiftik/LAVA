@@ -41,9 +41,10 @@ Write-Host "Firmware: $FirmwarePath"
 Write-Host "Log Dizini: $LogDir"
 Write-Host "EMBA Dizin: $EmbaPath"
 
-$wslCmd = "fw_path=`$(wslpath -a '$FirmwarePath'); log_path=`$(wslpath -a '$LogDir'); $EmbaPath -f `$fw_path -l `$log_path"
+$emba_dir = $EmbaPath.Substring(0, $EmbaPath.LastIndexOf('/'))
+$wslCmd = "cd '$emba_dir' && ./emba -f `"`$(wslpath -a '$FirmwarePath')`" -l `"`$(wslpath -a '$LogDir')`""
 
-wsl -u root -- bash -c $wslCmd
+Write-Host "CMD: $wslCmd"; wsl -u root -- bash -c $wslCmd
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Hata: EMBA taramasi basarisiz oldu veya EMBA bulunamadi!" -ForegroundColor Red
     exit $LASTEXITCODE

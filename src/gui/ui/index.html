@@ -50,6 +50,14 @@
                 <span id="scanStatusIndicator" class="status-indicator status-idle">IDLE</span>
             </div>
 
+            <!-- Live Terminal View for running scans -->
+            <div id="terminalView" class="hidden" style="background: var(--bg-surface); padding: 15px; border-radius: 8px; border: 1px solid var(--glass-border); margin-bottom: 20px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <h3 style="margin: 0; color: var(--text-primary); font-size: 14px;">Live Scan Logs (lava_scan.log)</h3>
+                </div>
+                <pre style="margin: 0; background: #000; padding: 15px; border-radius: 5px; height: 300px; overflow-y: auto;"><code id="terminalContent" style="color: #0f0; font-family: 'JetBrains Mono', monospace; font-size: 12px; white-space: pre-wrap;"></code></pre>
+            </div>
+
             <div class="controls">
                 <div class="search-box">
                     <input type="text" id="searchInput" placeholder="Search files or content...">

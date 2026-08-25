@@ -39,7 +39,8 @@ echo "Firmware: $FirmwarePath"
 echo "Log Dizini: $LogDir"
 echo "EMBA Dizin: $EMBA_PATH"
 
-sudo $EMBA_PATH -f "$FirmwarePath" -l "$LogDir"
+emba_dir=$(dirname "$EMBA_PATH")
+sudo bash -c "cd '$emba_dir' && ./emba -f '$FirmwarePath' -l '$LogDir'"
 if [ $? -ne 0 ]; then
     echo "Hata: EMBA taramasi basarisiz oldu veya EMBA bulunamadi!"
     exit 1

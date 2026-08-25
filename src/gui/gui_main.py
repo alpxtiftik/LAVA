@@ -115,6 +115,18 @@ class Api:
             return {"running": poll is None, "exit_code": poll}
         return {"running": False}
 
+    def get_scan_logs(self):
+        log_file = os.path.join(APP_DIR, "lava_scan.log")
+        if os.path.exists(log_file):
+            try:
+                with open(log_file, "r", encoding="utf-8") as f:
+                    lines = f.readlines()
+                    # Son 50 satiri dondur
+                    return "".join(lines[-50:])
+            except Exception:
+                pass
+        return ""
+
     def get_verdicts(self, log_dir):
         if not log_dir:
             return []

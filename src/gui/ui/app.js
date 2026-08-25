@@ -292,6 +292,8 @@ async function checkStatus() {
         const startBtn = document.getElementById('startScanBtn');
         const stopBtn = document.getElementById('stopScanBtn');
         const logInput = document.getElementById('logDirInput');
+        const terminalView = document.getElementById('terminalView');
+        const terminalContent = document.getElementById('terminalContent');
         
         if (!indicator) return;
 
@@ -303,6 +305,14 @@ async function checkStatus() {
             logInput.disabled = true;
             if (document.getElementById('browseBtn')) document.getElementById('browseBtn').disabled = true;
             
+            // Show terminal and fetch live logs
+            if (terminalView) terminalView.classList.remove('hidden');
+            if (terminalContent && window.pywebview.api.get_scan_logs) {
+                const logs = await window.pywebview.api.get_scan_logs();
+                terminalContent.textContent = logs;
+                terminalContent.parentElement.scrollTop = terminalContent.parentElement.scrollHeight;
+            }
+
             // Fetch live data while running
             fetchData();
         } else {
@@ -311,6 +321,7 @@ async function checkStatus() {
                 fetchData();
                 if (data.exit_code === 0) {
                     alert("Scan completed successfully!");
+                    if (terminalView) terminalView.classList.add('hidden');
                 } else if (data.exit_code !== null && data.exit_code !== undefined && data.exit_code !== 1) { // 1 is taskkill error on stop, mostly ignore
                     alert("Scan failed or was stopped (exit code: " + data.exit_code + "). Check lava_scan.log for details.");
                 }
@@ -370,12 +381,9 @@ async function startScan() {
         if (res.status === 'error') {
             alert("Failed to start scan: " + res.message);
         } else {
-            if (res.log_dir) {
-                // In firmware mode, the backend auto-generates the log_dir path
-                document.getElementById('logDirInput').value = res.log_dir;
-                // Switch mode back to log so that if user stops, they are left on the log view
-                document.querySelector('input[value="log"]').checked = true;
-                document.getElementById('logDirInput').placeholder = "Enter EMBA Log Directory (e.g. emba_firmware_log)";
+            if (res.log_dir && mode === 'firmware') {
+                // Sadece arkaplanda kaydedelim, arayüzde radio button değiştirmeyelim
+                // Böylece kullanıcı tarama esnasında kafa karışıklığı yaşamaz
             }
             checkStatus();
         }
