@@ -36,7 +36,13 @@ async function fetchData() {
         
         populateModuleFilter();
         updateStats();
-        renderFindings(allFindings);
+        
+        // Re-apply current filters instead of rendering all findings
+        const activeFilterBtn = document.querySelector('.filter-btn.active');
+        const verdictFilter = activeFilterBtn ? activeFilterBtn.dataset.filter : 'all';
+        const searchInput = document.getElementById('searchInput');
+        const searchTerm = searchInput ? searchInput.value : '';
+        filterData(searchTerm, verdictFilter);
     } catch (error) {
         document.getElementById('findingsGrid').innerHTML = `
             <div class="loading-state">
