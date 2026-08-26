@@ -5,8 +5,18 @@ import webview
 import subprocess
 import signal
 import json
+import base64
+import threading
+
+if sys.platform != "win32":
+    import pty
+    import fcntl
+    import termios
+    import struct
 
 scan_process = None
+scan_buffer = bytearray()
+scan_buffer_lock = threading.Lock()
 
 # PyInstaller .exe olarak paketlendiğinde geçici klasörü (_MEIPASS) kullan, aksi halde mevcut dizini kullan
 if getattr(sys, 'frozen', False):
@@ -79,14 +89,40 @@ class Api:
                     sh_path = os.path.join(APP_DIR, "scripts", "run_lava.sh")
                     cmd = ["bash", sh_path, "-LogDir", input_path]
                     
-                log_out = open(os.path.join(APP_DIR, "lava_scan.log"), "w", encoding="utf-8")
+                global scan_buffer
+                with scan_buffer_lock:
+                    scan_buffer.clear()
+                    
+                master_fd, slave_fd = pty.openpty()
+                winsize = struct.pack("HHHH", 30, 120, 0, 0)
+                fcntl.ioctl(slave_fd, termios.TIOCSWINSZ, winsize)
+                
+                env = os.environ.copy()
+                env["TERM"] = "xterm-256color"
+                
                 scan_process = subprocess.Popen(
                     cmd, 
                     preexec_fn=os.setsid,
                     cwd=APP_DIR,
-                    stdout=log_out,
-                    stderr=subprocess.STDOUT
+                    stdin=slave_fd,
+                    stdout=slave_fd,
+                    stderr=slave_fd,
+                    env=env
                 )
+                os.close(slave_fd)
+                
+                def _reader():
+                    while True:
+                        try:
+                            chunk = os.read(master_fd, 4096)
+                        except OSError:
+                            break
+                        if not chunk:
+                            break
+                        with scan_buffer_lock:
+                            scan_buffer.extend(chunk)
+                            
+                threading.Thread(target=_reader, daemon=True).start()
             
             msg = f"Started LAVA pipeline for {input_path}"
             if mode == "firmware":
@@ -119,6 +155,17 @@ class Api:
         return {"running": False}
 
     def get_scan_logs(self, last_offset=0):
+        # Linux (pty buffer)
+        if sys.platform != "win32":
+            global scan_buffer
+            with scan_buffer_lock:
+                data = bytes(scan_buffer[last_offset:])
+                new_offset = len(scan_buffer)
+            if data:
+                return {"data": base64.b64encode(data).decode("ascii"), "offset": new_offset}
+            return {"data": "", "offset": last_offset}
+            
+        # Windows (file buffer fallback)
         log_file = os.path.join(APP_DIR, "lava_scan.log")
         if os.path.exists(log_file):
             try:
@@ -126,7 +173,8 @@ class Api:
                     f.seek(last_offset)
                     data = f.read()
                     new_offset = f.tell()
-                    return {"data": data.decode("utf-8", errors="replace"), "offset": new_offset}
+                    if data:
+                        return {"data": base64.b64encode(data).decode("ascii"), "offset": new_offset}
             except Exception:
                 pass
         return {"data": "", "offset": last_offset}

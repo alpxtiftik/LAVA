@@ -196,7 +196,12 @@ function setupEventListeners() {
                             if (window.pywebview && window.pywebview.api.get_scan_logs) {
                                 const res = await window.pywebview.api.get_scan_logs(lastLogOffset);
                                 if (res && res.data) {
-                                    term.write(res.data);
+                                    const binary = atob(res.data);
+                                    const bytes = new Uint8Array(binary.length);
+                                    for (let i = 0; i < binary.length; i++) {
+                                        bytes[i] = binary.charCodeAt(i);
+                                    }
+                                    term.write(bytes);
                                     lastLogOffset = res.offset;
                                 } else if (res && res.offset < lastLogOffset) {
                                     // Log file was truncated/restarted

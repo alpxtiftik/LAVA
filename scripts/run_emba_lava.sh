@@ -122,17 +122,13 @@ else
     PROFILE_ARG=""
 fi
 
-# Force PTY using script to preserve EMBA's native TUI with ANSI escape codes
-# We export variables to bash -c to avoid quoting nightmares with paths
-sudo LC_ALL="en_US.UTF-8" LANG="en_US.UTF-8" TERM="xterm-256color" COLUMNS="120" LINES="30" FirmwarePath="$FirmwarePath" LogDir="$LogDir" PROFILE_ARG="$PROFILE_ARG" bash -c 'cd "$1" && script -q -e -c "./emba -f \"$FirmwarePath\" -l \"$LogDir\" $PROFILE_ARG" /dev/null' _ "$emba_dir"
+# Run EMBA directly. Python's PTY will handle the terminal dimensions and UTF-8 base64 encoding.
+cd "$emba_dir"
+sudo LC_ALL="en_US.UTF-8" LANG="en_US.UTF-8" ./emba -f "$FirmwarePath" -l "$LogDir" $PROFILE_ARG
 if [ $? -ne 0 ]; then
     echo "Hata: EMBA taramasi basarisiz oldu veya EMBA bulunamadi!"
     exit 2
 fi
-
-# Restore terminal state after EMBA's PTY session
-printf '\033[0m\033[?25h\033[r'
-echo ""
 
 echo "[OK] EMBA taramasi tamamlandi!"
 
