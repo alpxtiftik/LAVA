@@ -41,25 +41,27 @@ If you want LAVA to also run EMBA for you automatically, you need:
 ## Usage
 
 ### 1. The Desktop Application (Recommended)
-You can manage the pipeline natively from the UI. First, compile the application for your OS:
+You can manage the pipeline natively from the UI. 
 
 **Windows:**
+Compile the application using the build script:
 ```powershell
 .\scripts\build_ui.ps1
 ```
+Then double-click `LAVA_UI.exe` to launch.
 
-**Linux / macOS:**
+**Linux / macOS (Plug-and-Play):**
+No compilation needed. Simply run the startup script, which will automatically configure a virtual environment, install dependencies, and launch the UI:
 ```bash
-bash scripts/build_ui.sh
+bash scripts/start_linux.sh
 ```
 
-After building:
-1. Run `LAVA_UI` (or `LAVA_UI.exe` on Windows).
-2. You will see a Mode Toggle at the top:
+**Using the UI:**
+1. You will see a Mode Toggle at the top:
    - **Analyze EMBA Log Directory:** Provide the path to a completed EMBA log directory. LAVA will run AI analysis on it. (Available on Windows and Linux).
    - **Full Pipeline (Scan Firmware):** Select a `.bin` or `.tar` firmware file. LAVA will automatically launch EMBA to scan the firmware and immediately begin AI analysis on the results. *(Linux Only)*
-3. Click **Browse (📁 Select)** and select your file or folder.
-4. Click **Start Scan**. The UI will show a real-time status, display an embedded terminal for live logs, and automatically populate findings once they are analyzed.
+2. Click **Browse (📁 Select)** and select your file or folder.
+3. Click **Start Scan**. The UI will show a real-time status, display an embedded terminal for live logs, and automatically populate findings once they are analyzed.
 
 ### 2. Automated CLI Pipeline
 If you prefer running the orchestration scripts from the terminal instead of the GUI:
