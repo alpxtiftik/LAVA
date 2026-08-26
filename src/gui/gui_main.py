@@ -18,6 +18,7 @@ if sys.platform != "win32":
 scan_process = None
 scan_buffer = bytearray()
 scan_buffer_lock = threading.Lock()
+master_fd_global = None
 
 # PyInstaller .exe olarak paketlendiğinde geçici klasörü (_MEIPASS) kullan, aksi halde mevcut dizini kullan
 if getattr(sys, 'frozen', False):
@@ -92,13 +93,15 @@ class Api:
                     sh_path = os.path.join(APP_DIR, "scripts", "run_lava.sh")
                     cmd = ["bash", sh_path, "-LogDir", input_path]
                     
-                global scan_buffer
+                global scan_buffer, master_fd_global
                 with scan_buffer_lock:
                     scan_buffer.clear()
                     
                 master_fd, slave_fd = pty.openpty()
+                master_fd_global = master_fd
                 winsize = struct.pack("HHHH", 30, 120, 0, 0)
                 fcntl.ioctl(slave_fd, termios.TIOCSWINSZ, winsize)
+
                 
                 env = os.environ.copy()
                 env["TERM"] = "xterm-256color"
@@ -156,6 +159,17 @@ class Api:
             poll = scan_process.poll()
             return {"running": poll is None, "exit_code": poll}
         return {"running": False}
+
+    def resize_pty(self, rows, cols):
+        global master_fd_global
+        if sys.platform != "win32" and master_fd_global is not None:
+            try:
+                winsize = struct.pack("HHHH", int(rows), int(cols), 0, 0)
+                fcntl.ioctl(master_fd_global, termios.TIOCSWINSZ, winsize)
+                return {"status": "success"}
+            except Exception as e:
+                return {"status": "error", "message": str(e)}
+        return {"status": "ignored"}
 
     def get_scan_logs(self, last_offset=0):
         # Linux (pty buffer)

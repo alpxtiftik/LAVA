@@ -55,11 +55,11 @@
             </div>
 
             <!-- Embedded Live Terminal View -->
-            <div id="terminalView" class="hidden" style="background: var(--bg-surface); padding: 15px; border-radius: 8px; border: 1px solid var(--glass-border); margin-bottom: 20px;">
+            <div id="terminalView" class="hidden" style="background: var(--bg-surface); padding: 15px; border-radius: 8px; border: 1px solid var(--glass-border); margin-bottom: 20px; display: flex; flex-direction: column; height: 500px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                     <h3 style="margin: 0; color: var(--text-primary); font-size: 14px;">Live Log Viewer</h3>
                 </div>
-                <div id="terminalContent" style="background: #000; padding: 10px; border-radius: 5px; height: 400px; overflow: hidden;"></div>
+                <div id="terminalContent" style="background: #000; padding: 10px; border-radius: 5px; flex: 1; overflow: hidden;"></div>
             </div>
 
             <div class="controls">

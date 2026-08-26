@@ -183,11 +183,24 @@ function setupEventListeners() {
                             theme: { background: '#000000' },
                             fontFamily: "'JetBrains Mono', monospace",
                             fontSize: 13,
-                            convertEol: true,
-                            cols: 120,
-                            rows: 30
+                            convertEol: true
                         });
+                        
+                        const fitAddon = new FitAddon.FitAddon();
+                        term.loadAddon(fitAddon);
                         term.open(tc);
+                        fitAddon.fit();
+                        
+                        const resizePty = () => {
+                            fitAddon.fit();
+                            if (window.pywebview && window.pywebview.api.resize_pty) {
+                                window.pywebview.api.resize_pty(term.rows, term.cols);
+                            }
+                        };
+                        
+                        window.addEventListener('resize', resizePty);
+                        // Make sure to size properly when the view is un-hidden
+                        setTimeout(resizePty, 100);
                     }
                     
                     // Start fetching logs
