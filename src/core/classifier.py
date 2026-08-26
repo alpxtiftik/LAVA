@@ -193,7 +193,7 @@ def build_user_prompt(item: dict, max_chars: int) -> str:
 # LocalAI cagrisi - Q03_localai_connector.sh'daki curl cagrisiyla ayni
 # endpoint/format (OpenAI-uyumlu /v1/chat/completions)
 # ---------------------------------------------------------------------------
-def call_localai(base_url: str, model: str, system_prompt: str, user_prompt: str, timeout: int = 60) -> str | None:
+def call_localai(base_url: str, model: str, system_prompt: str, user_prompt: str, timeout: int = 600) -> str | None:
     payload = {
         "model": model,
         "messages": [
