@@ -51,16 +51,22 @@ CANDIDATE_PATHS=(
     "/usr/local/emba/emba"
     "/home/$USER/emba/emba"
     "/root/emba/emba"
+    "/home/kali/emba/emba"
 )
 
-# Config dosyasini oku ve listeye ekle
+# Eger sudo ile calistirildiysa asil kullanicinin home dizinini de ekle
+if [ -n "$SUDO_USER" ]; then
+    CANDIDATE_PATHS+=("/home/$SUDO_USER/emba/emba")
+fi
+
+# Config dosyasini oku ve listeye ekle (Geriye donuk uyumluluk)
 if [ -f "config/ai_config.env" ]; then
     while IFS='=' read -r key value; do
         if [ "$key" == "EMBA_PATH" ]; then
             config_path=$(echo "$value" | tr -d '"' | tr -d "'")
-            CANDIDATE_PATHS+=("$config_path")
+            CANDIDATE_PATHS=("$config_path" "${CANDIDATE_PATHS[@]}")
         fi
-    done < config/ai_config.env
+    done < "config/ai_config.env"
 fi
 
 # Aday yollari test et
@@ -81,7 +87,7 @@ done
 
 if [ -z "$EMBA_PATH" ]; then
     echo "Hata: EMBA calistirilabilir dosyasi bulunamadi!"
-    echo "Lutfen 'config/ai_config.env' dosyasina dogru EMBA_PATH degerini girin."
+    echo "Lutfen EMBA'nin kurulu oldugundan emin olun. (Beklenen yerler: /opt/emba/emba, /home/kali/emba/emba vb.)"
     exit 1
 fi
 
