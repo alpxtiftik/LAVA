@@ -97,17 +97,18 @@ class Api:
     def stop_scan(self):
         global scan_process
         if scan_process and scan_process.poll() is None:
-            try:
-                if sys.platform == "win32":
-                    subprocess.call(['taskkill', '/F', '/T', '/PID', str(scan_process.pid)], creationflags=subprocess.CREATE_NO_WINDOW)
-                else:
+            if sys.platform == "win32":
+                subprocess.call(['taskkill', '/F', '/T', '/PID', str(scan_process.pid)], creationflags=subprocess.CREATE_NO_WINDOW)
+                # Cleanup WSL ghost processes to be safe
+                subprocess.call(['wsl', '-u', 'root', '--', 'bash', '-c', 'pkill -f emba; pkill -f run_emba; docker ps -q | xargs -r docker stop'], creationflags=subprocess.CREATE_NO_WINDOW)
+            else:
+                try:
                     os.killpg(os.getpgid(scan_process.pid), signal.SIGTERM)
-                scan_process.terminate()
-            except Exception:
-                pass
+                except Exception:
+                    scan_process.terminate()
             scan_process = None
-            return {"status": "success", "message": "Stopped"}
-        return {"status": "success", "message": "Not running"}
+            return {"status": "success"}
+        return {"status": "error", "message": "No scan running"}
 
     def get_status(self):
         global scan_process
@@ -188,7 +189,7 @@ if __name__ == "__main__":
     
     # PyWebView ile yerel masaüstü penceresi oluştur
     api = Api()
-    webview.create_window(
+    window = webview.create_window(
         title='LAVA - Local AI Vulnerability Auditor',
         url=html_file,
         width=1280,
@@ -196,6 +197,8 @@ if __name__ == "__main__":
         resizable=True,
         js_api=api
     )
+    
+    window.events.closing += api.stop_scan
     
     webview.start()
     
