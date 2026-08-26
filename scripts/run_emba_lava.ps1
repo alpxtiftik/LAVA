@@ -51,7 +51,19 @@ Write-Host "Log Dizini: $LogDir"
 Write-Host "EMBA Dizin: $EmbaPath"
 
 $emba_dir = $EmbaPath.Substring(0, $EmbaPath.LastIndexOf('/'))
-$wslCmd = "cd '$emba_dir' && ./emba -f `"`$(wslpath -a '$FirmwarePath')`" -l `"`$(wslpath -a '$LogDir')`""
+
+$ProfilePath = Join-Path -Path $PSScriptRoot -ChildPath "..\EMBA - Scan Profile\lava.00-quick-scan.emba"
+$ProfileCopyCmd = ""
+$ProfileArg = ""
+
+if (Test-Path $ProfilePath) {
+    Write-Host "Hizli tarama profili bulundu, kopyalaniyor..." -ForegroundColor Yellow
+    $ProfileCopyCmd = "cp `"\`$(wslpath -a '$ProfilePath')`" `"$emba_dir/scan-profiles/`";"
+    $ProfileArg = "-p ./scan-profiles/lava.00-quick-scan.emba"
+}
+
+# script -q -e -c ile sarmalayarak ANSI renk kodlarinin kaybolmamasini sagla
+$wslCmd = "FW=`$(wslpath -a '$FirmwarePath'); LOG=`$(wslpath -a '$LogDir'); $ProfileCopyCmd cd '$emba_dir' && script -q -e -c `"./emba -f \`"\`$FW\`" -l \`"\`$LOG\`" $ProfileArg`" /dev/null"
 
 Write-Host "CMD: $wslCmd"; wsl -u root -- bash -c $wslCmd
 if ($LASTEXITCODE -ne 0) {
