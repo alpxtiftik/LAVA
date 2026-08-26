@@ -554,3 +554,8 @@ pre {
 }
 
 @keyframes spin { 100% { transform: rotate(360deg); } }
+
+/* Terminal Scroll Chaining Fix */
+#terminalContent, #terminalContent .xterm-viewport {
+    overscroll-behavior: contain;
+}

@@ -191,6 +191,14 @@ function setupEventListeners() {
                         term.open(tc);
                         fitAddon.fit();
                         
+                        // Prevent scroll chaining (in addition to CSS overscroll-behavior)
+                        tc.addEventListener('wheel', (e) => {
+                            // Only stop propagation if we are scrolling vertically
+                            if (Math.abs(e.deltaY) > 0) {
+                                e.stopPropagation();
+                            }
+                        }, { passive: true });
+                        
                         const resizePty = () => {
                             fitAddon.fit();
                             if (window.pywebview && window.pywebview.api.resize_pty) {
