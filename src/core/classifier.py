@@ -268,7 +268,11 @@ def classify_item(
         if result is not None:
             result["attempts"] = attempt
             return result
+        
         print(f"    [!] Deneme {attempt}/{max_retries} başarısız, tekrar deneniyor...")
+        if raw:
+            print(f"        Gelen Yanit (JSON Parse Edilemedi): {raw.strip()[:200]}...")
+            
         time.sleep(2)
     return {"verdict": "ERROR", "confidence": None, "reasoning": "LocalAI'den geçerli cevap alınamadı", "attempts": max_retries}
 
