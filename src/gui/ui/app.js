@@ -1,6 +1,8 @@
 let allFindings = [];
 let totalFindings = 0;
 let term = null;
+let currentLogDir = "";
+
 window.addEventListener('pywebviewready', async () => {
     try {
         const platform = await window.pywebview.api.get_platform();
@@ -32,7 +34,11 @@ async function fetchData() {
         if (!window.pywebview || !window.pywebview.api) {
             throw new Error('PyWebView API not available.');
         }
-        const logDir = document.getElementById('logDirInput') ? document.getElementById('logDirInput').value.trim() : '';
+        
+        // Use currentLogDir if set (from a scan), otherwise read from input box
+        const inputVal = document.getElementById('logDirInput') ? document.getElementById('logDirInput').value.trim() : '';
+        const logDir = currentLogDir || inputVal;
+        
         if (!logDir) {
             document.getElementById('findingsGrid').innerHTML = '<div class="loading-state"><p>Please select an EMBA Log Directory to view findings.</p></div>';
             return;
@@ -409,6 +415,7 @@ async function browseFolder() {
             }
             if (path) {
                 document.getElementById('logDirInput').value = path;
+                currentLogDir = "";
                 if (mode === 'log') {
                     fetchData();
                 }
@@ -420,6 +427,16 @@ async function browseFolder() {
         alert("Native file browser is only available in the LAVA Desktop App (LAVA_UI.exe).");
     }
 }
+
+// Clear currentLogDir when user manually edits the input
+document.addEventListener('DOMContentLoaded', () => {
+    const input = document.getElementById('logDirInput');
+    if (input) {
+        input.addEventListener('input', () => {
+            currentLogDir = "";
+        });
+    }
+});
 
 async function startScan() {
     const inputPath = document.getElementById('logDirInput').value.trim();
@@ -442,9 +459,8 @@ async function startScan() {
         } else {
             if (term) term.clear();
             lastLogOffset = 0;
-            if (res.log_dir && mode === 'firmware') {
-                // Sadece arkaplanda kaydedelim, arayüzde radio button değiştirmeyelim
-                // Böylece kullanıcı tarama esnasında kafa karışıklığı yaşamaz
+            if (res.log_dir) {
+                currentLogDir = res.log_dir;
             }
             checkStatus();
         }
