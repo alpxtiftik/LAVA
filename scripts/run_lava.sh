@@ -5,14 +5,14 @@
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         -LogDir|--log-dir) LOGDIR="$2"; shift ;;
-        *) echo "Bilinmeyen parametre: $1"; exit 1 ;;
+        *) echo "Bilinmeyen parametre: $1"; exit 2 ;;
     esac
     shift
 done
 
 if [ -z "$LOGDIR" ]; then
     echo "Hata: -LogDir parametresi zorunludur."
-    exit 1
+    exit 2
 fi
 
 OUTDIR="$LOGDIR/lava_out"
@@ -58,7 +58,7 @@ if ! curl -s "http://$AI_IP:$AI_PORT/" > /dev/null; then
             echo "Linux (Kali) uzerinde LAVA'yi kullanabilmek icin Ollama gereklidir."
             echo "Kurmak icin su komutu calistirin: curl -fsSL https://ollama.com/install.sh | sh"
             echo "Alternatif olarak config/ai_config.env icerisinden uzak bir Ollama IP'si belirtebilirsiniz."
-            exit 1
+            exit 2
         fi
     else
         echo "UYARI: Uzak Ollama sunucusuna ($AI_IP:$AI_PORT) ulasilamadi!"
@@ -72,22 +72,22 @@ echo "========================================="
 
 echo "[1/3] EMBA logları ayrıştırılıyor (parse)..."
 python3 src/core/parser.py --log-dir "$LOGDIR" --out "$FINDINGS_FILE" --merged-out "$MERGED_FILE"
-if [ $? -ne 0 ]; then echo "Hata: parser.py başarısız oldu!"; exit 1; fi
+if [ $? -ne 0 ]; then echo "Hata: parser.py başarısız oldu!"; exit 2; fi
 echo "[OK] Ayrıştırma tamamlandı."
 
 echo -e "\n[2/3] Bağlam oluşturuluyor (enrich)..."
 python3 src/core/enricher.py --merged "$MERGED_FILE" --log-dir "$LOGDIR" --out "$ENRICHED_FILE"
-if [ $? -ne 0 ]; then echo "Hata: enricher.py başarısız oldu!"; exit 1; fi
+if [ $? -ne 0 ]; then echo "Hata: enricher.py başarısız oldu!"; exit 2; fi
 echo "[OK] Bağlam dosyaları (context) başarıyla eklendi."
 
 echo -e "\n[3/3] LLM Sınıflandırma Başlıyor (Bu adım uzun sürebilir)..."
 python3 src/core/classifier.py --mode run --config config/ai_config.env --ground-truth ground_truth.json --enriched "$ENRICHED_FILE" --out "$VERDICTS_FILE"
-if [ $? -ne 0 ]; then echo "Hata: classifier.py başarısız oldu!"; exit 1; fi
+if [ $? -ne 0 ]; then echo "Hata: classifier.py başarısız oldu!"; exit 2; fi
 echo "[OK] Sınıflandırma tamamlandı! Sonuçlar $VERDICTS_FILE dosyasına yazıldı."
 
 echo -e "\n[4/4] HTML Raporu oluşturuluyor..."
 python3 src/reporting/html_report.py --verdicts "$VERDICTS_FILE" --out "$REPORT_FILE"
-if [ $? -ne 0 ]; then echo "Hata: html_report.py başarısız oldu!"; exit 1; fi
+if [ $? -ne 0 ]; then echo "Hata: html_report.py başarısız oldu!"; exit 2; fi
 echo "[OK] Rapor tamamlandı! Çıktı: $REPORT_FILE"
 
 echo -e "\n========================================="

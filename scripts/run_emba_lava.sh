@@ -10,14 +10,14 @@ while [[ "$#" -gt 0 ]]; do
     case $1 in
         -FirmwarePath|--firmware-path) FirmwarePath="$2"; shift ;;
         -LogDir|--log-dir) LogDir="$2"; shift ;;
-        *) echo "Bilinmeyen parametre: $1"; exit 1 ;;
+        *) echo "Bilinmeyen parametre: $1"; exit 2 ;;
     esac
     shift
 done
 
 if [ -z "$FirmwarePath" ] || [ -z "$LogDir" ]; then
     echo "Kullanim: $0 -FirmwarePath <path> -LogDir <dir>"
-    exit 1
+    exit 2
 fi
 
 # Ollama arka planda calismiyorsa baslat
@@ -37,7 +37,7 @@ if [ "$EUID" -ne 0 ] && ! tty -s; then
     echo "Arayuz uzerinden sifre girilemedigi icin islem iptal edildi."
     echo "COZUM: Lutfen arayuzu kapatin ve terminalden baslatici komutun basina 'sudo' ekleyerek calistirin:"
     echo "       sudo bash scripts/start_linux.sh"
-    exit 1
+    exit 2
 fi
 
 # 1. EMBA_PATH'i dinamik olarak bul
@@ -88,7 +88,7 @@ done
 if [ -z "$EMBA_PATH" ]; then
     echo "Hata: EMBA calistirilabilir dosyasi bulunamadi!"
     echo "Lutfen EMBA'nin kurulu oldugundan emin olun. (Beklenen yerler: /opt/emba/emba, /home/kali/emba/emba vb.)"
-    exit 1
+    exit 2
 fi
 
 # Calistirma izni ver (gerekirse)
@@ -99,7 +99,7 @@ fi
 
 if [ ! -f "$FirmwarePath" ]; then
     echo "Hata: Firmware dosyasi bulunamadi: $FirmwarePath"
-    exit 1
+    exit 2
 fi
 
 echo "[1/2] EMBA calistiriliyor..."
@@ -127,8 +127,12 @@ fi
 sudo LC_ALL="en_US.UTF-8" LANG="en_US.UTF-8" TERM="xterm-256color" COLUMNS="120" LINES="30" FirmwarePath="$FirmwarePath" LogDir="$LogDir" PROFILE_ARG="$PROFILE_ARG" bash -c 'cd "$1" && script -q -e -c "./emba -f \"$FirmwarePath\" -l \"$LogDir\" $PROFILE_ARG" /dev/null' _ "$emba_dir"
 if [ $? -ne 0 ]; then
     echo "Hata: EMBA taramasi basarisiz oldu veya EMBA bulunamadi!"
-    exit 1
+    exit 2
 fi
+
+# Restore terminal state after EMBA's PTY session
+printf '\033[0m\033[?25h\033[r'
+echo ""
 
 echo "[OK] EMBA taramasi tamamlandi!"
 
@@ -140,7 +144,7 @@ bash "$SCRIPT_DIR/run_lava.sh" -LogDir "$LogDir"
 
 if [ $? -ne 0 ]; then
     echo "Hata: LAVA yapay zeka analizi adiminda (run_lava.sh) hata olustu! Ayrintilar icin LAVA loglarini kontrol edin."
-    exit 1
+    exit 2
 fi
 
 echo ""
