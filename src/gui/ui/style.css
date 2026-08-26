@@ -23,12 +23,23 @@
 }
 
 body {
-    font-family: 'JetBrains Mono', monospace;
+    font-family: 'Outfit', sans-serif;
     background-color: var(--bg-primary);
+    background-image: 
+        radial-gradient(circle at 15% 50%, rgba(0, 229, 255, 0.15), transparent 40%),
+        radial-gradient(circle at 85% 30%, rgba(255, 42, 85, 0.12), transparent 40%),
+        linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+    background-size: 100% 100%, 100% 100%, 20px 20px, 20px 20px;
+    background-attachment: fixed;
     color: var(--text-primary);
     min-height: 100vh;
     overflow-x: hidden;
-    line-height: 1.5;
+    line-height: 1.6;
+}
+
+pre, code, .file-path, .snippet, .terminal-content {
+    font-family: 'JetBrains Mono', monospace;
 }
 
 /* Utilities */

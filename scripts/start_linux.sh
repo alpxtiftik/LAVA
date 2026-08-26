@@ -2,7 +2,7 @@
 # LAVA Linux Baslatici (Plug-and-Play)
 # Bu script, LAVA'yi Linux uzerinde hatasiz calistirmak icin sanal ortam kurar ve baslatir.
 
-cd "$(dirname "$0")"
+cd "$(dirname "$0")/.."
 
 echo "========================================="
 echo "LAVA UI Baslatiliyor (Linux)..."
