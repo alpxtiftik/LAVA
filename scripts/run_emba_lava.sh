@@ -118,7 +118,7 @@ fi
 
 # Force PTY using script to preserve EMBA's native TUI with ANSI escape codes
 # We export variables to bash -c to avoid quoting nightmares with paths
-sudo TERM="xterm-256color" COLUMNS="120" LINES="30" FirmwarePath="$FirmwarePath" LogDir="$LogDir" PROFILE_ARG="$PROFILE_ARG" bash -c 'cd "$1" && script -q -e -c "./emba -f \"$FirmwarePath\" -l \"$LogDir\" $PROFILE_ARG" /dev/null' _ "$emba_dir"
+sudo LC_ALL="en_US.UTF-8" LANG="en_US.UTF-8" TERM="xterm-256color" COLUMNS="120" LINES="30" FirmwarePath="$FirmwarePath" LogDir="$LogDir" PROFILE_ARG="$PROFILE_ARG" bash -c 'cd "$1" && script -q -e -c "./emba -f \"$FirmwarePath\" -l \"$LogDir\" $PROFILE_ARG" /dev/null' _ "$emba_dir"
 if [ $? -ne 0 ]; then
     echo "Hata: EMBA taramasi basarisiz oldu veya EMBA bulunamadi!"
     exit 1

@@ -183,21 +183,11 @@ function setupEventListeners() {
                             theme: { background: '#000000' },
                             fontFamily: "'JetBrains Mono', monospace",
                             fontSize: 13,
-                            convertEol: true
+                            convertEol: true,
+                            cols: 120,
+                            rows: 30
                         });
-                        fitAddon = new FitAddon.FitAddon();
-                        term.loadAddon(fitAddon);
                         term.open(tc);
-                        // Small delay to ensure container is fully visible before fitting
-                        setTimeout(() => fitAddon.fit(), 50);
-                        
-                        window.addEventListener('resize', () => {
-                            if (fitAddon && !terminalView.classList.contains('hidden')) {
-                                fitAddon.fit();
-                            }
-                        });
-                    } else {
-                        setTimeout(() => fitAddon.fit(), 50);
                     }
                     
                     // Start fetching logs
