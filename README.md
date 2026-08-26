@@ -21,9 +21,11 @@ If you want LAVA to also run EMBA for you automatically, you need:
 
 > **Note on Windows (WSL):** Due to strict kernel module requirements by firmware extraction tools (like `nandsim`, `ubi`, `ufs`), running the "Full Pipeline (EMBA Scan)" on Windows via WSL is **not supported and disabled**. Windows users must run EMBA on a native Linux host, transfer the log directory to their Windows machine, and use LAVA in **"Analyze EMBA Log Directory"** mode.
 
-*(Optional if running from source)*
-- Python 3.11+
-- `pip install -r requirements.txt`
+### 🐧 Linux (Kali / Ubuntu)
+1. Python 3.10+
+2. EMBA prerequisites installed
+3. Ollama (Local AI): `curl -fsSL https://ollama.com/install.sh | sh`
+4. Llama3 Model: `ollama run llama3`
 
 ## Configuration
 1. Clone this repository.

@@ -54,8 +54,11 @@ if ! curl -s "http://$AI_IP:$AI_PORT/" > /dev/null; then
             nohup ollama serve > /dev/null 2>&1 &
             sleep 3
         else
-            echo "UYARI: Ollama API'ye ulasilamadi ve sistemde 'ollama' komutu bulunamadi!"
-            echo "Sisteminizde Ollama yuklu degil. Lutfen Ollama yukleyin veya config/ai_config.env dosyasina uzak bir Windows Ollama IP'si girin."
+            echo "HATA: Sisteminizde 'ollama' kurulu degil!"
+            echo "Linux (Kali) uzerinde LAVA'yi kullanabilmek icin Ollama gereklidir."
+            echo "Kurmak icin su komutu calistirin: curl -fsSL https://ollama.com/install.sh | sh"
+            echo "Alternatif olarak config/ai_config.env icerisinden uzak bir Ollama IP'si belirtebilirsiniz."
+            exit 1
         fi
     else
         echo "UYARI: Uzak Ollama sunucusuna ($AI_IP:$AI_PORT) ulasilamadi!"
