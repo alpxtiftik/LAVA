@@ -116,17 +116,32 @@ class Api:
             return {"running": poll is None, "exit_code": poll}
         return {"running": False}
 
-    def get_scan_logs(self):
+    def show_terminal(self):
         log_file = os.path.join(APP_DIR, "lava_scan.log")
-        if os.path.exists(log_file):
-            try:
-                with open(log_file, "r", encoding="utf-8") as f:
-                    lines = f.readlines()
-                    # Son 50 satiri dondur
-                    return "".join(lines[-50:])
-            except Exception:
-                pass
-        return ""
+        if not os.path.exists(log_file):
+            # Create it if it doesn't exist so tail doesn't fail
+            open(log_file, "a").close()
+
+        try:
+            if sys.platform == "win32":
+                subprocess.Popen(["powershell", "-NoProfile", "-Command", f"Get-Content -Path '{log_file}' -Wait -Tail 50"])
+            else:
+                terminals = [
+                    ["gnome-terminal", "--", "bash", "-c"],
+                    ["x-terminal-emulator", "-e", "bash -c"],
+                    ["xterm", "-e", "bash -c"],
+                    ["konsole", "-e", "bash -c"]
+                ]
+                command = f"tail -f '{log_file}'"
+                for term in terminals:
+                    try:
+                        subprocess.Popen(term + [command])
+                        break
+                    except Exception:
+                        continue
+            return {"status": "success"}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
 
     def get_verdicts(self, log_dir):
         if not log_dir:

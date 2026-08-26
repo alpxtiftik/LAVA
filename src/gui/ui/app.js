@@ -143,11 +143,19 @@ function setupEventListeners() {
     const stopBtn = document.getElementById('stopScanBtn');
     const browseBtn = document.getElementById('browseBtn');
     const exportBtn = document.getElementById('exportHtmlBtn');
+    const showTerminalBtn = document.getElementById('showTerminalBtn');
     
     if (startBtn) startBtn.addEventListener('click', startScan);
     if (stopBtn) stopBtn.addEventListener('click', stopScan);
     if (browseBtn) browseBtn.addEventListener('click', browseFolder);
     if (exportBtn) exportBtn.addEventListener('click', exportHtml);
+    if (showTerminalBtn) {
+        showTerminalBtn.addEventListener('click', async () => {
+            if (window.pywebview && window.pywebview.api) {
+                await window.pywebview.api.show_terminal();
+            }
+        });
+    }
 
     // Mode Toggle
     document.querySelectorAll('input[name="scanMode"]').forEach(radio => {
@@ -292,8 +300,6 @@ async function checkStatus() {
         const startBtn = document.getElementById('startScanBtn');
         const stopBtn = document.getElementById('stopScanBtn');
         const logInput = document.getElementById('logDirInput');
-        const terminalView = document.getElementById('terminalView');
-        const terminalContent = document.getElementById('terminalContent');
         
         if (!indicator) return;
 
@@ -305,14 +311,6 @@ async function checkStatus() {
             logInput.disabled = true;
             if (document.getElementById('browseBtn')) document.getElementById('browseBtn').disabled = true;
             
-            // Show terminal and fetch live logs
-            if (terminalView) terminalView.classList.remove('hidden');
-            if (terminalContent && window.pywebview.api.get_scan_logs) {
-                const logs = await window.pywebview.api.get_scan_logs();
-                terminalContent.textContent = logs;
-                terminalContent.parentElement.scrollTop = terminalContent.parentElement.scrollHeight;
-            }
-
             // Fetch live data while running
             fetchData();
         } else {
@@ -321,7 +319,6 @@ async function checkStatus() {
                 fetchData();
                 if (data.exit_code === 0) {
                     alert("Scan completed successfully!");
-                    if (terminalView) terminalView.classList.add('hidden');
                 } else if (data.exit_code !== null && data.exit_code !== undefined && data.exit_code !== 1) { // 1 is taskkill error on stop, mostly ignore
                     alert("Scan failed or was stopped (exit code: " + data.exit_code + "). Check lava_scan.log for details.");
                 }
