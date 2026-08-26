@@ -47,8 +47,21 @@ echo "Log Dizini: $LogDir"
 echo "EMBA Dizin: $EMBA_PATH"
 
 emba_dir=$(dirname "$EMBA_PATH")
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
+LAVA_ROOT="$(dirname "$SCRIPT_DIR")"
+PROFILE_SRC="$LAVA_ROOT/EMBA - Scan Profile/lava.00-quick-scan.emba"
+
+if [ -f "$PROFILE_SRC" ]; then
+    echo "Hizli tarama profili bulundu, kopyalaniyor: $PROFILE_SRC"
+    sudo cp "$PROFILE_SRC" "$emba_dir/scan-profiles/"
+    PROFILE_ARG="-p ./scan-profiles/lava.00-quick-scan.emba"
+else
+    echo "Uyari: Hizli tarama profili bulunamadi, varsayilan tarama yapilacak."
+    PROFILE_ARG=""
+fi
+
 # Force PTY using script to preserve EMBA's native TUI with ANSI escape codes
-sudo bash -c "cd '$emba_dir' && script -q -e -c \"./emba -f '$FirmwarePath' -l '$LogDir'\" /dev/null"
+sudo bash -c "cd '$emba_dir' && script -q -e -c \"./emba -f '$FirmwarePath' -l '$LogDir' $PROFILE_ARG\" /dev/null"
 if [ $? -ne 0 ]; then
     echo "Hata: EMBA taramasi basarisiz oldu veya EMBA bulunamadi!"
     exit 1
