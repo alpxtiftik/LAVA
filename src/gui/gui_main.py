@@ -117,17 +117,18 @@ class Api:
             return {"running": poll is None, "exit_code": poll}
         return {"running": False}
 
-    def get_scan_logs(self):
+    def get_scan_logs(self, last_offset=0):
         log_file = os.path.join(APP_DIR, "lava_scan.log")
         if os.path.exists(log_file):
             try:
-                with open(log_file, "r", encoding="utf-8", errors="replace") as f:
-                    lines = f.readlines()
-                    # Return the last 100 lines for the embedded terminal
-                    return "".join(lines[-100:])
+                with open(log_file, "rb") as f:
+                    f.seek(last_offset)
+                    data = f.read()
+                    new_offset = f.tell()
+                    return {"data": data.decode("utf-8", errors="replace"), "offset": new_offset}
             except Exception:
                 pass
-        return ""
+        return {"data": "", "offset": last_offset}
 
     def get_verdicts(self, log_dir):
         if not log_dir:

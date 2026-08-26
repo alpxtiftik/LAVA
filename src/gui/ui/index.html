@@ -6,6 +6,9 @@
     <title>LAVA - Vulnerability Dashboard</title>
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="xterm.css" />
+    <script src="xterm.js"></script>
+    <script src="xterm-addon-fit.js"></script>
 </head>
 <body>
     <div class="container">
@@ -56,7 +59,7 @@
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                     <h3 style="margin: 0; color: var(--text-primary); font-size: 14px;">Live Log Viewer</h3>
                 </div>
-                <pre style="margin: 0; background: #000; padding: 15px; border-radius: 5px; height: 300px; overflow-y: auto;"><code id="terminalContent" style="color: #0f0; font-family: 'JetBrains Mono', monospace; font-size: 12px; white-space: pre-wrap;"></code></pre>
+                <div id="terminalContent" style="background: #000; padding: 10px; border-radius: 5px; height: 400px; overflow: hidden;"></div>
             </div>
 
             <div class="controls">

@@ -1,5 +1,8 @@
 let allFindings = [];
 let totalFindings = 0;
+let term = null;
+let fitAddon = null;
+let lastLogOffset = 0;
 
 window.addEventListener('pywebviewready', () => {
     fetchData();
@@ -157,18 +160,46 @@ function setupEventListeners() {
             if (terminalView) {
                 if (terminalView.classList.contains('hidden')) {
                     terminalView.classList.remove('hidden');
+                    
+                    // Initialize Xterm if it doesn't exist
+                    if (!term) {
+                        const tc = document.getElementById('terminalContent');
+                        term = new Terminal({
+                            theme: { background: '#000000' },
+                            fontFamily: "'JetBrains Mono', monospace",
+                            fontSize: 13,
+                            convertEol: true
+                        });
+                        fitAddon = new FitAddon.FitAddon();
+                        term.loadAddon(fitAddon);
+                        term.open(tc);
+                        // Small delay to ensure container is fully visible before fitting
+                        setTimeout(() => fitAddon.fit(), 50);
+                        
+                        window.addEventListener('resize', () => {
+                            if (fitAddon && !terminalView.classList.contains('hidden')) {
+                                fitAddon.fit();
+                            }
+                        });
+                    } else {
+                        setTimeout(() => fitAddon.fit(), 50);
+                    }
+                    
                     // Start fetching logs
                     if (!logInterval) {
                         logInterval = setInterval(async () => {
                             if (window.pywebview && window.pywebview.api.get_scan_logs) {
-                                const logs = await window.pywebview.api.get_scan_logs();
-                                const tc = document.getElementById('terminalContent');
-                                if (tc) {
-                                    tc.textContent = logs;
-                                    tc.parentElement.scrollTop = tc.parentElement.scrollHeight;
+                                const res = await window.pywebview.api.get_scan_logs(lastLogOffset);
+                                if (res && res.data) {
+                                    term.write(res.data);
+                                    lastLogOffset = res.offset;
+                                } else if (res && res.offset < lastLogOffset) {
+                                    // Log file was truncated/restarted
+                                    term.clear();
+                                    lastLogOffset = 0;
                                 }
                             }
-                        }, 2000);
+                        }, 500); // 500ms for smooth TUI updates
                     }
                 } else {
                     terminalView.classList.add('hidden');
@@ -400,6 +431,8 @@ async function startScan() {
         if (res.status === 'error') {
             alert("Failed to start scan: " + res.message);
         } else {
+            if (term) term.clear();
+            lastLogOffset = 0;
             if (res.log_dir && mode === 'firmware') {
                 // Sadece arkaplanda kaydedelim, arayüzde radio button değiştirmeyelim
                 // Böylece kullanıcı tarama esnasında kafa karışıklığı yaşamaz

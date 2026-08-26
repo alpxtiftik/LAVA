@@ -40,7 +40,8 @@ echo "Log Dizini: $LogDir"
 echo "EMBA Dizin: $EMBA_PATH"
 
 emba_dir=$(dirname "$EMBA_PATH")
-sudo bash -c "cd '$emba_dir' && ./emba -f '$FirmwarePath' -l '$LogDir'"
+# Force PTY using script to preserve EMBA's native TUI with ANSI escape codes
+sudo bash -c "cd '$emba_dir' && script -q -e -c \"./emba -f '$FirmwarePath' -l '$LogDir'\" /dev/null"
 if [ $? -ne 0 ]; then
     echo "Hata: EMBA taramasi basarisiz oldu veya EMBA bulunamadi!"
     exit 1
