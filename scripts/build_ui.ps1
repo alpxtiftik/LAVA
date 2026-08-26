@@ -37,12 +37,21 @@ Write-Host "`n[3/3] Derleme tamamlandı. Geçici dosyalar temizleniyor..." -Fore
 # Gereksiz geçici dosyaları temizle
 Remove-Item -Recurse -Force build
 Remove-Item LAVA_UI.spec
-# LAVA_UI.exe'yi ana dizine taşı
-Move-Item -Force dist\LAVA_UI.exe .\LAVA_UI.exe
-Remove-Item -Recurse -Force dist
-
-Write-Host "`n=========================================" -ForegroundColor Cyan
-Write-Host "[OK] LAVA_UI.exe başarıyla oluşturuldu!" -ForegroundColor Green
-Write-Host "Çıktı dosyası: .\LAVA_UI.exe" -ForegroundColor Green
-Write-Host "Lütfen uygulamayı başlatmak için LAVA_UI.exe'ye çift tıklayın." -ForegroundColor Green
-Write-Host "=========================================" -ForegroundColor Cyan
+# LAVA_UI.exe'yi ana dizine tasi
+try {
+    Move-Item -Force dist\LAVA_UI.exe .\LAVA_UI.exe -ErrorAction Stop
+    Remove-Item -Recurse -Force dist
+    
+    Write-Host "`n=========================================" -ForegroundColor Cyan
+    Write-Host "[OK] LAVA_UI.exe basariyla olusturuldu!" -ForegroundColor Green
+    Write-Host "Cikti dosyasi: .\LAVA_UI.exe" -ForegroundColor Green
+    Write-Host "Lutfen uygulamayi baslatmak icin LAVA_UI.exe'ye cift tiklayin." -ForegroundColor Green
+    Write-Host "=========================================" -ForegroundColor Cyan
+} catch {
+    Write-Host "`n=========================================" -ForegroundColor Red
+    Write-Host "[HATA] LAVA_UI.exe ana dizine tasinamadi!" -ForegroundColor Red
+    Write-Host "Muhtemelen LAVA uygulamasi su anda acik." -ForegroundColor Yellow
+    Write-Host "Lutfen acik olan LAVA penceresini kapatin ve dist\LAVA_UI.exe dosyasini manuel olarak disari cikartin veya script'i tekrar calistirin." -ForegroundColor Yellow
+    Write-Host "=========================================" -ForegroundColor Red
+    exit 1
+}

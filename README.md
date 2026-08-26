@@ -16,9 +16,10 @@ Instead of fine-tuning a model, LAVA uses an In-Context Learning (ICL) approach.
 - **Llama3 Model:** Pulled via Ollama (`ollama pull llama3`).
 
 ### For End-to-End Pipeline (Firmware Scanning)
-If you want LAVA to also run EMBA for you, you need:
-- **Linux:** EMBA installed natively.
-- **Windows:** WSL (Windows Subsystem for Linux) installed with a Linux distribution (e.g., Ubuntu) and EMBA installed inside it.
+If you want LAVA to also run EMBA for you automatically, you need:
+- **Linux:** EMBA installed natively (e.g., Ubuntu/Kali).
+
+> **Note on Windows (WSL):** Due to strict kernel module requirements by firmware extraction tools (like `nandsim`, `ubi`, `ufs`), running the "Full Pipeline (EMBA Scan)" on Windows via WSL is **not supported and disabled**. Windows users must run EMBA on a native Linux host, transfer the log directory to their Windows machine, and use LAVA in **"Analyze EMBA Log Directory"** mode.
 
 *(Optional if running from source)*
 - Python 3.11+
@@ -32,16 +33,15 @@ If you want LAVA to also run EMBA for you, you need:
    LOCAL_AI_PORT="11434"
    LOCAL_AI_MODEL="llama3"
    
-   # EMBA Path (For End-to-End Pipeline)
+   # EMBA Path (For End-to-End Pipeline on Linux)
    # On Linux: /path/to/emba/emba
-   # On Windows: /root/emba/emba (WSL internal path)
-   EMBA_PATH="/root/emba/emba"
+   EMBA_PATH="/path/to/emba/emba"
    ```
 
 ## Usage
 
 ### 1. The Desktop Application (Recommended)
-You can manage the entire pipeline natively from the UI. First, compile the application for your OS:
+You can manage the pipeline natively from the UI. First, compile the application for your OS:
 
 **Windows:**
 ```powershell
@@ -56,32 +56,28 @@ bash scripts/build_ui.sh
 After building:
 1. Run `LAVA_UI` (or `LAVA_UI.exe` on Windows).
 2. You will see a Mode Toggle at the top:
-   - **Analyze EMBA Log Directory:** Use this if you already ran EMBA manually and have the log folder.
-   - **Full Pipeline (Scan Firmware):** Use this to select a `.bin` or `.tar` firmware file. LAVA will automatically launch EMBA (using WSL on Windows) to scan the firmware and immediately begin AI analysis on the results.
+   - **Analyze EMBA Log Directory:** Provide the path to a completed EMBA log directory. LAVA will run AI analysis on it. (Available on Windows and Linux).
+   - **Full Pipeline (Scan Firmware):** Select a `.bin` or `.tar` firmware file. LAVA will automatically launch EMBA to scan the firmware and immediately begin AI analysis on the results. *(Linux Only)*
 3. Click **Browse (📁 Select)** and select your file or folder.
-4. Click **Start Scan**. The UI will show a real-time status and automatically populate findings once they are analyzed.
+4. Click **Start Scan**. The UI will show a real-time status, display an embedded terminal for live logs, and automatically populate findings once they are analyzed.
 
 ### 2. Automated CLI Pipeline
 If you prefer running the orchestration scripts from the terminal instead of the GUI:
 
-**To scan a firmware file (Full Pipeline):**
-- **Windows (Requires WSL):**
-  ```powershell
-  .\scripts\run_emba_lava.ps1 -FirmwarePath "C:\firmware.bin" -LogDir "C:\lava_logs"
-  ```
+**To scan a firmware file (Full Pipeline - LINUX ONLY):**
 - **Linux:**
   ```bash
   bash scripts/run_emba_lava.sh -FirmwarePath "/home/user/firmware.bin" -LogDir "/home/user/lava_logs"
   ```
 
-**To analyze an existing EMBA log:**
+**To analyze an existing EMBA log (Available on All OS):**
 - **Windows:**
   ```powershell
-  .\scripts\run_lava.ps1 -LogDir "emba_iotgoat_log"
+  .\scripts\run_lava.ps1 -LogDir "C:\path\to\emba_log"
   ```
 - **Linux:**
   ```bash
-  bash scripts/run_lava.sh -LogDir "emba_iotgoat_log"
+  bash scripts/run_lava.sh -LogDir "/path/to/emba_log"
   ```
 
 ### 3. Manual Pipeline

@@ -41,6 +41,11 @@ if [ -f "config/ai_config.env" ]; then
     done < config/ai_config.env
 fi
 
+if [ ! -f "$FirmwarePath" ]; then
+    echo "Hata: Firmware dosyasi bulunamadi: $FirmwarePath"
+    exit 1
+fi
+
 echo "[1/2] EMBA calistiriliyor..."
 echo "Firmware: $FirmwarePath"
 echo "Log Dizini: $LogDir"
@@ -61,7 +66,8 @@ else
 fi
 
 # Force PTY using script to preserve EMBA's native TUI with ANSI escape codes
-sudo bash -c "cd '$emba_dir' && script -q -e -c \"./emba -f '$FirmwarePath' -l '$LogDir' $PROFILE_ARG\" /dev/null"
+# We export variables to bash -c to avoid quoting nightmares with paths
+sudo FirmwarePath="$FirmwarePath" LogDir="$LogDir" PROFILE_ARG="$PROFILE_ARG" bash -c 'cd "$1" && script -q -e -c "./emba -f \"$FirmwarePath\" -l \"$LogDir\" $PROFILE_ARG" /dev/null' _ "$emba_dir"
 if [ $? -ne 0 ]; then
     echo "Hata: EMBA taramasi basarisiz oldu veya EMBA bulunamadi!"
     exit 1
@@ -76,7 +82,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
 bash "$SCRIPT_DIR/run_lava.sh" -LogDir "$LogDir"
 
 if [ $? -ne 0 ]; then
-    echo "Hata: LAVA analizi basarisiz oldu!"
+    echo "Hata: LAVA yapay zeka analizi adiminda (run_lava.sh) hata olustu! Ayrintilar icin LAVA loglarini kontrol edin."
     exit 1
 fi
 
