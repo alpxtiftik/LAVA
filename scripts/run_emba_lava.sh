@@ -31,6 +31,15 @@ echo "========================================="
 echo "LAVA FULL PIPELINE BASLATILIYOR (LINUX)"
 echo "========================================="
 
+# Eger root degilsek ve terminal baglantimiz yoksa (GUI'den calisiyorsa), sudo sifre soramayacagi icin uyar
+if [ "$EUID" -ne 0 ] && ! tty -s; then
+    echo "HATA: EMBA'nin calisabilmesi icin ROOT yetkisine ihtiyaci var!"
+    echo "Arayuz uzerinden sifre girilemedigi icin islem iptal edildi."
+    echo "COZUM: Lutfen arayuzu kapatin ve terminalden baslatici komutun basina 'sudo' ekleyerek calistirin:"
+    echo "       sudo bash scripts/start_linux.sh"
+    exit 1
+fi
+
 # 1. EMBA_PATH'i dinamik olarak bul
 EMBA_PATH=""
 
