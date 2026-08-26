@@ -39,6 +39,9 @@ class Api:
             print(f"Dialog error: {e}")
         return ""
 
+    def get_platform(self):
+        return sys.platform
+
     def start_scan(self, input_path, mode="log"):
         global scan_process
         input_path = input_path.strip()
@@ -54,9 +57,7 @@ class Api:
                 CREATE_NEW_PROCESS_GROUP = 0x00000200
                 
                 if mode == "firmware":
-                    ps1_path = os.path.join(APP_DIR, "scripts", "run_emba_lava.ps1")
-                    log_dir = os.path.join(os.path.dirname(input_path), "emba_logs_" + os.path.basename(input_path))
-                    cmd = ["powershell", "-ExecutionPolicy", "Bypass", "-File", ps1_path, "-FirmwarePath", input_path, "-LogDir", log_dir]
+                    return {"status": "error", "message": "Windows uzerinde otomatik EMBA calistirma (WSL kisitlamalari nedeniyle) desteklenmemektedir. Lutfen EMBA'yi native Linux uzerinde calistirip log dizinini secin."}
                 else:
                     ps1_path = os.path.join(APP_DIR, "scripts", "run_lava.ps1")
                     cmd = ["powershell", "-ExecutionPolicy", "Bypass", "-File", ps1_path, "-LogDir", input_path]

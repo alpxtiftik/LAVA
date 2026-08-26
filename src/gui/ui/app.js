@@ -1,10 +1,19 @@
 let allFindings = [];
 let totalFindings = 0;
 let term = null;
-let fitAddon = null;
-let lastLogOffset = 0;
-
-window.addEventListener('pywebviewready', () => {
+window.addEventListener('pywebviewready', async () => {
+    try {
+        const platform = await window.pywebview.api.get_platform();
+        if (platform === "win32") {
+            const firmwareRadio = document.querySelector('input[value="firmware"]');
+            if (firmwareRadio) {
+                firmwareRadio.parentElement.style.display = 'none';
+            }
+        }
+    } catch (e) {
+        console.warn("Could not fetch platform", e);
+    }
+    
     fetchData();
     setupEventListeners();
     checkStatus();
