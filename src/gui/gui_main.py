@@ -200,8 +200,11 @@ if __name__ == "__main__":
     )
     
     def on_closing():
-        api.stop_scan()
-        return False  # Do not cancel the close event
+        try:
+            api.stop_scan()
+        except Exception:
+            pass
+        # Do not return False, because returning False cancels the close event in pywebview
         
     window.events.closing += on_closing
     
