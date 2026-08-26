@@ -20,6 +20,13 @@ if [ -z "$FirmwarePath" ] || [ -z "$LogDir" ]; then
     exit 1
 fi
 
+# Ollama arka planda calismiyorsa baslat
+if ! curl -s http://localhost:11434/ > /dev/null; then
+    echo "Ollama API'ye ulasilamadi. Arka planda baslatiliyor..."
+    nohup ollama serve > /dev/null 2>&1 &
+    sleep 3
+fi
+
 echo "========================================="
 echo "LAVA FULL PIPELINE BASLATILIYOR (LINUX)"
 echo "========================================="

@@ -42,6 +42,15 @@ $EnrichedFile = Join-Path -Path $OutDir -ChildPath "enriched_findings.json"
 $VerdictsFile = Join-Path -Path $OutDir -ChildPath "verdicts.json"
 $ReportFile = Join-Path -Path $OutDir -ChildPath "lava_report.html"
 
+# Ollama arka planda calismiyorsa baslat
+try {
+    $null = Invoke-RestMethod -Uri "http://localhost:11434/" -Method Get -ErrorAction Stop
+} catch {
+    Write-Host "Ollama API'ye ulasilamadi. Arka planda baslatiliyor..." -ForegroundColor Yellow
+    Start-Process -FilePath "ollama" -ArgumentList "serve" -WindowStyle Hidden
+    Start-Sleep -Seconds 3
+}
+
 Write-Host "=========================================" -ForegroundColor Cyan
 Write-Host "LAVA Pipeline Baslatiliyor..." -ForegroundColor Cyan
 Write-Host "=========================================" -ForegroundColor Cyan

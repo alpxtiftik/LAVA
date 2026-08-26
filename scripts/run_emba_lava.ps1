@@ -20,6 +20,15 @@ param(
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.Encoding]::UTF8
 
+# Ollama arka planda calismiyorsa baslat
+try {
+    $null = Invoke-RestMethod -Uri "http://localhost:11434/" -Method Get -ErrorAction Stop
+} catch {
+    Write-Host "Ollama API'ye ulasilamadi. Arka planda baslatiliyor..." -ForegroundColor Yellow
+    Start-Process -FilePath "ollama" -ArgumentList "serve" -WindowStyle Hidden
+    Start-Sleep -Seconds 3
+}
+
 Write-Host "=========================================" -ForegroundColor Cyan
 Write-Host "LAVA FULL PIPELINE BASLATILIYOR (WSL)" -ForegroundColor Cyan
 Write-Host "=========================================" -ForegroundColor Cyan

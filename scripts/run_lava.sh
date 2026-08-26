@@ -36,6 +36,13 @@ ENRICHED_FILE="$OUTDIR/enriched_findings.json"
 VERDICTS_FILE="$OUTDIR/verdicts.json"
 REPORT_FILE="$OUTDIR/lava_report.html"
 
+# Ollama arka planda calismiyorsa baslat
+if ! curl -s http://localhost:11434/ > /dev/null; then
+    echo "Ollama API'ye ulasilamadi. Arka planda baslatiliyor..."
+    nohup ollama serve > /dev/null 2>&1 &
+    sleep 3
+fi
+
 echo "========================================="
 echo "LAVA Pipeline Başlatılıyor..."
 echo "========================================="
