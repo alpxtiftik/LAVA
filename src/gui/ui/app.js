@@ -149,15 +149,37 @@ function setupEventListeners() {
     if (stopBtn) stopBtn.addEventListener('click', stopScan);
     if (browseBtn) browseBtn.addEventListener('click', browseFolder);
     if (exportBtn) exportBtn.addEventListener('click', exportHtml);
+    let logInterval = null;
+
     if (showTerminalBtn) {
         showTerminalBtn.addEventListener('click', async () => {
-            if (window.pywebview && window.pywebview.api) {
-                await window.pywebview.api.show_terminal();
+            const terminalView = document.getElementById('terminalView');
+            if (terminalView) {
+                if (terminalView.classList.contains('hidden')) {
+                    terminalView.classList.remove('hidden');
+                    // Start fetching logs
+                    if (!logInterval) {
+                        logInterval = setInterval(async () => {
+                            if (window.pywebview && window.pywebview.api.get_scan_logs) {
+                                const logs = await window.pywebview.api.get_scan_logs();
+                                const tc = document.getElementById('terminalContent');
+                                if (tc) {
+                                    tc.textContent = logs;
+                                    tc.parentElement.scrollTop = tc.parentElement.scrollHeight;
+                                }
+                            }
+                        }, 2000);
+                    }
+                } else {
+                    terminalView.classList.add('hidden');
+                    if (logInterval) {
+                        clearInterval(logInterval);
+                        logInterval = null;
+                    }
+                }
             }
         });
     }
-
-    // Mode Toggle
     document.querySelectorAll('input[name="scanMode"]').forEach(radio => {
         radio.addEventListener('change', (e) => {
             const input = document.getElementById('logDirInput');
