@@ -135,7 +135,7 @@ echo "[OK] EMBA taramasi tamamlandi!"
 # 3. LAVA analizini baslat
 echo ""
 echo "[2/2] LAVA yapay zeka analizi baslatiliyor..."
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
+cd "$LAVA_ROOT" || exit 2
 bash "$SCRIPT_DIR/run_lava.sh" -LogDir "$LogDir"
 
 if [ $? -ne 0 ]; then
