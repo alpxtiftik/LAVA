@@ -191,13 +191,19 @@ function setupEventListeners() {
                         term.open(tc);
                         fitAddon.fit();
                         
-                        // Prevent scroll chaining (in addition to CSS overscroll-behavior)
+                        // Prevent scroll chaining explicitly for xterm.js
                         tc.addEventListener('wheel', (e) => {
-                            // Only stop propagation if we are scrolling vertically
-                            if (Math.abs(e.deltaY) > 0) {
-                                e.stopPropagation();
+                            const viewport = tc.querySelector('.xterm-viewport');
+                            if (viewport) {
+                                const atTop = viewport.scrollTop === 0;
+                                // Math.ceil for fractional scrollTop issues on some displays
+                                const atBottom = Math.ceil(viewport.scrollTop + viewport.clientHeight) >= viewport.scrollHeight;
+                                
+                                if ((atTop && e.deltaY < 0) || (atBottom && e.deltaY > 0)) {
+                                    e.preventDefault();
+                                }
                             }
-                        }, { passive: true });
+                        }, { passive: false });
                         
                         const resizePty = () => {
                             fitAddon.fit();
