@@ -7,6 +7,7 @@ import signal
 import json
 import base64
 import threading
+import datetime
 
 if sys.platform != "win32":
     import pty
@@ -83,7 +84,9 @@ class Api:
             else:
                 if mode == "firmware":
                     sh_path = os.path.join(APP_DIR, "scripts", "run_emba_lava.sh")
-                    log_dir = os.path.join(os.path.dirname(input_path), "emba_logs_" + os.path.basename(input_path))
+                    base_log_dir = os.path.join(os.path.dirname(input_path), "emba_logs_" + os.path.basename(input_path))
+                    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                    log_dir = f"{base_log_dir}_{timestamp}"
                     cmd = ["bash", sh_path, "-FirmwarePath", input_path, "-LogDir", log_dir]
                 else:
                     sh_path = os.path.join(APP_DIR, "scripts", "run_lava.sh")
