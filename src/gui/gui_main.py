@@ -121,7 +121,7 @@ class Api:
         log_file = os.path.join(APP_DIR, "lava_scan.log")
         if os.path.exists(log_file):
             try:
-                with open(log_file, "r", encoding="utf-8") as f:
+                with open(log_file, "r", encoding="utf-8", errors="replace") as f:
                     lines = f.readlines()
                     # Return the last 100 lines for the embedded terminal
                     return "".join(lines[-100:])
