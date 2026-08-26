@@ -19,6 +19,8 @@ fi
 source venv/bin/activate
 
 pip install -r requirements.txt
+# Linux icin PyQt bagimliliklarini kur (GTK hatasini onlemek icin)
+pip install PyQt6 PyQtWebEngine qtpy
 
 echo "[2/3] PyInstaller ile derleniyor..."
 pyinstaller --noconsole --onefile --add-data "src/gui/ui:ui" --name "LAVA_UI" src/gui/gui_main.py
