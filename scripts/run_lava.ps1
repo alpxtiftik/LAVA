@@ -42,13 +42,29 @@ $EnrichedFile = Join-Path -Path $OutDir -ChildPath "enriched_findings.json"
 $VerdictsFile = Join-Path -Path $OutDir -ChildPath "verdicts.json"
 $ReportFile = Join-Path -Path $OutDir -ChildPath "lava_report.html"
 
-# Ollama arka planda calismiyorsa baslat
+# Config dosyasindan IP ve PORT al
+$AiIp = "127.0.0.1"
+$AiPort = "11434"
+$ConfigPath = Join-Path -Path (Get-Location) -ChildPath "config\ai_config.env"
+if (Test-Path $ConfigPath) {
+    foreach ($line in Get-Content $ConfigPath) {
+        if ($line -match "^\s*LOCAL_AI_IP\s*=\s*`"?([^`"\s]+)`"?") { $AiIp = $matches[1] }
+        if ($line -match "^\s*LOCAL_AI_PORT\s*=\s*`"?([^`"\s]+)`"?") { $AiPort = $matches[1] }
+    }
+}
+
+# Ollama arka planda calismiyorsa baslat (Sadece Localhost icin)
 try {
-    $null = Invoke-RestMethod -Uri "http://localhost:11434/" -Method Get -ErrorAction Stop
+    $null = Invoke-RestMethod -Uri "http://${AiIp}:${AiPort}/" -Method Get -ErrorAction Stop
 } catch {
-    Write-Host "Ollama API'ye ulasilamadi. Arka planda baslatiliyor..." -ForegroundColor Yellow
-    Start-Process -FilePath "ollama" -ArgumentList "serve" -WindowStyle Hidden
-    Start-Sleep -Seconds 3
+    if ($AiIp -eq "127.0.0.1" -or $AiIp -eq "localhost") {
+        Write-Host "Ollama API'ye ulasilamadi (${AiIp}:${AiPort}). Arka planda baslatiliyor..." -ForegroundColor Yellow
+        Start-Process -FilePath "ollama" -ArgumentList "serve" -WindowStyle Hidden -ErrorAction SilentlyContinue
+        Start-Sleep -Seconds 3
+    } else {
+        Write-Host "UYARI: Uzak Ollama sunucusuna (${AiIp}:${AiPort}) ulasilamadi!" -ForegroundColor Red
+        Write-Host "Lutfen o makinedeki Ollama'nin calistigindan ve ag baglantisina acik oldugundan (OLLAMA_HOST=0.0.0.0) emin olun." -ForegroundColor Yellow
+    }
 }
 
 Write-Host "=========================================" -ForegroundColor Cyan

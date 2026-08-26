@@ -36,11 +36,31 @@ ENRICHED_FILE="$OUTDIR/enriched_findings.json"
 VERDICTS_FILE="$OUTDIR/verdicts.json"
 REPORT_FILE="$OUTDIR/lava_report.html"
 
-# Ollama arka planda calismiyorsa baslat
-if ! curl -s http://localhost:11434/ > /dev/null; then
-    echo "Ollama API'ye ulasilamadi. Arka planda baslatiliyor..."
-    nohup ollama serve > /dev/null 2>&1 &
-    sleep 3
+# Config dosyasindan IP ve PORT al
+AI_IP="127.0.0.1"
+AI_PORT="11434"
+if [ -f "config/ai_config.env" ]; then
+    ip_val=$(grep "LOCAL_AI_IP" config/ai_config.env | cut -d '=' -f2 | tr -d '"' | tr -d "'")
+    port_val=$(grep "LOCAL_AI_PORT" config/ai_config.env | cut -d '=' -f2 | tr -d '"' | tr -d "'")
+    [ -n "$ip_val" ] && AI_IP="$ip_val"
+    [ -n "$port_val" ] && AI_PORT="$port_val"
+fi
+
+# Ollama arka planda calismiyorsa baslat (Sadece Localhost icin)
+if ! curl -s "http://$AI_IP:$AI_PORT/" > /dev/null; then
+    if [ "$AI_IP" = "127.0.0.1" ] || [ "$AI_IP" = "localhost" ]; then
+        if command -v ollama &> /dev/null; then
+            echo "Ollama API'ye ulasilamadi ($AI_IP:$AI_PORT). Arka planda baslatiliyor..."
+            nohup ollama serve > /dev/null 2>&1 &
+            sleep 3
+        else
+            echo "UYARI: Ollama API'ye ulasilamadi ve sistemde 'ollama' komutu bulunamadi!"
+            echo "Sisteminizde Ollama yuklu degil. Lutfen Ollama yukleyin veya config/ai_config.env dosyasina uzak bir Windows Ollama IP'si girin."
+        fi
+    else
+        echo "UYARI: Uzak Ollama sunucusuna ($AI_IP:$AI_PORT) ulasilamadi!"
+        echo "Lutfen Windows makinenizdeki Ollama'nin calistigindan ve ag baglantisina acik oldugundan (OLLAMA_HOST=0.0.0.0) emin olun."
+    fi
 fi
 
 echo "========================================="
