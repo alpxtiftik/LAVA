@@ -31,14 +31,55 @@ echo "========================================="
 echo "LAVA FULL PIPELINE BASLATILIYOR (LINUX)"
 echo "========================================="
 
-# 1. Config'den EMBA_PATH oku
-EMBA_PATH="/emba/emba"
+# 1. EMBA_PATH'i dinamik olarak bul
+EMBA_PATH=""
+
+# Aday yollari tanimla
+CANDIDATE_PATHS=(
+    "$(command -v emba 2>/dev/null)"
+    "/emba/emba"
+    "/opt/emba/emba"
+    "/usr/local/emba/emba"
+    "/home/$USER/emba/emba"
+    "/root/emba/emba"
+)
+
+# Config dosyasini oku ve listeye ekle
 if [ -f "config/ai_config.env" ]; then
     while IFS='=' read -r key value; do
         if [ "$key" == "EMBA_PATH" ]; then
-            EMBA_PATH=$(echo "$value" | tr -d '"' | tr -d "'")
+            config_path=$(echo "$value" | tr -d '"' | tr -d "'")
+            CANDIDATE_PATHS+=("$config_path")
         fi
     done < config/ai_config.env
+fi
+
+# Aday yollari test et
+for p in "${CANDIDATE_PATHS[@]}"; do
+    if [ -n "$p" ]; then
+        # Eger kullanici klasor vermisse (or: /home/kali/emba), icindeki emba dosyasina bak
+        if [ -d "$p" ] && [ -f "$p/emba" ]; then
+            p="$p/emba"
+        fi
+        
+        # Dosya varsa ve calistirilabilirse sec
+        if [ -f "$p" ]; then
+            EMBA_PATH="$p"
+            break
+        fi
+    fi
+done
+
+if [ -z "$EMBA_PATH" ]; then
+    echo "Hata: EMBA calistirilabilir dosyasi bulunamadi!"
+    echo "Lutfen 'config/ai_config.env' dosyasina dogru EMBA_PATH degerini girin."
+    exit 1
+fi
+
+# Calistirma izni ver (gerekirse)
+if [ ! -x "$EMBA_PATH" ]; then
+    echo "Uyari: $EMBA_PATH icin calistirma izni yok, veriliyor..."
+    sudo chmod +x "$EMBA_PATH"
 fi
 
 if [ ! -f "$FirmwarePath" ]; then
@@ -58,6 +99,7 @@ PROFILE_SRC="$LAVA_ROOT/EMBA - Scan Profile/lava.00-quick-scan.emba"
 
 if [ -f "$PROFILE_SRC" ]; then
     echo "Hizli tarama profili bulundu, kopyalaniyor: $PROFILE_SRC"
+    sudo mkdir -p "$emba_dir/scan-profiles/"
     sudo cp "$PROFILE_SRC" "$emba_dir/scan-profiles/"
     PROFILE_ARG="-p ./scan-profiles/lava.00-quick-scan.emba"
 else
