@@ -198,7 +198,11 @@ if __name__ == "__main__":
         js_api=api
     )
     
-    window.events.closing += api.stop_scan
+    def on_closing():
+        api.stop_scan()
+        return False  # Do not cancel the close event
+        
+    window.events.closing += on_closing
     
     webview.start()
     
