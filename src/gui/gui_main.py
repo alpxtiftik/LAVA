@@ -166,6 +166,9 @@ class Api:
                 )
                 os.close(slave_fd)
                 
+                log_file_path = os.path.join(APP_DIR, "lava_scan.log")
+                open(log_file_path, 'w').close()
+                
                 def _reader():
                     while True:
                         try:
@@ -176,6 +179,11 @@ class Api:
                             break
                         with scan_buffer_lock:
                             scan_buffer.extend(chunk)
+                        try:
+                            with open(log_file_path, "ab") as f:
+                                f.write(chunk)
+                        except Exception:
+                            pass
                             
                 threading.Thread(target=_reader, daemon=True).start()
             
