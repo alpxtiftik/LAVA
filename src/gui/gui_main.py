@@ -64,6 +64,7 @@ class Api:
             return {"status": "error", "message": "Scan already running"}
         
         try:
+            log_dir = None
             if sys.platform == "win32":
                 CREATE_NO_WINDOW = 0x08000000
                 CREATE_NEW_PROCESS_GROUP = 0x00000200
