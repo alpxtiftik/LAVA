@@ -355,8 +355,13 @@ class Api:
             else:
                 subprocess.check_call(cmd)
                 
-            import webbrowser
-            webbrowser.open("file://" + os.path.abspath(report_file))
+            filepath = os.path.abspath(report_file)
+            if sys.platform == "win32":
+                os.startfile(filepath)
+            elif sys.platform == "darwin":
+                subprocess.call(["open", filepath])
+            else:
+                subprocess.call(["xdg-open", filepath])
                 
             return {"status": "success", "path": report_file}
         except Exception as e:
