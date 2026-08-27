@@ -573,3 +573,8 @@ pre {
 .xterm-viewport::-webkit-scrollbar-corner {
     background: #000;
 }
+
+
+/* Force horizontal scroll on terminal */
+#terminalContent .xterm-viewport { overflow-x: auto !important; overflow-y: auto !important; }
+#terminalContent .xterm-screen { min-width: 100%; }

@@ -226,9 +226,10 @@ function setupEventListeners() {
                         const tc = document.getElementById('terminalContent');
                         term = new Terminal({
                             theme: { background: '#000000' },
-                            fontFamily: "'JetBrains Mono', monospace",
+                            fontFamily: "'Consolas', 'Courier New', monospace",
                             fontSize: 13,
-                            convertEol: true
+                            convertEol: true,
+                            scrollback: 9999
                         });
                         
                         const fitAddon = new FitAddon.FitAddon();
@@ -254,9 +255,19 @@ function setupEventListeners() {
                         const resizePty = () => {
                             fitAddon.fit();
                             
-                            // EMBA için sütun genişliğini minimum 130'da tut, sığmazsa yatay scrollbar çıksın
-                            const cols = Math.max(term.cols, 130);
+                            // EMBA için sütun genişliğini minimum 160'ta tut, sığmazsa yatay scrollbar çıksın
+                            const cols = Math.max(term.cols, 160);
                             term.resize(cols, term.rows);
+                            
+                            // Force xterm viewport to handle horizontal overflow
+                            const viewport = tc.querySelector('.xterm-viewport');
+                            if (viewport) {
+                                viewport.style.overflowX = 'auto';
+                            }
+                            const screen = tc.querySelector('.xterm-screen');
+                            if (screen) {
+                                screen.style.width = '100%';
+                            }
                             
                             console.log(`[xterm.js] Terminal resized: ${term.rows} rows, ${cols} cols`);
                             
