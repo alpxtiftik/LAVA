@@ -21,7 +21,7 @@
 }
 
 body {
-    font-family: 'JetBrains Mono', monospace;
+    font-family: 'Consolas', 'Courier New', monospace;
     background-color: var(--bg-primary);
     background-image: linear-gradient(rgba(0, 255, 204, 0.03) 1px, transparent 1px),
                       linear-gradient(90deg, rgba(0, 255, 204, 0.03) 1px, transparent 1px);
@@ -34,7 +34,7 @@ body {
 }
 
 pre, code, .file-path, .snippet, .terminal-content {
-    font-family: 'JetBrains Mono', monospace;
+    font-family: 'Consolas', 'Courier New', monospace;
 }
 
 /* Utilities */
