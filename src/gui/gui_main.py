@@ -192,7 +192,7 @@ class Api:
                         with scan_buffer_lock:
                             scan_buffer.extend(chunk)
                         try:
-                            with open(log_file_path, "ab") as f:
+                            with open(self.current_log_file, "ab") as f:
                                 f.write(chunk)
                         except Exception:
                             pass
@@ -212,7 +212,7 @@ class Api:
             if sys.platform == "win32":
                 subprocess.call(['taskkill', '/F', '/T', '/PID', str(scan_process.pid)], creationflags=subprocess.CREATE_NO_WINDOW)
                 # Cleanup WSL ghost processes to be safe
-                subprocess.call(['wsl', '-u', 'root', '--', 'bash', '-c', 'pkill -f emba; pkill -f run_emba; docker ps -q | xargs -r docker stop'], creationflags=subprocess.CREATE_NO_WINDOW)
+                subprocess.call(['wsl', '-u', 'root', '--', 'bash', '-c', 'pkill -f emba; pkill -f run_emba; docker ps -q --filter ancestor=emba | xargs -r docker stop'], creationflags=subprocess.CREATE_NO_WINDOW)
             else:
                 try:
                     os.killpg(os.getpgid(scan_process.pid), signal.SIGTERM)

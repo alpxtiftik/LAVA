@@ -60,21 +60,14 @@ fi
 # 1. EMBA_PATH'i dinamik olarak bul
 EMBA_PATH=""
 
-# Aday yollari tanimla
+# Aday yollari tanimla (Guvenlik sebebiyle dinamik command -v ve home dizini taramalari kaldirildi)
 CANDIDATE_PATHS=(
-    "$(command -v emba 2>/dev/null)"
     "/emba/emba"
     "/opt/emba/emba"
     "/usr/local/emba/emba"
-    "/home/$USER/emba/emba"
     "/root/emba/emba"
     "/home/kali/emba/emba"
 )
-
-# Eger sudo ile calistirildiysa asil kullanicinin home dizinini de ekle
-if [ -n "$SUDO_USER" ]; then
-    CANDIDATE_PATHS+=("/home/$SUDO_USER/emba/emba")
-fi
 
 # Config dosyasini oku ve listeye ekle (Geriye donuk uyumluluk)
 if [ -f "config/ai_config.env" ]; then
@@ -89,13 +82,13 @@ fi
 # Aday yollari test et
 for p in "${CANDIDATE_PATHS[@]}"; do
     if [ -n "$p" ]; then
-        # Eger kullanici klasor vermisse (or: /home/kali/emba), icindeki emba dosyasina bak
+        # Eger kullanici klasor vermisse (or: /opt/emba), icindeki emba dosyasina bak
         if [ -d "$p" ] && [ -f "$p/emba" ]; then
             p="$p/emba"
         fi
         
         # Dosya varsa ve calistirilabilirse sec
-        if [ -f "$p" ]; then
+        if [ -x "$p" ]; then
             EMBA_PATH="$p"
             break
         fi
@@ -103,15 +96,9 @@ for p in "${CANDIDATE_PATHS[@]}"; do
 done
 
 if [ -z "$EMBA_PATH" ]; then
-    echo "Hata: EMBA calistirilabilir dosyasi bulunamadi!"
-    echo "Lutfen EMBA'nin kurulu oldugundan emin olun. (Beklenen yerler: /opt/emba/emba, /home/kali/emba/emba vb.)"
+    echo "Hata: EMBA calistirilabilir dosyasi bulunamadi veya calistirma izni (execute) yok!"
+    echo "Lutfen EMBA'nin kurulu oldugundan ve '+x' iznine sahip oldugundan emin olun. (Beklenen yerler: /opt/emba/emba, /home/kali/emba/emba vb.)"
     exit 2
-fi
-
-# Calistirma izni ver (gerekirse)
-if [ ! -x "$EMBA_PATH" ]; then
-    echo "Uyari: $EMBA_PATH icin calistirma izni yok, veriliyor..."
-    sudo chmod +x "$EMBA_PATH"
 fi
 
 if [ ! -f "$FirmwarePath" ]; then

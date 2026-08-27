@@ -3,6 +3,7 @@ import json
 import argparse
 import sys
 import os
+import html
 
 HTML_TEMPLATE = """
 <!DOCTYPE html>
@@ -169,12 +170,12 @@ def generate_report(verdicts_file: str, out_file: str):
         v = str(f.get("predicted_verdict", "UNKNOWN")).upper()
         v_class = v.lower()
         
-        path = str(f.get("file_path", "Unknown"))
-        content = str(f.get("matched_content", "")).replace("\\n", "\n").replace("<", "&lt;").replace(">", "&gt;")
-        reasoning = str(f.get("model_reasoning", "")).replace("\\n", "<br>")
+        path = html.escape(str(f.get("file_path", "Unknown")))
+        content = html.escape(str(f.get("matched_content", ""))).replace("\\n", "\n")
+        reasoning = html.escape(str(f.get("model_reasoning", ""))).replace("\\n", "<br>")
         conf = f.get("confidence")
         conf_str = f"{int(conf*100)}%" if conf is not None else "N/A"
-        modules = ", ".join(f.get("found_by_modules", [f.get("module", "Unknown")]))
+        modules = html.escape(", ".join(f.get("found_by_modules", [f.get("module", "Unknown")])))
         corrob = f.get("corroboration_count", 1)
         
         card = f'''
