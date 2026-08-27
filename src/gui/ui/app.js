@@ -563,6 +563,10 @@ async function startScan() {
             if (res.log_dir) {
                 currentLogDir = res.log_dir;
             }
+            // Force indicator to RUNNING so immediate failures are caught and alerted
+            const indicator = document.getElementById('scanStatusIndicator');
+            if (indicator) indicator.textContent = 'RUNNING...';
+            
             checkStatus();
         }
     } catch (e) {
