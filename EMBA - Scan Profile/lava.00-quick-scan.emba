@@ -19,11 +19,3 @@ export EMBA_MAP_GENERATOR=0
 export DISABLE_STATUS_BAR=0
 export SILENT=1
 
-if [[ $IN_DOCKER -ne 1 ]] ; then
-  print_output "$(indent "$(orange "LAVA MVP profile - hardcoded secrets / credentials only")")" "no_log"
-  print_output "$(indent "$(orange "Active modules: S05, S45, S99, S106, S107, S108, S109 (+P extraction, +F report)")")" "no_log"
-  for MODULE_ in "${MODULE_BLACKLIST[@]}"; do
-    print_output "$(indent "$(orange "Blacklisted module: $MODULE_")")" "no_log"
-  done
-  export USE_DOCKER=1
-fi
