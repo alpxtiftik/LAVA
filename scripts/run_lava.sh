@@ -15,7 +15,8 @@ if [ -z "$LOGDIR" ]; then
     exit 2
 fi
 
-OUTDIR="$LOGDIR/lava_out"
+TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+OUTDIR="$LOGDIR/lava_out/$TIMESTAMP"
 mkdir -p "$OUTDIR"
 
 PID_FILE="$OUTDIR/lava.pid"

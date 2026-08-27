@@ -548,6 +548,17 @@ async function startScan() {
             alert("Failed to start scan: " + res.message);
         } else {
             if (term) term.clear();
+            
+            // Clear findings when new scan starts
+            allFindings = [];
+            if (typeof totalFindings !== 'undefined') totalFindings = 0;
+            renderFindings([]);
+            updateStats();
+            const grid = document.getElementById('findingsGrid');
+            if (grid) {
+                grid.innerHTML = '<div class="loading-state"><p style="color: var(--accent);">[+] Scan initialized. Waiting for findings...</p></div>';
+            }
+            
             lastLogOffset = 0;
             if (res.log_dir) {
                 currentLogDir = res.log_dir;

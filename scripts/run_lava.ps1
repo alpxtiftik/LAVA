@@ -18,9 +18,10 @@ param(
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.Encoding]::UTF8
 
+$Timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
 $OutDir = Join-Path -Path $LogDir -ChildPath "lava_out"
 if (-not (Test-Path -Path $OutDir)) {
-    New-Item -ItemType Directory -Path $OutDir | Out-Null
+    New-Item -ItemType Directory -Path $OutDir -Force | Out-Null
 }
 
 $PidFile = Join-Path -Path $OutDir -ChildPath "lava.pid"

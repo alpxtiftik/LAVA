@@ -244,10 +244,24 @@ class Api:
                 pass
         return {"data": "", "offset": last_offset}
 
+    def _get_latest_out_dir(self, log_dir):
+        base_out = os.path.join(log_dir, "lava_out")
+        if not os.path.exists(base_out):
+            return base_out
+        try:
+            dirs = [d for d in os.listdir(base_out) if os.path.isdir(os.path.join(base_out, d)) and d.startswith("20")]
+            if not dirs:
+                return base_out
+            dirs.sort(reverse=True)
+            return os.path.join(base_out, dirs[0])
+        except Exception:
+            return base_out
+
     def get_verdicts(self, log_dir):
         if not log_dir:
             return []
-        verdicts_path = os.path.join(log_dir, "lava_out", "verdicts.json")
+        out_dir = self._get_latest_out_dir(log_dir)
+        verdicts_path = os.path.join(out_dir, "verdicts.json")
         if os.path.exists(verdicts_path):
             try:
                 with open(verdicts_path, "r", encoding="utf-8") as f:
@@ -259,7 +273,8 @@ class Api:
     def get_total_findings(self, log_dir):
         if not log_dir:
             return {"total": 0}
-        enriched_path = os.path.join(log_dir, "lava_out", "enriched_findings.json")
+        out_dir = self._get_latest_out_dir(log_dir)
+        enriched_path = os.path.join(out_dir, "enriched_findings.json")
         if os.path.exists(enriched_path):
             try:
                 with open(enriched_path, "r", encoding="utf-8") as f:
@@ -273,7 +288,7 @@ class Api:
         if not log_dir:
             return {"status": "error", "message": "logDir required"}
             
-        out_dir = os.path.join(log_dir, "lava_out")
+        out_dir = self._get_latest_out_dir(log_dir)
         verdicts_file = os.path.join(out_dir, "verdicts.json")
         report_file = os.path.join(out_dir, "lava_report.html")
         
