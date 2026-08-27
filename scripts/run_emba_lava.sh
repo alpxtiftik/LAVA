@@ -1,159 +1,158 @@
-c#c!c/cucscrc/cbcicnc/cecncvc cbcacschc
-c#c
-c#c cLcAcVcAc cFcuclclc cPcicpceclcicncec cRcucncncecrc cfcocrc cLcicncucxc
-c#c cEcMcBcAc'cycic cccaclcicsctcicrcicpc cacrcdcicncdcacnc cLcAcVcAc cAcIc cacncaclciczcicncic cbcacsclcactcicrc.c
-c
-cFcicrcmcwcacrcecPcactchc=c"c"c
-cLcocgcDcicrc=c"c"c
-c
-cwchciclcec c[c[c c"c$c#c"c c-cgctc c0c c]c]c;c cdcoc
-c c c c cccacscec c$c1c cicnc
-c c c c c c c c c-cFcicrcmcwcacrcecPcactchc|c-c-cfcicrcmcwcacrcec-cpcactchc)c cFcicrcmcwcacrcecPcactchc=c"c$c2c"c;c cschcicfctc c;c;c
-c c c c c c c c c-cLcocgcDcicrc|c-c-clcocgc-cdcicrc)c cLcocgcDcicrc=c"c$c2c"c;c cschcicfctc c;c;c
-c c c c c c c c c*c)c ceccchcoc c"cBciclcicncmcecycecnc cpcacrcacmcectcrcec:c c$c1c"c;c cecxcictc c2c c;c;c
-c c c c cecscaccc
-c c c c cschcicfctc
-cdcocncec
-c
-cicfc c[c c-czc c"c$cFcicrcmcwcacrcecPcactchc"c c]c c|c|c c[c c-czc c"c$cLcocgcDcicrc"c c]c;c ctchcecnc
-c c c c ceccchcoc c"cKcuclclcacncicmc:c c$c0c c-cFcicrcmcwcacrcecPcactchc c<cpcactchc>c c-cLcocgcDcicrc c<cdcicrc>c"c
-c c c c cecxcictc c2c
-cfcic
-c
-cScCcRcIcPcTc_cDcIcRc=c"c$c(cccdc c"c$c(cdcicrcncacmcec c"c$c{cBcAcScHc_cScOcUcRcCcEc[c0c]c}c"c)c"c c&c>c c/cdcecvc/cncuclclc c&c&c cpcwcdc)c"c
-cLcAcVcAc_cRcOcOcTc=c"c$c(cdcicrcncacmcec c"c$cScCcRcIcPcTc_cDcIcRc"c)c"c
-c
-cAcIc_cPcRcOcVcIcDcEcRc=c"clcocccaclc"c
-cicfc c[c c-cfc c"c$cLcAcVcAc_cRcOcOcTc/cccocncfcicgc/cacic_cccocncfcicgc.cecncvc"c c]c;c ctchcecnc
-c c c c cpcrcocvc_cvcaclc=c$c(cgcrcecpc c"cAcIc_cPcRcOcVcIcDcEcRc"c c"c$cLcAcVcAc_cRcOcOcTc/cccocncfcicgc/cacic_cccocncfcicgc.cecncvc"c c|c cccuctc c-cdc c'c=c'c c-cfc2c c|c ctcrc c-cdc c'c"c'c c|c ctcrc c-cdc c"c'c"c)c
-c c c c c[c c-cnc c"c$cpcrcocvc_cvcaclc"c c]c c&c&c cAcIc_cPcRcOcVcIcDcEcRc=c"c$cpcrcocvc_cvcaclc"c
-cfcic
-c
-c#c cOclclcacmcac cacrckcac cpclcacncdcac cccaclcicscmcicycocrcscac cbcacsclcactc
-cicfc c[c c"c$cAcIc_cPcRcOcVcIcDcEcRc"c c!c=c c"cgcecmcicncic"c c]c c&c&c c!c cccucrclc c-csc chctctcpc:c/c/clcocccaclchcocsctc:c1c1c4c3c4c/c c>c c/cdcecvc/cncuclclc;c ctchcecnc
-c c c c ceccchcoc c"cOclclcacmcac cAcPcIc'cycec cuclcacsciclcacmcacdcic.c cAcrckcac cpclcacncdcac cbcacsclcactciclcicycocrc.c.c.c"c
-c c c c cncochcucpc coclclcacmcac cscecrcvcec c>c c/cdcecvc/cncuclclc c2c>c&c1c c&c
-c c c c csclcececpc c3c
-cfcic
-c
-ceccchcoc c"c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c"c
-ceccchcoc c"cLcAcVcAc cFcUcLcLc cPcIcPcEcLcIcNcEc cBcAcScLcAcTcIcLcIcscOcRc c(cLcIcNcUcXc)c"c
-ceccchcoc c"c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c"c
-c
-c#c cEcgcecrc crcococtc cdcecgciclcsceckc cvcec ctcecrcmcicncaclc cbcacgclcacnctcicmciczc cycockcscac c(cGcUcIc'cdcecnc cccaclcicscicycocrcscac)c,c cscucdcoc cscicfcrcec cscocrcacmcacycacccacgcic cicccicnc cucycacrc
-cicfc c[c c"c$cEcUcIcDc"c c-cncec c0c c]c c&c&c c!c ctctcyc c-csc;c ctchcecnc
-c c c c ceccchcoc c"cHcAcTcAc:c cEcMcBcAc'cncicnc cccaclcicscacbciclcmcecscic cicccicnc cRcOcOcTc cycectckcicscicncec cichctcicycacccic cvcacrc!c"c
-c c c c ceccchcoc c"cAcrcacycuczc cuczcecrcicncdcecnc cscicfcrcec cgcicrciclcecmcecdcicgcic cicccicnc cicsclcecmc cicpctcaclc cecdciclcdcic.c"c
-c c c c ceccchcoc c"cCcOcZcUcMc:c cLcuctcfcecnc cacrcacycuczcuc ckcacpcactcicnc cvcec ctcecrcmcicncaclcdcecnc cbcacsclcactcicccic ckcocmcuctcucnc cbcacscicncac c'cscucdcoc'c ceckclcecycecrceckc cccaclcicsctcicrcicnc:c"c
-c c c c ceccchcoc c"c c c c c c c cscucdcoc cbcacschc cscccrcicpctcsc/csctcacrctc_clcicncucxc.cschc"c
-c c c c cecxcictc c2c
-cfcic
-c
-c#c c1c.c cEcMcBcAc_cPcAcTcHc'cic cdcicncacmcickc coclcacrcackc cbcuclc
-cEcMcBcAc_cPcAcTcHc=c"c"c
-c
-c#c cAcdcacyc cycoclclcacrcic ctcacncicmclcac
-cCcAcNcDcIcDcAcTcEc_cPcAcTcHcSc=c(c
-c c c c c"c$c(cccocmcmcacncdc c-cvc cecmcbcac c2c>c/cdcecvc/cncuclclc)c"c
-c c c c c"c/cecmcbcac/cecmcbcac"c
-c c c c c"c/cocpctc/cecmcbcac/cecmcbcac"c
-c c c c c"c/cucscrc/clcocccaclc/cecmcbcac/cecmcbcac"c
-c c c c c"c/chcocmcec/c$cUcScEcRc/cecmcbcac/cecmcbcac"c
-c c c c c"c/crcococtc/cecmcbcac/cecmcbcac"c
-c c c c c"c/chcocmcec/ckcaclcic/cecmcbcac/cecmcbcac"c
-c)c
-c
-c#c cEcgcecrc cscucdcoc ciclcec cccaclcicsctcicrciclcdcicycscac cacsciclc ckcuclclcacncicccicncicnc chcocmcec cdciczcicncicncic cdcec ceckclcec
-cicfc c[c c-cnc c"c$cScUcDcOc_cUcScEcRc"c c]c;c ctchcecnc
-c c c c cCcAcNcDcIcDcAcTcEc_cPcAcTcHcSc+c=c(c"c/chcocmcec/c$cScUcDcOc_cUcScEcRc/cecmcbcac/cecmcbcac"c)c
-cfcic
-c
-c#c cCcocncfcicgc cdcocscycacscicncic cockcuc cvcec clcicsctcecycec ceckclcec c(cGcecrcicycec cdcocncuckc cucycucmclcuclcuckc)c
-cicfc c[c c-cfc c"cccocncfcicgc/cacic_cccocncfcicgc.cecncvc"c c]c;c ctchcecnc
-c c c c cwchciclcec cIcFcSc=c'c=c'c crcecacdc c-crc ckcecyc cvcaclcucec;c cdcoc
-c c c c c c c c cicfc c[c c"c$ckcecyc"c c=c=c c"cEcMcBcAc_cPcAcTcHc"c c]c;c ctchcecnc
-c c c c c c c c c c c c cccocncfcicgc_cpcactchc=c$c(ceccchcoc c"c$cvcaclcucec"c c|c ctcrc c-cdc c'c"c'c c|c ctcrc c-cdc c"c'c"c)c
-c c c c c c c c c c c c cCcAcNcDcIcDcAcTcEc_cPcAcTcHcSc=c(c"c$cccocncfcicgc_cpcactchc"c c"c$c{cCcAcNcDcIcDcAcTcEc_cPcAcTcHcSc[c@c]c}c"c)c
-c c c c c c c c cfcic
-c c c c cdcocncec c<c c"cccocncfcicgc/cacic_cccocncfcicgc.cecncvc"c
-cfcic
-c
-c#c cAcdcacyc cycoclclcacrcic ctcecsctc cectc
-cfcocrc cpc cicnc c"c$c{cCcAcNcDcIcDcAcTcEc_cPcAcTcHcSc[c@c]c}c"c;c cdcoc
-c c c c cicfc c[c c-cnc c"c$cpc"c c]c;c ctchcecnc
-c c c c c c c c c#c cEcgcecrc ckcuclclcacncicccic ckclcacscocrc cvcecrcmcicscscec c(cocrc:c c/chcocmcec/ckcaclcic/cecmcbcac)c,c cicccicncdceckcic cecmcbcac cdcocscycacscicncac cbcackc
-c c c c c c c c cicfc c[c c-cdc c"c$cpc"c c]c c&c&c c[c c-cfc c"c$cpc/cecmcbcac"c c]c;c ctchcecnc
-c c c c c c c c c c c c cpc=c"c$cpc/cecmcbcac"c
-c c c c c c c c cfcic
-c c c c c c c c c
-c c c c c c c c c#c cDcocscycac cvcacrcscac cvcec cccaclcicsctcicrciclcacbciclcicrcscec csceccc
-c c c c c c c c cicfc c[c c-cfc c"c$cpc"c c]c;c ctchcecnc
-c c c c c c c c c c c c cEcMcBcAc_cPcAcTcHc=c"c$cpc"c
-c c c c c c c c c c c c cbcrcecackc
-c c c c c c c c cfcic
-c c c c cfcic
-cdcocncec
-c
-cicfc c[c c-czc c"c$cEcMcBcAc_cPcAcTcHc"c c]c;c ctchcecnc
-c c c c ceccchcoc c"cHcactcac:c cEcMcBcAc cccaclcicsctcicrciclcacbciclcicrc cdcocscycacscic cbcuclcucncacmcacdcic!c"c
-c c c c ceccchcoc c"cLcuctcfcecnc cEcMcBcAc'cncicnc ckcucrcuclcuc coclcdcucgcucncdcacnc cecmcicnc coclcucnc.c c(cBceckclcecncecnc cycecrclcecrc:c c/cocpctc/cecmcbcac/cecmcbcac,c c/chcocmcec/ckcaclcic/cecmcbcac/cecmcbcac cvcbc.c)c"c
-c c c c cecxcictc c2c
-cfcic
-c
-c#c cCcaclcicsctcicrcmcac ciczcncic cvcecrc c(cgcecrceckcicrcscec)c
-cicfc c[c c!c c-cxc c"c$cEcMcBcAc_cPcAcTcHc"c c]c;c ctchcecnc
-c c c c ceccchcoc c"cUcycacrcic:c c$cEcMcBcAc_cPcAcTcHc cicccicnc cccaclcicsctcicrcmcac ciczcncic cycockc,c cvcecrciclcicycocrc.c.c.c"c
-c c c c cscucdcoc ccchcmcocdc c+cxc c"c$cEcMcBcAc_cPcAcTcHc"c
-cfcic
-c
-cicfc c[c c!c c-cfc c"c$cFcicrcmcwcacrcecPcactchc"c c]c;c ctchcecnc
-c c c c ceccchcoc c"cHcactcac:c cFcicrcmcwcacrcec cdcocscycacscic cbcuclcucncacmcacdcic:c c$cFcicrcmcwcacrcecPcactchc"c
-c c c c cecxcictc c2c
-cfcic
-c
-ceccchcoc c"c[c1c/c2c]c cEcMcBcAc cccaclcicsctcicrciclcicycocrc.c.c.c"c
-ceccchcoc c"cFcicrcmcwcacrcec:c c$cFcicrcmcwcacrcecPcactchc"c
-ceccchcoc c"cLcocgc cDciczcicncic:c c$cLcocgcDcicrc"c
-ceccchcoc c"cEcMcBcAc cDciczcicnc:c c$cEcMcBcAc_cPcAcTcHc"c
-c
-cecmcbcac_cdcicrc=c$c(cdcicrcncacmcec c"c$cEcMcBcAc_cPcAcTcHc"c)c
-cScCcRcIcPcTc_cDcIcRc=c"c$c(cccdc c"c$c(cdcicrcncacmcec c"c$c{cBcAcScHc_cScOcUcRcCcEc[c0c]c}c"c)c"c c&c>c c/cdcecvc/cncuclclc c&c&c cpcwcdc)c"c
-cLcAcVcAc_cRcOcOcTc=c"c$c(cdcicrcncacmcec c"c$cScCcRcIcPcTc_cDcIcRc"c)c"c
-cPcRcOcFcIcLcEc_cScRcCc=c"c$cLcAcVcAc_cRcOcOcTc/cEcMcBcAc c-c cScccacnc cPcrcocfciclcec/clcacvcac.c0c0c-cqcuciccckc-cscccacnc.cecmcbcac"c
-c
-cicfc c[c c-cfc c"c$cPcRcOcFcIcLcEc_cScRcCc"c c]c;c ctchcecnc
-c c c c ceccchcoc c"cHciczclcic ctcacrcacmcac cpcrcocfciclcic cbcuclcucncdcuc,c ckcocpcycaclcacncicycocrc:c c$cPcRcOcFcIcLcEc_cScRcCc"c
-c c c c cscucdcoc cmckcdcicrc c-cpc c"c$cecmcbcac_cdcicrc/cscccacnc-cpcrcocfciclcecsc/c"c
-c c c c cscucdcoc cccpc c"c$cPcRcOcFcIcLcEc_cScRcCc"c c"c$cecmcbcac_cdcicrc/cscccacnc-cpcrcocfciclcecsc/c"c
-c c c c cPcRcOcFcIcLcEc_cAcRcGc=c"c-cpc c.c/cscccacnc-cpcrcocfciclcecsc/clcacvcac.c0c0c-cqcuciccckc-cscccacnc.cecmcbcac"c
-ceclcscec
-c c c c ceccchcoc c"cUcycacrcic:c cHciczclcic ctcacrcacmcac cpcrcocfciclcic cbcuclcucncacmcacdcic,c cvcacrcscacyciclcacnc ctcacrcacmcac cycacpciclcacccackc.c"c
-c c c c cPcRcOcFcIcLcEc_cAcRcGc=c"c"c
-cfcic
-c
-c#c cRcucnc cEcMcBcAc cdcicrceccctclcyc.c cPcyctchcocnc'csc cPcTcsc cwciclclc chcacncdclcec ctchcec ctcecrcmcicncaclc cdcicmcecncscicocncsc cacncdc cUcTcFc-c8c cbcacscec6c4c cecncccocdcicncgc.c
-cccdc c"c$cecmcbcac_cdcicrc"c
-cscucdcoc cLcCc_cAcLcLc=c"cecnc_cUcSc.cUcTcFc-c8c"c cLcAcNcGc=c"cecnc_cUcSc.cUcTcFc-c8c"c c.c/cecmcbcac c-cfc c"c$cFcicrcmcwcacrcecPcactchc"c c-clc c"c$cLcocgcDcicrc"c c$cPcRcOcFcIcLcEc_cAcRcGc
-cicfc c[c c$c?c c-cncec c0c c]c;c ctchcecnc
-c c c c ceccchcoc c"cHcactcac:c cEcMcBcAc ctcacrcacmcacscic cbcacscacrcicsciczc coclcdcuc cvcecycac cEcMcBcAc cbcuclcucncacmcacdcic!c"c
-c c c c cecxcictc c2c
-cfcic
-c
-ceccchcoc c"c[cOcKc]c cEcMcBcAc ctcacrcacmcacscic ctcacmcacmclcacncdcic!c"c
-c
-c#c c3c.c cLcAcVcAc cacncaclciczcicncic cbcacsclcactc
-ceccchcoc c"c"c
-ceccchcoc c"c[c2c/c2c]c cLcAcVcAc cycacpcacyc czceckcac cacncaclciczcic cbcacsclcactciclcicycocrc.c.c.c"c
-cccdc c"c$cLcAcVcAc_cRcOcOcTc"c c|c|c cecxcictc c2c
-cbcacschc c"c$cScCcRcIcPcTc_cDcIcRc/crcucnc_clcacvcac.cschc"c c-cLcocgcDcicrc c"c$cLcocgcDcicrc"c
-c
-cicfc c[c c$c?c c-cncec c0c c]c;c ctchcecnc
-c c c c ceccchcoc c"cHcactcac:c cLcAcVcAc cycacpcacyc czceckcac cacncaclciczcic cacdcicmcicncdcac c(crcucnc_clcacvcac.cschc)c chcactcac coclcucsctcuc!c cAcycrcicnctciclcacrc cicccicnc cLcAcVcAc clcocgclcacrcicncic ckcocnctcrcoclc cecdcicnc.c"c
-c c c c cecxcictc c2c
-cfcic
-c
-ceccchcoc c"c"c
-ceccchcoc c"c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c"c
-ceccchcoc c"cFcUcLcLc cPcIcPcEcLcIcNcEc cTcAcMcAcMcLcAcNcDcIc!c"c
-ceccchcoc c"c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c=c"c
-c
+#!/usr/bin/env bash
+#
+# LAVA Full Pipeline Runner for Linux
+# EMBA'yi calistirip ardindan LAVA AI analizini baslatir.
+
+FirmwarePath=""
+LogDir=""
+
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        -FirmwarePath|--firmware-path) FirmwarePath="$2"; shift ;;
+        -LogDir|--log-dir) LogDir="$2"; shift ;;
+        *) echo "Bilinmeyen parametre: $1"; exit 2 ;;
+    esac
+    shift
+done
+
+if [ -z "$FirmwarePath" ] || [ -z "$LogDir" ]; then
+    echo "Kullanim: $0 -FirmwarePath <path> -LogDir <dir>"
+    exit 2
+fi
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
+LAVA_ROOT="$(dirname "$SCRIPT_DIR")"
+
+AI_PROVIDER="local"
+if [ -f "$LAVA_ROOT/config/ai_config.env" ]; then
+    prov_val=$(grep "AI_PROVIDER" "$LAVA_ROOT/config/ai_config.env" | cut -d '=' -f2 | tr -d '"' | tr -d "'")
+    [ -n "$prov_val" ] && AI_PROVIDER="$prov_val"
+fi
+
+# Ollama arka planda calismiyorsa baslat
+if [ "$AI_PROVIDER" != "gemini" ] && ! curl -s http://localhost:11434/ > /dev/null; then
+    echo "Ollama API'ye ulasilamadi. Arka planda baslatiliyor..."
+    nohup ollama serve > /dev/null 2>&1 &
+    sleep 3
+fi
+
+echo "========================================="
+echo "LAVA FULL PIPELINE BASLATILIYOR (LINUX)"
+echo "========================================="
+
+# Eger root degilsek ve terminal baglantimiz yoksa (GUI'den calisiyorsa), sudo sifre soramayacagi icin uyar
+if [ "$EUID" -ne 0 ] && ! tty -s; then
+    echo "HATA: EMBA'nin calisabilmesi icin ROOT yetkisine ihtiyaci var!"
+    echo "Arayuz uzerinden sifre girilemedigi icin islem iptal edildi."
+    echo "COZUM: Lutfen arayuzu kapatin ve terminalden baslatici komutun basina 'sudo' ekleyerek calistirin:"
+    echo "       sudo bash scripts/start_linux.sh"
+    exit 2
+fi
+
+# 1. EMBA_PATH'i dinamik olarak bul
+EMBA_PATH=""
+
+# Aday yollari tanimla
+CANDIDATE_PATHS=(
+    "$(command -v emba 2>/dev/null)"
+    "/emba/emba"
+    "/opt/emba/emba"
+    "/usr/local/emba/emba"
+    "/home/$USER/emba/emba"
+    "/root/emba/emba"
+    "/home/kali/emba/emba"
+)
+
+# Eger sudo ile calistirildiysa asil kullanicinin home dizinini de ekle
+if [ -n "$SUDO_USER" ]; then
+    CANDIDATE_PATHS+=("/home/$SUDO_USER/emba/emba")
+fi
+
+# Config dosyasini oku ve listeye ekle (Geriye donuk uyumluluk)
+if [ -f "config/ai_config.env" ]; then
+    while IFS='=' read -r key value; do
+        if [ "$key" == "EMBA_PATH" ]; then
+            config_path=$(echo "$value" | tr -d '"' | tr -d "'")
+            CANDIDATE_PATHS=("$config_path" "${CANDIDATE_PATHS[@]}")
+        fi
+    done < "config/ai_config.env"
+fi
+
+# Aday yollari test et
+for p in "${CANDIDATE_PATHS[@]}"; do
+    if [ -n "$p" ]; then
+        # Eger kullanici klasor vermisse (or: /home/kali/emba), icindeki emba dosyasina bak
+        if [ -d "$p" ] && [ -f "$p/emba" ]; then
+            p="$p/emba"
+        fi
+        
+        # Dosya varsa ve calistirilabilirse sec
+        if [ -f "$p" ]; then
+            EMBA_PATH="$p"
+            break
+        fi
+    fi
+done
+
+if [ -z "$EMBA_PATH" ]; then
+    echo "Hata: EMBA calistirilabilir dosyasi bulunamadi!"
+    echo "Lutfen EMBA'nin kurulu oldugundan emin olun. (Beklenen yerler: /opt/emba/emba, /home/kali/emba/emba vb.)"
+    exit 2
+fi
+
+# Calistirma izni ver (gerekirse)
+if [ ! -x "$EMBA_PATH" ]; then
+    echo "Uyari: $EMBA_PATH icin calistirma izni yok, veriliyor..."
+    sudo chmod +x "$EMBA_PATH"
+fi
+
+if [ ! -f "$FirmwarePath" ]; then
+    echo "Hata: Firmware dosyasi bulunamadi: $FirmwarePath"
+    exit 2
+fi
+
+echo "[1/2] EMBA calistiriliyor..."
+echo "Firmware: $FirmwarePath"
+echo "Log Dizini: $LogDir"
+echo "EMBA Dizin: $EMBA_PATH"
+
+emba_dir=$(dirname "$EMBA_PATH")
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
+LAVA_ROOT="$(dirname "$SCRIPT_DIR")"
+PROFILE_SRC="$LAVA_ROOT/EMBA - Scan Profile/lava.00-quick-scan.emba"
+
+if [ -f "$PROFILE_SRC" ]; then
+    echo "Hizli tarama profili bulundu, kopyalaniyor: $PROFILE_SRC"
+    sudo mkdir -p "$emba_dir/scan-profiles/"
+    sudo cp "$PROFILE_SRC" "$emba_dir/scan-profiles/"
+    PROFILE_ARG="-p ./scan-profiles/lava.00-quick-scan.emba"
+else
+    echo "Uyari: Hizli tarama profili bulunamadi, varsayilan tarama yapilacak."
+    PROFILE_ARG=""
+fi
+
+# Run EMBA directly. Python's PTY will handle the terminal dimensions and UTF-8 base64 encoding.
+cd "$emba_dir"
+sudo LC_ALL="en_US.UTF-8" LANG="en_US.UTF-8" ./emba -f "$FirmwarePath" -l "$LogDir" $PROFILE_ARG
+if [ $? -ne 0 ]; then
+    echo "Hata: EMBA taramasi basarisiz oldu veya EMBA bulunamadi!"
+    exit 2
+fi
+
+echo "[OK] EMBA taramasi tamamlandi!"
+
+# 3. LAVA analizini baslat
+echo ""
+echo "[2/2] LAVA yapay zeka analizi baslatiliyor..."
+cd "$LAVA_ROOT" || exit 2
+bash "$SCRIPT_DIR/run_lava.sh" -LogDir "$LogDir"
+
+if [ $? -ne 0 ]; then
+    echo "Hata: LAVA yapay zeka analizi adiminda (run_lava.sh) hata olustu! Ayrintilar icin LAVA loglarini kontrol edin."
+    exit 2
+fi
+
+echo ""
+echo "========================================="
+echo "FULL PIPELINE TAMAMLANDI!"
+echo "========================================="
