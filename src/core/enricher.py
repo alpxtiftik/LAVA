@@ -83,10 +83,22 @@ def extract_context(path: Path, line_no: int | None, matched_content: str, windo
         # satiri dosya icinde arayarak buluyoruz.
         needle = matched_content.strip()
         if needle:
-            for i, ln in enumerate(lines):
-                if needle in ln:
-                    idx = i
-                    break
+            needle_lines = needle.splitlines()
+            if len(needle_lines) == 1:
+                for i, ln in enumerate(lines):
+                    if needle in ln:
+                        idx = i
+                        break
+            else:
+                for i in range(len(lines) - len(needle_lines) + 1):
+                    match = True
+                    for j, n_line in enumerate(needle_lines):
+                        if n_line.strip() and n_line not in lines[i+j]:
+                            match = False
+                            break
+                    if match:
+                        idx = i
+                        break
 
     if idx is not None:
         start = max(0, idx - window)
