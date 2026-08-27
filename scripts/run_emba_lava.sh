@@ -10,7 +10,6 @@ while [[ "$#" -gt 0 ]]; do
     case $1 in
         -FirmwarePath|--firmware-path) FirmwarePath="$2"; shift ;;
         -LogDir|--log-dir) LogDir="$2"; shift ;;
-        -Profile|--profile) ProfilePath="$2"; shift ;;
         *) echo "Bilinmeyen parametre: $1"; exit 2 ;;
     esac
     shift
@@ -120,15 +119,16 @@ echo "EMBA Dizin: $EMBA_PATH"
 emba_dir=$(dirname "$EMBA_PATH")
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
 LAVA_ROOT="$(dirname "$SCRIPT_DIR")"
-PROFILE_ARG=""
-if [ -n "$ProfilePath" ] && [ -f "$ProfilePath" ]; then
-    PROFILE_NAME=$(basename "$ProfilePath")
-    echo "Ozel tarama profili bulundu, kopyalaniyor: $ProfilePath"
+PROFILE_SRC="$LAVA_ROOT/EMBA - Scan Profile/lava.00-quick-scan.emba"
+
+if [ -f "$PROFILE_SRC" ]; then
+    echo "Hizli tarama profili bulundu, kopyalaniyor: $PROFILE_SRC"
     sudo mkdir -p "$emba_dir/scan-profiles/"
-    sudo cp "$ProfilePath" "$emba_dir/scan-profiles/"
-    PROFILE_ARG="-p $PROFILE_NAME"
+    sudo cp "$PROFILE_SRC" "$emba_dir/scan-profiles/"
+    PROFILE_ARG="-p lava.00-quick-scan.emba"
 else
-    echo "Bilgi: Ozel bir profil belirtilmedi, varsayilan (full) tarama yapilacak."
+    echo "Uyari: Hizli tarama profili bulunamadi, varsayilan tarama yapilacak."
+    PROFILE_ARG=""
 fi
 
 # Run EMBA directly. Python's PTY will handle the terminal dimensions and UTF-8 base64 encoding.
