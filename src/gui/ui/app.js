@@ -162,29 +162,14 @@ function setupEventListeners() {
     const browseBtn = document.getElementById('browseBtn');
     const exportBtn = document.getElementById('exportHtmlBtn');
     const showTerminalBtn = document.getElementById('showTerminalBtn');
-    const saveTerminalBtn = document.getElementById('saveTerminalBtn');
+
     
     if (startBtn) startBtn.addEventListener('click', startScan);
     if (stopBtn) stopBtn.addEventListener('click', stopScan);
     if (browseBtn) browseBtn.addEventListener('click', browseFolder);
     if (exportBtn) exportBtn.addEventListener('click', exportHtml);
     
-    if (saveTerminalBtn) {
-        saveTerminalBtn.addEventListener('click', async () => {
-            if (window.pywebview && window.pywebview.api.save_terminal_log) {
-                try {
-                    const res = await window.pywebview.api.save_terminal_log();
-                    if (res.status === 'success') {
-                        alert("Terminal log saved successfully to:\n" + res.path);
-                    } else if (res.status === 'error') {
-                        alert("Error saving terminal log: " + res.message);
-                    }
-                } catch (e) {
-                    alert("Error calling save_terminal_log: " + e.message);
-                }
-            }
-        });
-    }
+
 
     // AI Settings Modal
     const aiSettingsBtn = document.getElementById('aiSettingsBtn');
@@ -497,7 +482,7 @@ async function checkStatus() {
                 if (data.exit_code === 0) {
                     alert("Scan completed successfully!");
                 } else if (data.exit_code !== null && data.exit_code !== undefined && data.exit_code !== 1) { // 1 is taskkill error on stop, mostly ignore
-                    alert("Scan failed or was stopped (exit code: " + data.exit_code + "). Check lava_scan.log for details.");
+                    alert("Scan failed or was stopped (exit code: " + data.exit_code + "). Check lava_out/lava_scan.log for details.");
                 }
             }
             indicator.textContent = 'IDLE';

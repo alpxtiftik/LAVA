@@ -32,6 +32,9 @@ else:
     APP_DIR = os.path.dirname(os.path.dirname(DIRECTORY))
 
 class Api:
+    def __init__(self):
+        self.current_log_file = None
+
     def open_folder_dialog(self):
         try:
             window = webview.windows[0]
@@ -123,7 +126,12 @@ class Api:
                     ps1_path = os.path.join(APP_DIR, "scripts", "run_lava.ps1")
                     cmd = ["powershell", "-ExecutionPolicy", "Bypass", "-File", ps1_path, "-LogDir", input_path]
                     
-                log_out = open(os.path.join(APP_DIR, "lava_scan.log"), "w", encoding="utf-8")
+                actual_log_dir = input_path
+                lava_out_dir = os.path.join(actual_log_dir, "lava_out")
+                os.makedirs(lava_out_dir, exist_ok=True)
+                self.current_log_file = os.path.join(lava_out_dir, "lava_scan.log")
+                
+                log_out = open(self.current_log_file, "w", encoding="utf-8")
                 scan_process = subprocess.Popen(
                     cmd, 
                     creationflags=CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP,
@@ -167,8 +175,11 @@ class Api:
                 )
                 os.close(slave_fd)
                 
-                log_file_path = os.path.join(APP_DIR, "lava_scan.log")
-                open(log_file_path, 'w').close()
+                actual_log_dir = log_dir if mode == "firmware" else input_path
+                lava_out_dir = os.path.join(actual_log_dir, "lava_out")
+                os.makedirs(lava_out_dir, exist_ok=True)
+                self.current_log_file = os.path.join(lava_out_dir, "lava_scan.log")
+                open(self.current_log_file, 'w').close()
                 
                 def _reader():
                     while True:
@@ -241,10 +252,9 @@ class Api:
             return {"data": "", "offset": last_offset}
             
         # Windows (file buffer fallback)
-        log_file = os.path.join(APP_DIR, "lava_scan.log")
-        if os.path.exists(log_file):
+        if self.current_log_file and os.path.exists(self.current_log_file):
             try:
-                with open(log_file, "rb") as f:
+                with open(self.current_log_file, "rb") as f:
                     f.seek(last_offset)
                     data = f.read()
                     new_offset = f.tell()
@@ -267,9 +277,8 @@ class Api:
                     with scan_buffer_lock:
                         data = bytes(scan_buffer)
                 else:
-                    log_file = os.path.join(APP_DIR, "lava_scan.log")
-                    if os.path.exists(log_file):
-                        with open(log_file, "rb") as f:
+                    if self.current_log_file and os.path.exists(self.current_log_file):
+                        with open(self.current_log_file, "rb") as f:
                             data = f.read()
                             
                 # Strip ANSI codes for clean text file
