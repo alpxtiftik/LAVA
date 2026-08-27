@@ -8,6 +8,7 @@ import json
 import base64
 import threading
 import datetime
+import re
 
 if sys.platform != "win32":
     import pty
@@ -252,6 +253,36 @@ class Api:
             except Exception:
                 pass
         return {"data": "", "offset": last_offset}
+
+    def save_terminal_log(self):
+        try:
+            window = webview.windows[0]
+            result = window.create_file_dialog(webview.SAVE_DIALOG, save_filename='lava_terminal_log.txt')
+            if result and len(result) > 0:
+                save_path = result[0]
+                data = b""
+                
+                if sys.platform != "win32":
+                    global scan_buffer
+                    with scan_buffer_lock:
+                        data = bytes(scan_buffer)
+                else:
+                    log_file = os.path.join(APP_DIR, "lava_scan.log")
+                    if os.path.exists(log_file):
+                        with open(log_file, "rb") as f:
+                            data = f.read()
+                            
+                # Strip ANSI codes for clean text file
+                data_str = data.decode('utf-8', 'replace')
+                ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+                clean_data = ansi_escape.sub('', data_str)
+                
+                with open(save_path, "w", encoding="utf-8") as f:
+                    f.write(clean_data)
+                return {"status": "success", "path": save_path}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+        return {"status": "cancelled"}
 
     def _get_latest_out_dir(self, log_dir):
         base_out = os.path.join(log_dir, "lava_out")
