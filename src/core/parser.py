@@ -210,10 +210,11 @@ def parse_s106(s106_dir: Path) -> list[dict]:
 # Sadece S99_CATEGORY_WHITELIST'teki dosyalar taranır.
 # ---------------------------------------------------------------------------
 # Gerçek eşleşme satırları EMBA'da her zaman firmware extraction kökünden
-# (mutlak "/") başlar: "/logs/firmware/.../etc/passwd:1:root:...". Başlıktaki
 # "[*] Grepit state info - ..." satırları da içinde ":" barındırdığı için
 # path'in "/" ile başlama zorunluluğu olmadan yanlışlıkla eşleşiyordu.
-_MATCH_LINE_RE = re.compile(r"^(/[^\n]+?):(\d+):(.*)$")
+# Ayrıca grep context satırları (path-line-content) içindeki ":" karakterleri 
+# yüzünden regex yanılıyordu. [^:]+ kullanarak ilk iki noktanın dosya adını bitirmesini sağlıyoruz.
+_MATCH_LINE_RE = re.compile(r"^(/[^:]+):(\d+):(.*)$")
 
 _skipped_binary_noise = 0
 
