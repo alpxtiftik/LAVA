@@ -15,9 +15,17 @@ while [[ "$#" -gt 0 ]]; do
     shift
 done
 
-if [ -z "$FirmwarePath" ] || [ -z "$LogDir" ]; then
-    echo "Kullanim: $0 -FirmwarePath <path> -LogDir <dir>"
+if [ -z "$FirmwarePath" ]; then
+    echo "Kullanim: $0 -FirmwarePath <path> [-LogDir <dir>]"
     exit 2
+fi
+
+if [ -z "$LogDir" ]; then
+    FIRMWARE_DIR=$(dirname "$FirmwarePath")
+    FIRMWARE_BASENAME=$(basename "$FirmwarePath")
+    TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+    LogDir="${FIRMWARE_DIR}/emba_logs_${FIRMWARE_BASENAME}_${TIMESTAMP}"
+    echo "[*] LogDir belirtilmedi, otomatik olusturuldu: $LogDir"
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"

@@ -72,7 +72,7 @@ If you prefer running the orchestration scripts from the terminal instead of the
 **To scan a firmware file (Full Pipeline - LINUX ONLY):**
 - **Linux:**
   ```bash
-  bash scripts/run_emba_lava.sh -FirmwarePath "/home/user/firmware.bin" -LogDir "/home/user/lava_logs"
+  bash scripts/run_emba_lava.sh -FirmwarePath "/home/user/firmware.bin"
   ```
 
 **To analyze an existing EMBA log (Available on All OS):**
