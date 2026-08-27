@@ -608,9 +608,9 @@ async function stopScan() {
 }
 
 async function exportHtml() {
-    const logDir = document.getElementById('logDirInput').value.trim();
+    const logDir = currentLogDir || document.getElementById('logDirInput').value.trim();
     if (!logDir) {
-        alert("Please select a Log Directory first.");
+        alert("Please run a scan or select a Log Directory first.");
         return;
     }
     if (window.pywebview && window.pywebview.api) {
