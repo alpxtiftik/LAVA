@@ -40,22 +40,26 @@ REPORT_FILE="$OUTDIR/lava_report.html"
 AI_IP="127.0.0.1"
 AI_PORT="11434"
 AI_PROVIDER="local"
+AI_MODEL="qwen2.5-coder:7b"
 if [ -f "config/ai_config.env" ]; then
     ip_val=$(grep "LOCAL_AI_IP" config/ai_config.env | cut -d '=' -f2 | tr -d '"' | tr -d "'")
     port_val=$(grep "LOCAL_AI_PORT" config/ai_config.env | cut -d '=' -f2 | tr -d '"' | tr -d "'")
     prov_val=$(grep "AI_PROVIDER" config/ai_config.env | cut -d '=' -f2 | tr -d '"' | tr -d "'")
+    mod_val=$(grep "LOCAL_AI_MODEL" config/ai_config.env | cut -d '=' -f2 | tr -d '"' | tr -d "'")
     [ -n "$ip_val" ] && AI_IP="$ip_val"
     [ -n "$port_val" ] && AI_PORT="$port_val"
     [ -n "$prov_val" ] && AI_PROVIDER="$prov_val"
+    [ -n "$mod_val" ] && AI_MODEL="$mod_val"
 fi
 
 # Ollama arka planda calismiyorsa baslat (Sadece Localhost icin ve provider local ise)
 if [ "$AI_PROVIDER" != "gemini" ] && ! curl -s "http://$AI_IP:$AI_PORT/" > /dev/null; then
     if [ "$AI_IP" = "127.0.0.1" ] || [ "$AI_IP" = "localhost" ]; then
         if command -v ollama &> /dev/null; then
-            echo "Ollama API'ye ulasilamadi ($AI_IP:$AI_PORT). Arka planda baslatiliyor..."
+            echo "[AI_INFO] Ollama servisi kapali, otomatik olarak arka planda baslatiliyor..."
             nohup ollama serve > /dev/null 2>&1 &
             sleep 3
+            echo "[AI_INFO] Ollama servisi basariyla tetiklendi!"
         else
             echo "HATA: Sisteminizde 'ollama' kurulu degil!"
             echo "Linux (Kali) uzerinde LAVA'yi kullanabilmek icin Ollama gereklidir."
@@ -70,30 +74,35 @@ if [ "$AI_PROVIDER" != "gemini" ] && ! curl -s "http://$AI_IP:$AI_PORT/" > /dev/
 fi
 
 echo "========================================="
-echo "LAVA Pipeline Başlatılıyor..."
+echo "LAVA Pipeline Baslatiliyor..."
+if [ "$AI_PROVIDER" = "gemini" ]; then
+    echo "[AI_INFO] Secilen Model: Gemini API (Cloud)"
+else
+    echo "[AI_INFO] Secilen Model: $AI_MODEL (Local AI)"
+fi
 echo "========================================="
 
-echo "[1/3] EMBA logları ayrıştırılıyor (parse)..."
+echo "[1/3] EMBA loglari ayristiriliyor (parse)..."
 python3 src/core/parser.py --log-dir "$LOGDIR" --out "$FINDINGS_FILE" --merged-out "$MERGED_FILE"
-if [ $? -ne 0 ]; then echo "Hata: parser.py başarısız oldu!"; exit 2; fi
-echo "[OK] Ayrıştırma tamamlandı."
+if [ $? -ne 0 ]; then echo "Hata: parser.py basarisiz oldu!"; exit 2; fi
+echo "[OK] Ayristirma tamamlandi."
 
-echo -e "\n[2/3] Bağlam oluşturuluyor (enrich)..."
+echo -e "\n[2/3] Baglam olusturuluyor (enrich)..."
 python3 src/core/enricher.py --merged "$MERGED_FILE" --log-dir "$LOGDIR" --out "$ENRICHED_FILE"
-if [ $? -ne 0 ]; then echo "Hata: enricher.py başarısız oldu!"; exit 2; fi
-echo "[OK] Bağlam dosyaları (context) başarıyla eklendi."
+if [ $? -ne 0 ]; then echo "Hata: enricher.py basarisiz oldu!"; exit 2; fi
+echo "[OK] Baglam dosyalari (context) basariyla eklendi."
 
-echo -e "\n[3/3] LLM Sınıflandırma Başlıyor (Bu adım uzun sürebilir)..."
+echo -e "\n[3/3] LLM Siniflandirma Basliyor (Bu adim uzun surebilir)..."
 python3 src/core/classifier.py --mode run --config config/ai_config.env --ground-truth ground_truth.json --enriched "$ENRICHED_FILE" --out "$VERDICTS_FILE"
-if [ $? -ne 0 ]; then echo "Hata: classifier.py başarısız oldu!"; exit 2; fi
-echo "[OK] Sınıflandırma tamamlandı! Sonuçlar $VERDICTS_FILE dosyasına yazıldı."
+if [ $? -ne 0 ]; then echo "Hata: classifier.py basarisiz oldu!"; exit 2; fi
+echo "[OK] Siniflandirma tamamlandi! Sonuclar $VERDICTS_FILE dosyasina yazildi."
 
-echo -e "\n[4/4] HTML Raporu oluşturuluyor..."
+echo -e "\n[4/4] HTML Raporu olusturuluyor..."
 python3 src/reporting/html_report.py --verdicts "$VERDICTS_FILE" --out "$REPORT_FILE"
-if [ $? -ne 0 ]; then echo "Hata: html_report.py başarısız oldu!"; exit 2; fi
-echo "[OK] Rapor tamamlandı! Çıktı: $REPORT_FILE"
+if [ $? -ne 0 ]; then echo "Hata: html_report.py basarisiz oldu!"; exit 2; fi
+echo "[OK] Rapor tamamlandi! Cikti: $REPORT_FILE"
 
 echo -e "\n========================================="
-echo "LAVA Tamamlandı!"
-echo "Sonuçları incelemek için arayüzü başlatın: python3 start_ui.py"
+echo "LAVA Tamamlandi!"
+echo "Sonuclari incelemek icin arayuzu baslatin: python3 start_ui.py"
 echo "========================================="

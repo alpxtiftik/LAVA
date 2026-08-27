@@ -14,7 +14,7 @@ param(
     [string]$LogDir
 )
 
-# Konsol çıktısını UTF-8 olarak ayarla (Türkçe karakterlerin bozulmaması için)
+# Konsol ciktisini UTF-8 olarak ayarla (Turkce karakterlerin bozulmamasi icin)
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.Encoding]::UTF8
 
@@ -42,16 +42,17 @@ $EnrichedFile = Join-Path -Path $OutDir -ChildPath "enriched_findings.json"
 $VerdictsFile = Join-Path -Path $OutDir -ChildPath "verdicts.json"
 $ReportFile = Join-Path -Path $OutDir -ChildPath "lava_report.html"
 
-# Config dosyasindan IP ve PORT al
 $AiIp = "127.0.0.1"
 $AiPort = "11434"
 $AiProvider = "local"
+$AiModel = "qwen2.5-coder:7b"
 $ConfigPath = Join-Path -Path (Get-Location) -ChildPath "config\ai_config.env"
 if (Test-Path $ConfigPath) {
     foreach ($line in Get-Content $ConfigPath) {
         if ($line -match "^\s*LOCAL_AI_IP\s*=\s*`"?([^`"\s]+)`"?") { $AiIp = $matches[1] }
         if ($line -match "^\s*LOCAL_AI_PORT\s*=\s*`"?([^`"\s]+)`"?") { $AiPort = $matches[1] }
         if ($line -match "^\s*AI_PROVIDER\s*=\s*`"?([^`"\s]+)`"?") { $AiProvider = $matches[1] }
+        if ($line -match "^\s*LOCAL_AI_MODEL\s*=\s*`"?([^`"\s]+)`"?") { $AiModel = $matches[1] }
     }
 }
 
@@ -61,9 +62,10 @@ if ($AiProvider -ne "gemini") {
         $null = Invoke-RestMethod -Uri "http://${AiIp}:${AiPort}/" -Method Get -ErrorAction Stop
     } catch {
         if ($AiIp -eq "127.0.0.1" -or $AiIp -eq "localhost") {
-            Write-Host "Ollama API'ye ulasilamadi (${AiIp}:${AiPort}). Arka planda baslatiliyor..." -ForegroundColor Yellow
+            Write-Host "[AI_INFO] Ollama servisi kapali, otomatik olarak arka planda baslatiliyor..." -ForegroundColor Yellow
             Start-Process -FilePath "ollama" -ArgumentList "serve" -WindowStyle Hidden -ErrorAction SilentlyContinue
             Start-Sleep -Seconds 3
+            Write-Host "[AI_INFO] Ollama servisi basariyla tetiklendi!" -ForegroundColor Green
         } else {
             Write-Host "UYARI: Uzak Ollama sunucusuna (${AiIp}:${AiPort}) ulasilamadi!" -ForegroundColor Red
             Write-Host "Lutfen o makinedeki Ollama'nin calistigindan ve ag baglantisina acik oldugundan (OLLAMA_HOST=0.0.0.0) emin olun." -ForegroundColor Yellow
@@ -73,6 +75,11 @@ if ($AiProvider -ne "gemini") {
 
 Write-Host "=========================================" -ForegroundColor Cyan
 Write-Host "LAVA Pipeline Baslatiliyor..." -ForegroundColor Cyan
+if ($AiProvider -eq "gemini") {
+    Write-Host "[AI_INFO] Secilen Model: Gemini API (Cloud)" -ForegroundColor Green
+} else {
+    Write-Host "[AI_INFO] Secilen Model: $AiModel (Local AI)" -ForegroundColor Green
+}
 Write-Host "=========================================" -ForegroundColor Cyan
 
 # 1. Parse

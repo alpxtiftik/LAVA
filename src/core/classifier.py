@@ -151,7 +151,7 @@ def load_ai_config(config_path: Path) -> dict:
 def format_context_block(context: dict | None, max_chars: int) -> str:
     if not context or context.get("status") != "ok":
         status = (context or {}).get("status", "context_yok")
-        return f"Dosya bağlamı: mevcut değil ({status})\n"
+        return f"Dosya baglami: mevcut degil ({status})\n"
     lines = context["context_lines"]
     idx = context.get("matched_line_index_in_context")
     exact = context.get("exact_match_located", idx is not None)
@@ -161,9 +161,9 @@ def format_context_block(context: dict | None, max_chars: int) -> str:
         rendered.append(f"{marker}{ln}")
     block = "\n".join(rendered)
     if len(block) > max_chars:
-        block = block[:max_chars] + "\n... (kırpıldı)"
-    note = "" if exact else "\n[NOT: eşleşen satır tam olarak bulunamadı, bu dosyanın BAŞINDAN bir örnek - '>>>' işareti YOK, kendi kararını içeriğe bakarak ver]"
-    return f"Dosya bağlamı{' (>>> = eşleşen satır)' if exact else ''}:{note}\n{block}\n"
+        block = block[:max_chars] + "\n... (kirpildi)"
+    note = "" if exact else "\n[NOT: eslesen satir tam olarak bulunamadi, bu dosyanin BASINDAN bir ornek - '>>>' isareti YOK, kendi kararini icerige bakarak ver]"
+    return f"Dosya baglami{' (>>> = eslesen satir)' if exact else ''}:{note}\n{block}\n"
 
 
 def build_few_shot_block(few_shot_items: list[dict]) -> str:
@@ -223,17 +223,17 @@ def call_localai(base_url: str, model: str, system_prompt: str, user_prompt: str
         data = resp.json()
         return data["choices"][0]["message"]["content"]
     except (requests.RequestException, KeyError, IndexError, ValueError) as e:
-        print(f"    [!] LocalAI çağrı hatası: {e}")
+        print(f"    [!] LocalAI cagri hatasi: {e}")
         return None
 
 class RateLimitException(Exception):
     def __init__(self, delay):
         self.delay = delay
-        super().__init__(f"Rate limit aşıldı, {delay} saniye beklenmeli.")
+        super().__init__(f"Rate limit asildi, {delay} saniye beklenmeli.")
 
 def call_gemini(api_key: str, system_prompt: str, user_prompt: str, timeout: int = 60) -> str | None:
     if not api_key:
-        print("    [!] Gemini API anahtarı (GEMINI_API_KEY) eksik!")
+        print("    [!] Gemini API anahtari (GEMINI_API_KEY) eksik!")
         return None
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key={api_key}"
     payload = {
@@ -269,11 +269,11 @@ def call_gemini(api_key: str, system_prompt: str, user_prompt: str, timeout: int
     except requests.RequestException as e:
         error_msg = ""
         if hasattr(e, "response") and e.response is not None:
-            error_msg = f" API Yanıtı: {e.response.text}"
-        print(f"    [!] Gemini ağ hatası: {e}{error_msg}")
+            error_msg = f" API Yaniti: {e.response.text}"
+        print(f"    [!] Gemini ag hatasi: {e}{error_msg}")
         return None
     except (KeyError, IndexError, ValueError) as e:
-        print(f"    [!] Gemini veri hatası: {e}")
+        print(f"    [!] Gemini veri hatasi: {e}")
         return None
 
 _JSON_BLOCK_RE = re.compile(r"\{.*\}", re.DOTALL)
@@ -325,7 +325,7 @@ def classify_item(
     model = config.get("LOCAL_AI_MODEL", "")
     gemini_key = config.get("GEMINI_API_KEY", "")
 
-    # İlk denemeden önce hangi sağlayıcının kullanıldığını logla
+    # Ilk denemeden once hangi saglayicinin kullanildigini logla
     if not hasattr(classify_item, "provider_logged"):
         print(f"\n[+] Using AI Provider: {provider.upper()}")
         classify_item.provider_logged = True
@@ -339,7 +339,7 @@ def classify_item(
                 raw = call_localai(base_url, model, system_prompt, user_prompt)
         except RateLimitException as e:
             last_error_details = str(e)
-            print(f"    [!] Deneme {attempt}/{max_retries} başarısız ({provider.upper()}). Kota doldu. {e.delay} sn bekleniyor...")
+            print(f"    [!] Deneme {attempt}/{max_retries} basarisiz ({provider.upper()}). Kota doldu. {e.delay} sn bekleniyor...")
             time.sleep(e.delay)
             continue
         
@@ -348,13 +348,13 @@ def classify_item(
             result["attempts"] = attempt
             return result
         
-        last_error_details = "Alınan Raw Cevap: None" if not raw else f"Alınan Raw Cevap: {raw.strip()[:200]}..."
-        print(f"    [!] Deneme {attempt}/{max_retries} başarısız ({provider.upper()}). Hata detayı: {last_error_details}")
+        last_error_details = "Alinan Raw Cevap: None" if not raw else f"Alinan Raw Cevap: {raw.strip()[:200]}..."
+        print(f"    [!] Deneme {attempt}/{max_retries} basarisiz ({provider.upper()}). Hata detayi: {last_error_details}")
         if attempt < max_retries:
             print("        Tekrar deneniyor (2 sn)...")
             time.sleep(2)
             
-    return {"verdict": "ERROR", "confidence": None, "reasoning": f"{provider.upper()} API'den geçerli cevap alınamadı. {last_error_details}", "attempts": max_retries}
+    return {"verdict": "ERROR", "confidence": None, "reasoning": f"{provider.upper()} API'den gecerli cevap alinamadi. {last_error_details}", "attempts": max_retries}
 
 
 
@@ -407,7 +407,7 @@ def run_test_mode(args, config: dict):
 
     results = []
     for i, item in enumerate(test_set, start=1):
-        print(f"[{i}/{len(test_set)}] {item['finding_id']} ({item['file_path']}) değerlendiriliyor...")
+        print(f"[{i}/{len(test_set)}] {item['finding_id']} ({item['file_path']}) degerlendiriliyor...")
         pred = classify_item(item, config, system_prompt, max_chars)
         results.append({
             "finding_id": item["finding_id"],
@@ -420,9 +420,9 @@ def run_test_mode(args, config: dict):
             "attempts": pred.get("attempts"),
         })
         match = "✓" if pred["verdict"] == item["verdict"] else "✗"
-        print(f"    gerçek={item['verdict']}  model={pred['verdict']}  {match}")
+        print(f"    gercek={item['verdict']}  model={pred['verdict']}  {match}")
 
-        # Her döngü adımında ara kayıt (metrikler hariç)
+        # Her dongu adiminda ara kayit (metrikler haric)
         output = {"results": results, "metrics": {}}
         atomic_save(output, args.out)
 
@@ -430,17 +430,17 @@ def run_test_mode(args, config: dict):
     output = {"results": results, "metrics": metrics}
     atomic_save(output, args.out)
 
-    print("\n=== SONUÇLAR ===")
+    print("\n=== SONUCLAR ===")
     for k, v in metrics.items():
         print(f"  {k}: {v}")
-    print(f"\n[+] Detaylı sonuçlar: {args.out}")
+    print(f"\n[+] Detayli sonuclar: {args.out}")
 
 
 def run_full_mode(args, config: dict):
     data = json.loads(Path(args.ground_truth).read_text(encoding="utf-8")) if args.ground_truth else None
     few_shot = data["few_shot"] if data else []
     if not few_shot:
-        print("[!] UYARI: few-shot örnekleri verilmedi (--ground-truth belirtilmedi), prompt daha zayıf çalışacak.")
+        print("[!] UYARI: few-shot ornekleri verilmedi (--ground-truth belirtilmedi), prompt daha zayif calisacak.")
 
     findings = json.loads(Path(args.enriched).read_text(encoding="utf-8"))
     system_prompt = build_system_prompt(few_shot)
@@ -450,7 +450,7 @@ def run_full_mode(args, config: dict):
     results = []
     for i, item in enumerate(findings, start=1):
         label = item.get("file_path", "?")
-        print(f"[{i}/{len(findings)}] {label} değerlendiriliyor...")
+        print(f"[{i}/{len(findings)}] {label} degerlendiriliyor...")
         pred = classify_item(item, config, system_prompt, max_chars)
         results.append({
             "file_path": item.get("file_path"),
@@ -463,41 +463,41 @@ def run_full_mode(args, config: dict):
             "attempts": pred.get("attempts"),
         })
         
-        # Her adımda sonuçları kaydet (Ctrl+C kesintilerine karşı)
+        # Her adimda sonuclari kaydet (Ctrl+C kesintilerine karsi)
         atomic_save(results, args.out)
 
     from collections import Counter
     dist = Counter(r["predicted_verdict"] for r in results)
     
-    # Her durumda (0 bulgu olsa bile) dosyayı oluştur
+    # Her durumda (0 bulgu olsa bile) dosyayi olustur
     atomic_save(results, args.out)
     
-    print("\n=== ÖZET ===")
+    print("\n=== OZET ===")
     for k, v in dist.items():
         print(f"  {k}: {v}")
-    print(f"\n[+] Sonuçlar: {args.out}")
+    print(f"\n[+] Sonuclar: {args.out}")
 
 
 def main():
-    ap = argparse.ArgumentParser(description="LAVA - EMBA bulgularını LocalAI ile TP/FP olarak sınıflandırır.")
+    ap = argparse.ArgumentParser(description="LAVA - EMBA bulgularini LocalAI ile TP/FP olarak siniflandirir.")
     ap.add_argument("--mode", choices=["test", "run"], required=True)
-    ap.add_argument("--config", required=True, help="config/ai_config.env dosyası")
-    ap.add_argument("--ground-truth", help="test modunda zorunlu; run modunda opsiyonel (sadece few-shot için)")
-    ap.add_argument("--enriched", help="run modunda zorunlu - enrich_context.py çıktısı")
+    ap.add_argument("--config", required=True, help="config/ai_config.env dosyasi")
+    ap.add_argument("--ground-truth", help="test modunda zorunlu; run modunda opsiyonel (sadece few-shot icin)")
+    ap.add_argument("--enriched", help="run modunda zorunlu - enrich_context.py ciktisi")
     ap.add_argument("--out", required=True)
     args = ap.parse_args()
 
     config = load_ai_config(Path(args.config))
     if not config["LOCAL_AI_MODEL"]:
-        print("[!] UYARI: LOCAL_AI_MODEL config'te boş - identify_ai_model mantığı burada yok, doğru modeli config'e yazdığınızdan emin olun.")
+        print("[!] UYARI: LOCAL_AI_MODEL config'te bos - identify_ai_model mantigi burada yok, dogru modeli config'e yazdiginizdan emin olun.")
 
     if args.mode == "test":
         if not args.ground_truth:
-            ap.error("--mode test için --ground-truth zorunlu")
+            ap.error("--mode test icin --ground-truth zorunlu")
         run_test_mode(args, config)
     else:
         if not args.enriched:
-            ap.error("--mode run için --enriched zorunlu")
+            ap.error("--mode run icin --enriched zorunlu")
         run_full_mode(args, config)
 
 

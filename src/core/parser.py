@@ -2,11 +2,11 @@
 """
 LAVA - EMBA Hardcoded Credential Findings Parser
 ==================================================
-S45_pass_file_check, S99_grepit (cryptocred alt kümesi), S106_deep_key_search,
-S107_deep_password_search, S108_stacs_password_search çıktılarını tek bir
-normalize şemaya indirger ve modüller-arası doğrulamayı (corroboration) hesaplar.
+S45_pass_file_check, S99_grepit (cryptocred alt kumesi), S106_deep_key_search,
+S107_deep_password_search, S108_stacs_password_search ciktilarini tek bir
+normalize semaya indirger ve moduller-arasi dogrulamayi (corroboration) hesaplar.
 
-Kullanım:
+Kullanim:
     python3 parse_emba_findings.py --log-dir /path/to/lava_iotgoat_log --out findings.json
 """
 
@@ -18,9 +18,9 @@ import sys
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
-# Sadece gerçekten credential-odaklı S99_grepit kategorileri (MVP whitelist).
-# ciphers_*, ssl_usage_*, tls_usage_*, dev_random, x509 gibi "kripto kullanımı
-# tespiti" kategorileri bilinçli olarak dışarıda bırakıldı (bkz. sohbet notu).
+# Sadece gercekten credential-odakli S99_grepit kategorileri (MVP whitelist).
+# ciphers_*, ssl_usage_*, tls_usage_*, dev_random, x509 gibi "kripto kullanimi
+# tespiti" kategorileri bilincli olarak disarida birakildi (bkz. sohbet notu).
 # ---------------------------------------------------------------------------
 S99_CATEGORY_WHITELIST = {
     "1_cryptocred_passwd_or_shadow_files",
@@ -34,9 +34,9 @@ S99_CATEGORY_WHITELIST = {
     "2_cryptocred_password_equals_switch",
     "2_cryptocred_secret_narrow",
     "2_cryptocred_sign_key",
-    # "3_cryptocred_mysql_old_hashes" - kaldırıldı: 138 bulgunun neredeyse
-    # tamamı binary dosyalar içindeki rastgele byte dizileriydi, regex'in
-    # kapsamı gerçek MySQL-style hash'lerden çok daha geniş yakalıyor.
+    # "3_cryptocred_mysql_old_hashes" - kaldirildi: 138 bulgunun neredeyse
+    # tamami binary dosyalar icindeki rastgele byte dizileriydi, regex'in
+    # kapsami gercek MySQL-style hash'lerden cok daha genis yakaliyor.
     "4_cryptocred_certificates_and_keys_wide_private-key",
     "4_cryptocred_crypt_call",
     "4_cryptocred_passphrase_generic",
@@ -56,21 +56,21 @@ S99_CATEGORY_WHITELIST = {
 
 
 def content_is_mostly_printable(text: str, min_ratio: float = 0.85) -> bool:
-    """matched_content'in çoğunlukla okunabilir metin olup olmadığını kontrol
-    eder. Binary dosyalar içinden geçen çöp eşleşmeleri (örn. rpcd, opkg gibi
-    derlenmiş binary'lerdeki rastgele byte dizileri) elemek için kullanılır."""
+    """matched_content'in cogunlukla okunabilir metin olup olmadigini kontrol
+    eder. Binary dosyalar icinden gecen cop eslesmeleri (orn. rpcd, opkg gibi
+    derlenmis binary'lerdeki rastgele byte dizileri) elemek icin kullanilir."""
     if not text:
         return False
     printable = sum(1 for c in text if c.isprintable() or c in "\t\n")
     return (printable / len(text)) >= min_ratio
 
-# EMBA extraction dizinlerinin ortak öneki - path'leri kısaltıp okunur hale
-# getirmek için bu belirteçten sonrasını alıyoruz.
+# EMBA extraction dizinlerinin ortak oneki - path'leri kisaltip okunur hale
+# getirmek icin bu belirtecten sonrasini aliyoruz.
 EXTRACT_MARKERS = [
     "squashfs_v4_le_extract/",
     "fat_extract/",
     "unblob_extracted/firmware_extract/",
-    "squashfs-root/",  # binwalk'ın klasik cpio/squashfs extraction dizini
+    "squashfs-root/",  # binwalk'in klasik cpio/squashfs extraction dizini
     "cpio-root/",
     "jffs2-root/",
 ]
@@ -81,23 +81,23 @@ _ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 
 
 def strip_ansi(text: str) -> str:
-    """grep --color=always çıktısındaki ANSI renk kodlarını temizler."""
+    """grep --color=always ciktisindaki ANSI renk kodlarini temizler."""
     return _ANSI_RE.sub("", text)
 
 
 def looks_like_valid_path(path: str) -> bool:
-    """Binary çöp verinin (kernel blob, image içinden geçen rastgele metin
-    gibi) path olarak yanlışlıkla parse edilmesini engelleyen basit filtre."""
+    """Binary cop verinin (kernel blob, image icinden gecen rastgele metin
+    gibi) path olarak yanlislikla parse edilmesini engelleyen basit filtre."""
     if not path or len(path) > 300:
         return False
-    # Tab dışında herhangi bir kontrol karakteri varsa muhtemelen binary çöp.
+    # Tab disinda herhangi bir kontrol karakteri varsa muhtemelen binary cop.
     if any(ord(c) < 32 for c in path if c != "\t"):
         return False
     return True
 
 
 def normalize_path(raw_path: str) -> str:
-    """EMBA'nın uzun extraction path'ini firmware-içi göreli yola indirger."""
+    """EMBA'nin uzun extraction path'ini firmware-ici goreli yola indirger."""
     for marker in EXTRACT_MARKERS:
         if marker in raw_path:
             return raw_path.split(marker, 1)[1]
@@ -147,7 +147,7 @@ def parse_s107(csv_path: Path) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
-# S108 - stacs_pw_hashes.json (SARIF formatı)
+# S108 - stacs_pw_hashes.json (SARIF formati)
 # ---------------------------------------------------------------------------
 def parse_s108(json_path: Path) -> list[dict]:
     out = []
@@ -174,10 +174,10 @@ def parse_s108(json_path: Path) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
-# S106 - deep_key_search_<binary>.txt (her bulunan dosya için ayrı txt)
-# Not: bu modülün "eşleşen satır" çıktısı sık sık binary çöplük içeriyor,
-# bu yüzden ham metnin ilk 500 karakterini context olarak saklıyoruz;
-# gerçek okunur içerik gerekiyorsa ayrıca `strings` ile taranmalı.
+# S106 - deep_key_search_<binary>.txt (her bulunan dosya icin ayri txt)
+# Not: bu modulun "eslesen satir" ciktisi sik sik binary copluk iceriyor,
+# bu yuzden ham metnin ilk 500 karakterini context olarak sakliyoruz;
+# gercek okunur icerik gerekiyorsa ayrica `strings` ile taranmali.
 # ---------------------------------------------------------------------------
 def parse_s106(s106_dir: Path) -> list[dict]:
     out = []
@@ -204,16 +204,16 @@ def parse_s106(s106_dir: Path) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
-# S99 - grepit txt dosyaları (grep -A/-B context ile, "--" ile ayrılmış bloklar)
-# Format: path:line:content        -> asıl eşleşme
-#         path-line-content        -> context satırı (before/after)
-# Sadece S99_CATEGORY_WHITELIST'teki dosyalar taranır.
+# S99 - grepit txt dosyalari (grep -A/-B context ile, "--" ile ayrilmis bloklar)
+# Format: path:line:content        -> asil eslesme
+#         path-line-content        -> context satiri (before/after)
+# Sadece S99_CATEGORY_WHITELIST'teki dosyalar taranir.
 # ---------------------------------------------------------------------------
-# Gerçek eşleşme satırları EMBA'da her zaman firmware extraction kökünden
-# "[*] Grepit state info - ..." satırları da içinde ":" barındırdığı için
-# path'in "/" ile başlama zorunluluğu olmadan yanlışlıkla eşleşiyordu.
-# Ayrıca grep context satırları (path-line-content) içindeki ":" karakterleri 
-# yüzünden regex yanılıyordu. [^:]+ kullanarak ilk iki noktanın dosya adını bitirmesini sağlıyoruz.
+# Gercek eslesme satirlari EMBA'da her zaman firmware extraction kokunden
+# "[*] Grepit state info - ..." satirlari da icinde ":" barindirdigi icin
+# path'in "/" ile baslama zorunlulugu olmadan yanlislikla eslesiyordu.
+# Ayrica grep context satirlari (path-line-content) icindeki ":" karakterleri 
+# yuzunden regex yaniliyordu. [^:]+ kullanarak ilk iki noktanin dosya adini bitirmesini sagliyoruz.
 _MATCH_LINE_RE = re.compile(r"^(/[^:]+):(\d+):(.*)$")
 
 _skipped_binary_noise = 0
@@ -237,7 +237,7 @@ def parse_s99(s99_dir: Path) -> list[dict]:
                     content = m.group(3)
                     if not looks_like_valid_path(raw_path) or not content_is_mostly_printable(content):
                         _skipped_binary_noise += 1
-                        break  # bu blok binary çöp - atla, bir sonraki bloğa geç
+                        break  # bu blok binary cop - atla, bir sonraki bloga gec
                     out.append(
                         new_finding(
                             "S99_grepit",
@@ -246,13 +246,13 @@ def parse_s99(s99_dir: Path) -> list[dict]:
                             {"category": category, "line_no": m.group(2)},
                         )
                     )
-                    break  # blok başına sadece asıl eşleşmeyi al, context satırlarını atla
+                    break  # blok basina sadece asil eslesmeyi al, context satirlarini atla
     return out
 
 
 # ---------------------------------------------------------------------------
-# Corroboration: aynı (file_path, matched_content) birden fazla modülde
-# geçiyorsa, bu güçlü bir TP sinyalidir - modele feature olarak veriyoruz.
+# Corroboration: ayni (file_path, matched_content) birden fazla modulde
+# geciyorsa, bu guclu bir TP sinyalidir - modele feature olarak veriyoruz.
 # ---------------------------------------------------------------------------
 def merge_and_corroborate(findings: list[dict]) -> list[dict]:
     grouped: dict[tuple, list[dict]] = {}
@@ -272,16 +272,16 @@ def merge_and_corroborate(findings: list[dict]) -> list[dict]:
                 "source_findings": group,
             }
         )
-    # En çok doğrulananlar önce gelsin
+    # En cok dogrulananlar once gelsin
     merged.sort(key=lambda x: x["corroboration_count"], reverse=True)
     return merged
 
 
 def main():
-    ap = argparse.ArgumentParser(description="EMBA hardcoded credential çıktılarını normalize eder.")
-    ap.add_argument("--log-dir", required=True, help="EMBA log dizini (örn. lava_iotgoat_log)")
-    ap.add_argument("--out", default="findings.json", help="Ham (birleştirilmemiş) findings çıktısı")
-    ap.add_argument("--merged-out", default="merged_findings.json", help="Corroboration'lı birleşik çıktı")
+    ap = argparse.ArgumentParser(description="EMBA hardcoded credential ciktilarini normalize eder.")
+    ap.add_argument("--log-dir", required=True, help="EMBA log dizini (orn. lava_iotgoat_log)")
+    ap.add_argument("--out", default="findings.json", help="Ham (birlestirilmemis) findings ciktisi")
+    ap.add_argument("--merged-out", default="merged_findings.json", help="Corroboration'li birlesik cikti")
     args = ap.parse_args()
 
     log_dir = Path(args.log_dir)
@@ -306,17 +306,17 @@ def main():
     Path(args.merged_out).write_text(json.dumps(merged, indent=2, ensure_ascii=False), encoding="utf-8")
 
     print(f"[+] Toplam ham finding: {len(all_findings)}")
-    print(f"[+] Modül dağılımı:")
+    print(f"[+] Modul dagilimi:")
     per_module: dict[str, int] = {}
     for f in all_findings:
         per_module[f["module"]] = per_module.get(f["module"], 0) + 1
     for mod, cnt in sorted(per_module.items()):
         print(f"      {mod}: {cnt}")
-    print(f"[+] Birleştirme sonrası benzersiz finding: {len(merged)}")
+    print(f"[+] Birlestirme sonrasi benzersiz finding: {len(merged)}")
     multi = [m for m in merged if m["corroboration_count"] > 1]
-    print(f"[+] Birden fazla modül tarafından doğrulanan: {len(multi)}")
-    print(f"[+] S99_grepit'te binary çöp olarak atlanan blok: {_skipped_binary_noise}")
-    print(f"[+] Çıktılar: {args.out}, {args.merged_out}")
+    print(f"[+] Birden fazla modul tarafindan dogrulanan: {len(multi)}")
+    print(f"[+] S99_grepit'te binary cop olarak atlanan blok: {_skipped_binary_noise}")
+    print(f"[+] Ciktilar: {args.out}, {args.merged_out}")
 
 
 if __name__ == "__main__":
