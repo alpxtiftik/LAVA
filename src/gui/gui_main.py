@@ -153,6 +153,7 @@ class Api:
                 
                 env = os.environ.copy()
                 env["TERM"] = "xterm-256color"
+                env["LAVA_GUI_MODE"] = "1"
                 
                 scan_process = subprocess.Popen(
                     cmd, 
