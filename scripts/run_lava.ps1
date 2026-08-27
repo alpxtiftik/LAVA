@@ -107,7 +107,6 @@ py src/reporting/html_report.py --verdicts "$VerdictsFile" --out "$ReportFile"
 if ($LASTEXITCODE -ne 0) { Write-Host "Hata: html_report.py basarisiz oldu!" -ForegroundColor Red; exit $LASTEXITCODE }
 Write-Host "[OK] Rapor tamamlandi! Cikti: $ReportFile" -ForegroundColor Green
 
-Write-Host "`n=========================================" -ForegroundColor Cyan
-Write-Host "LAVA Tamamlandi!" -ForegroundColor Cyan
-Write-Host "Sonuclari incelemek icin arayuzu baslatin: LAVA_UI.exe" -ForegroundColor Cyan
+Write-Host "=========================================" -ForegroundColor Cyan
+Write-Host "LAVA Tamamlandi!" -ForegroundColor Green
 Write-Host "=========================================" -ForegroundColor Cyan

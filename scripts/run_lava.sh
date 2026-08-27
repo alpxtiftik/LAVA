@@ -105,5 +105,4 @@ echo "[OK] Rapor tamamlandi! Cikti: $REPORT_FILE"
 
 echo -e "\n========================================="
 echo "LAVA Tamamlandi!"
-echo "Sonuclari incelemek icin arayuzu baslatin: python3 start_ui.py"
 echo "========================================="
