@@ -125,7 +125,7 @@ if [ -f "$PROFILE_SRC" ]; then
     echo "Hizli tarama profili bulundu, kopyalaniyor: $PROFILE_SRC"
     sudo mkdir -p "$emba_dir/scan-profiles/"
     sudo cp "$PROFILE_SRC" "$emba_dir/scan-profiles/"
-    PROFILE_ARG="-p ./scan-profiles/lava.00-quick-scan.emba"
+    PROFILE_ARG="-p lava.00-quick-scan.emba"
 else
     echo "Uyari: Hizli tarama profili bulunamadi, varsayilan tarama yapilacak."
     PROFILE_ARG=""
