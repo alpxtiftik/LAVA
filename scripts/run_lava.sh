@@ -39,15 +39,18 @@ REPORT_FILE="$OUTDIR/lava_report.html"
 # Config dosyasindan IP ve PORT al
 AI_IP="127.0.0.1"
 AI_PORT="11434"
+AI_PROVIDER="local"
 if [ -f "config/ai_config.env" ]; then
     ip_val=$(grep "LOCAL_AI_IP" config/ai_config.env | cut -d '=' -f2 | tr -d '"' | tr -d "'")
     port_val=$(grep "LOCAL_AI_PORT" config/ai_config.env | cut -d '=' -f2 | tr -d '"' | tr -d "'")
+    prov_val=$(grep "AI_PROVIDER" config/ai_config.env | cut -d '=' -f2 | tr -d '"' | tr -d "'")
     [ -n "$ip_val" ] && AI_IP="$ip_val"
     [ -n "$port_val" ] && AI_PORT="$port_val"
+    [ -n "$prov_val" ] && AI_PROVIDER="$prov_val"
 fi
 
-# Ollama arka planda calismiyorsa baslat (Sadece Localhost icin)
-if ! curl -s "http://$AI_IP:$AI_PORT/" > /dev/null; then
+# Ollama arka planda calismiyorsa baslat (Sadece Localhost icin ve provider local ise)
+if [ "$AI_PROVIDER" != "gemini" ] && ! curl -s "http://$AI_IP:$AI_PORT/" > /dev/null; then
     if [ "$AI_IP" = "127.0.0.1" ] || [ "$AI_IP" = "localhost" ]; then
         if command -v ollama &> /dev/null; then
             echo "Ollama API'ye ulasilamadi ($AI_IP:$AI_PORT). Arka planda baslatiliyor..."

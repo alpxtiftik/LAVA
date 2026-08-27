@@ -559,3 +559,22 @@ pre {
 #terminalContent, #terminalContent .xterm-viewport {
     overscroll-behavior: contain;
 }
+
+#terminalContent {
+    overflow-x: auto !important;
+}
+
+/* Opaque scrollbar for xterm to prevent overlapping text */
+.xterm-viewport::-webkit-scrollbar {
+    width: 14px;
+    height: 14px;
+    background: #000; 
+}
+.xterm-viewport::-webkit-scrollbar-thumb {
+    background: #444;
+    border: 2px solid #000;
+    border-radius: 6px;
+}
+.xterm-viewport::-webkit-scrollbar-corner {
+    background: #000;
+}

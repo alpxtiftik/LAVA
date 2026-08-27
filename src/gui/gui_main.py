@@ -54,6 +54,53 @@ class Api:
     def get_platform(self):
         return sys.platform
 
+    def get_ai_config(self):
+        config_path = os.path.join(APP_DIR, "config", "ai_config.env")
+        config = {"AI_PROVIDER": "local", "GEMINI_API_KEY": ""}
+        if os.path.exists(config_path):
+            with open(config_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith("AI_PROVIDER="):
+                        config["AI_PROVIDER"] = line.split("=", 1)[1].strip('"\' ')
+                    elif line.startswith("GEMINI_API_KEY="):
+                        config["GEMINI_API_KEY"] = line.split("=", 1)[1].strip('"\' ')
+        return config
+
+    def save_ai_config(self, new_config):
+        config_path = os.path.join(APP_DIR, "config", "ai_config.env")
+        lines = []
+        if os.path.exists(config_path):
+            with open(config_path, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+        
+        provider = new_config.get("AI_PROVIDER", "local")
+        gemini_key = new_config.get("GEMINI_API_KEY", "")
+        
+        provider_found = False
+        gemini_found = False
+        
+        for i, line in enumerate(lines):
+            if line.strip().startswith("AI_PROVIDER="):
+                lines[i] = f'AI_PROVIDER="{provider}"\n'
+                provider_found = True
+            elif line.strip().startswith("GEMINI_API_KEY="):
+                lines[i] = f'GEMINI_API_KEY="{gemini_key}"\n'
+                gemini_found = True
+                
+        # Son satırda newline yoksa ekle
+        if lines and not lines[-1].endswith('\n'):
+            lines[-1] = lines[-1] + '\n'
+            
+        if not provider_found:
+            lines.append(f'AI_PROVIDER="{provider}"\n')
+        if not gemini_found:
+            lines.append(f'GEMINI_API_KEY="{gemini_key}"\n')
+            
+        with open(config_path, "w", encoding="utf-8") as f:
+            f.writelines(lines)
+        return {"status": "success"}
+
     def start_scan(self, input_path, mode="log"):
         global scan_process
         input_path = input_path.strip()

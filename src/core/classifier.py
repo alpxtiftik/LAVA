@@ -43,72 +43,80 @@ def atomic_save(data: dict | list, file_path: str):
 # tum formatlar burada.
 # ---------------------------------------------------------------------------
 HASH_CHEATSHEET = """\
-Bilinen crypt() hash format onekleri (bunlar GERCEK, calisan hash'lerdir, TP icin guclu sinyaldir):
+Known crypt() hash format prefixes (these are REAL, working hashes, strong TP signal):
   $1$  -> MD5-crypt
   $5$  -> SHA-256-crypt
   $6$  -> SHA-512-crypt
   $2a$/$2b$/$2y$ -> bcrypt
-Bir /etc/passwd veya /etc/shadow satirinda bu formatlardan biri geciyorsa ve alan sayisi
-dogruysa (user:hash:lastchg:min:max:warn:inactive:expire) bu genellikle gercek bir TP'dir."""
+If a line in /etc/passwd or /etc/shadow contains one of these prefixes and has the correct
+number of fields (user:hash:lastchg:min:max:warn:inactive:expire), it is generally a real TP."""
 
-SYSTEM_PROMPT_TEMPLATE = """Sen bir firmware güvenlik analistisin. Görevin, EMBA firmware analiz aracının \
-bulduğu "hardcoded credential/secret" adaylarını incelemek ve her birinin GERÇEK bir \
-kimlik bilgisi sızıntısı mı (TP - True Positive) yoksa yanlış alarm mı (FP - False Positive) \
-olduğuna karar vermektir.
+SYSTEM_PROMPT_TEMPLATE = """You are a firmware security analyst. Your task is to review "hardcoded \
+credential/secret" candidates found by the EMBA firmware analysis tool and decide whether each one \
+is a REAL credential leak (TP - True Positive) or a false alarm (FP - False Positive).
 
 {hash_cheatsheet}
 
-Değerlendirirken şunlara dikkat et:
-- Dosya yolu (config dosyası mı, binary/kütüphane mi, script mi, UI kodu mu)
-- Eşleşen içeriğin GERÇEK bir değer mi yoksa bir değişken adı/tanımı/yorum/UI etiketi mi olduğu
-- Kaç farklı EMBA modülünün aynı bulguyu bağımsız doğruladığı (corroboration_count) - yüksekse güçlü TP sinyali
-- Verilen dosya bağlamı (context_lines) - eşleşen satırın etrafındaki kod/config
+When evaluating, pay attention to:
+- The file path (is it a config file, a binary/library, a script, or UI code?)
+- Whether the matched content is an ACTUAL value, or just a variable name/definition/comment/UI label
+- How many different EMBA modules independently confirmed the same finding (corroboration_count) - higher means a stronger TP signal
+- The provided file context (context_lines) - the code/config surrounding the matched line
 
-KRİTİK KURALLAR:
-1. Eğer "eşleşen içerik" (matched_content) somut bir değer değil, JENERİK bir modül mesajıysa
-   (örn. "flagged as password-related file" gibi - bu bir dosya sınıflandırma bayrağıdır,
-   dosyanın GERÇEK içeriği DEĞİLDİR), bu TEK BAŞINA TP kanıtı sayılmaz. Bu durumda karar
-   VERİLEN CONTEXT'E dayanmalı: context'te gerçek bir hash/parola DEĞERİ görüyorsan TP,
-   görmüyorsan (örn. tüm satırlar 'x' veya '*' placeholder içeriyorsa, ya da context hiç
-   bulunamadıysa) FP de.
-2. Eğer eşleşen kod bir DEĞİŞKENDEN okuma yapan veya KOŞULLU bir provisioning/script mantığıysa
-   (örn. "json_get_vars root_password_hash", "sed -i ... /etc/shadow", bir config dosyasından
-   değer okuyup varsa uygulayan kod), bu KENDİSİ bir hardcoded credential DEĞİLDİR - script
-   sadece başka bir kaynaktan (board.json, config) gelen değeri UYGULUYOR. Bu genellikle FP'dir,
-   çünkü gerçek değer bu dosyada değil, script'in okuduğu kaynaktadır.
-3. Context bağlamında "exact_match_located: false" görüyorsan, bu context'in dosyanın BAŞINDAN
-   alınmış bir örnek olduğunu, eşleşen asıl satırı temsil etmediğini unutma - buna göre daha
-   temkinli değerlendir, sadece dosya adına güvenip TP deme.
-4. Eğer eşleşen içerik `/etc/passwd` veya `/etc/shadow` formatındaysa (örn. "root:x:0:0...")
-   ancak içinde `$1$`, `$5$`, `$6$`, `$2a$` vb. ile başlayan GERÇEK bir kriptografik hash barındırmıyorsa,
-   bu KESİNLİKLE bir FP'dir. 'x' veya '*' gibi karakterler sadece yer tutucudur (placeholder) ve
-   hash DEĞİLDİR. Sadece gerçek, uzun hash barındıran satırlar TP'dir.
+CRITICAL RULES:
+1. If the "matched content" is not a concrete value but a GENERIC module message
+   (e.g. "flagged as password-related file" - this is a file classification flag,
+   NOT the file's actual content), this alone does NOT count as TP evidence. In this case,
+   decide based on the PROVIDED CONTEXT: if you see an actual hash/password VALUE in the
+   context, say TP; if not (e.g. all lines contain 'x' or '*' placeholders, or no context
+   was found at all), say FP.
+2. If the matched code reads from a VARIABLE or is CONDITIONAL provisioning/script logic
+   (e.g. "json_get_vars root_password_hash", "sed -i ... /etc/shadow", code that reads a
+   value from a config file and applies it if present), this is NOT itself a hardcoded
+   credential - the script is merely APPLYING a value coming from another source (board.json,
+   config). This is generally FP, because the actual value is not in this file, but in the
+   source the script reads from.
+3. If the context shows "exact_match_located: false", remember that this context was taken
+   from the BEGINNING of the file and does not represent the actual matched line - evaluate
+   more cautiously accordingly, and do not say TP just by trusting the file name.
+4. If the matched content is in /etc/passwd or /etc/shadow format (e.g. "root:x:0:0...")
+   but does NOT contain an actual cryptographic hash starting with $1$, $5$, $6$, $2a$, etc.,
+   this is DEFINITELY an FP. Characters like 'x' or '*' are merely placeholders and are NOT
+   hashes. Only lines containing an actual, long hash are TP.
+5. A private key found in firmware (RSA/EC/DSA, in "-----BEGIN ... PRIVATE KEY-----" format)
+   should be treated as TP BY DEFAULT - the fact that the key has a valid/real cryptographic
+   format is evidence THAT it is genuine cryptographic material, not evidence that it is safe.
+   The only thing that makes a private key FP is CONCRETE evidence that it is explicitly a
+   test/example/documentation key (e.g. an OBVIOUS marker such as "example", "test", "sample",
+   "dummy" in the file name/path, AND it must be clearly part of the vendor's own build process -
+   the "-----BEGIN ... PRIVATE KEY-----" format alone can NEVER be used as FP justification).
+   When in doubt, say TP.
 
-Aşağıda örnekler var. Bunlardan öğren, sonra sana verilen YENİ bulguyu değerlendir.
+Below are examples. Learn from them, then evaluate the NEW finding given to you.
 
 {few_shot_block}
 
-ÇOK ÖNEMLİ KURALLAR:
-1. "reasoning" kısmını KESİNLİKLE VE SADECE İNGİLİZCE yaz (Türkçe kelime kullanma).
-2. Cevabını SADECE aşağıdaki JSON formatında ver, başka hiçbir metin ekleme:
-{{"verdict": "TP" veya "FP", "confidence": 0.0-1.0 arası sayı, "reasoning": "1-2 sentence short ENGLISH reasoning"}}
+VERY IMPORTANT RULES:
+1. Write the "reasoning" field STRICTLY AND ONLY IN ENGLISH.
+2. Respond ONLY in the following JSON format, with no other text:
+{{"verdict": "TP" or "FP", "confidence": a number between 0.0-1.0, "reasoning": "1-2 sentence short ENGLISH reasoning"}}
 """
 
-FEW_SHOT_ITEM_TEMPLATE = """### Örnek {n}
-Dosya: {file_path}
-Modül: {module}
-Eşleşen içerik: {matched_content}
-Doğru cevap: {{"verdict": "{verdict}", "confidence": 0.99, "reasoning": "{reasoning}"}}
+FEW_SHOT_ITEM_TEMPLATE = """### Example {n}
+File: {file_path}
+Module: {module}
+Matched content: {matched_content}
+Correct answer: {{"verdict": "{verdict}", "confidence": 0.99, "reasoning": "{reasoning}"}}
 """
 
-USER_PROMPT_TEMPLATE = """Şimdi bu bulguyu değerlendir:
+USER_PROMPT_TEMPLATE = """Now evaluate this finding:
 
-Dosya: {file_path}
-Modül: {module}
-Kaç modül tarafından doğrulandı (corroboration_count): {corroboration_count}
-Eşleşen içerik: {matched_content}
+File: {file_path}
+Module: {module}
+Number of modules that confirmed this (corroboration_count): {corroboration_count}
+Matched content: {matched_content}
 {context_block}
-Cevabını yalnızca istenen JSON formatında ver."""
+Respond only in the requested JSON format."""
 
 
 # ---------------------------------------------------------------------------
@@ -117,6 +125,8 @@ Cevabını yalnızca istenen JSON formatında ver."""
 # ---------------------------------------------------------------------------
 def load_ai_config(config_path: Path) -> dict:
     config = {
+        "AI_PROVIDER": "local",
+        "GEMINI_API_KEY": "",
         "LOCAL_AI_IP": "127.0.0.1",
         "LOCAL_AI_MODEL": "",
         "AI_MAX_CHARS_TO_ANALYSE": "5000",
@@ -216,6 +226,55 @@ def call_localai(base_url: str, model: str, system_prompt: str, user_prompt: str
         print(f"    [!] LocalAI çağrı hatası: {e}")
         return None
 
+class RateLimitException(Exception):
+    def __init__(self, delay):
+        self.delay = delay
+        super().__init__(f"Rate limit aşıldı, {delay} saniye beklenmeli.")
+
+def call_gemini(api_key: str, system_prompt: str, user_prompt: str, timeout: int = 60) -> str | None:
+    if not api_key:
+        print("    [!] Gemini API anahtarı (GEMINI_API_KEY) eksik!")
+        return None
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key={api_key}"
+    payload = {
+        "system_instruction": {
+            "parts": [{"text": system_prompt}]
+        },
+        "contents": [{
+            "parts": [{"text": user_prompt}]
+        }],
+        "generationConfig": {
+            "temperature": 0.2,
+            "responseMimeType": "application/json"
+        }
+    }
+    try:
+        resp = requests.post(url, json=payload, timeout=timeout, headers={"Content-Type": "application/json"})
+        if resp.status_code == 429:
+            delay = 15.0
+            try:
+                data = resp.json()
+                for detail in data.get("error", {}).get("details", []):
+                    if "retryDelay" in detail:
+                        delay = float(detail["retryDelay"].replace("s", "")) + 1.0
+            except Exception:
+                pass
+            raise RateLimitException(delay)
+            
+        resp.raise_for_status()
+        data = resp.json()
+        if "candidates" in data and len(data["candidates"]) > 0:
+            return data["candidates"][0]["content"]["parts"][0]["text"]
+        return None
+    except requests.RequestException as e:
+        error_msg = ""
+        if hasattr(e, "response") and e.response is not None:
+            error_msg = f" API Yanıtı: {e.response.text}"
+        print(f"    [!] Gemini ağ hatası: {e}{error_msg}")
+        return None
+    except (KeyError, IndexError, ValueError) as e:
+        print(f"    [!] Gemini veri hatası: {e}")
+        return None
 
 _JSON_BLOCK_RE = re.compile(r"\{.*\}", re.DOTALL)
 
@@ -255,26 +314,48 @@ def parse_verdict_response(raw_text: str) -> dict | None:
 
 def classify_item(
     item: dict,
-    base_url: str,
-    model: str,
+    config: dict,
     system_prompt: str,
     max_chars: int,
     max_retries: int = 3,
 ) -> dict:
     user_prompt = build_user_prompt(item, max_chars)
+    provider = config.get("AI_PROVIDER", "local")
+    base_url = f"http://{config['LOCAL_AI_IP']}:{config['LOCAL_AI_PORT']}"
+    model = config.get("LOCAL_AI_MODEL", "")
+    gemini_key = config.get("GEMINI_API_KEY", "")
+
+    # İlk denemeden önce hangi sağlayıcının kullanıldığını logla
+    if not hasattr(classify_item, "provider_logged"):
+        print(f"\n[+] Using AI Provider: {provider.upper()}")
+        classify_item.provider_logged = True
+
+    last_error_details = ""
     for attempt in range(1, max_retries + 1):
-        raw = call_localai(base_url, model, system_prompt, user_prompt)
+        try:
+            if provider == "gemini":
+                raw = call_gemini(gemini_key, system_prompt, user_prompt)
+            else:
+                raw = call_localai(base_url, model, system_prompt, user_prompt)
+        except RateLimitException as e:
+            last_error_details = str(e)
+            print(f"    [!] Deneme {attempt}/{max_retries} başarısız ({provider.upper()}). Kota doldu. {e.delay} sn bekleniyor...")
+            time.sleep(e.delay)
+            continue
+        
         result = parse_verdict_response(raw) if raw else None
         if result is not None:
             result["attempts"] = attempt
             return result
         
-        print(f"    [!] Deneme {attempt}/{max_retries} başarısız, tekrar deneniyor...")
-        if raw:
-            print(f"        Gelen Yanit (JSON Parse Edilemedi): {raw.strip()[:200]}...")
+        last_error_details = "Alınan Raw Cevap: None" if not raw else f"Alınan Raw Cevap: {raw.strip()[:200]}..."
+        print(f"    [!] Deneme {attempt}/{max_retries} başarısız ({provider.upper()}). Hata detayı: {last_error_details}")
+        if attempt < max_retries:
+            print("        Tekrar deneniyor (2 sn)...")
+            time.sleep(2)
             
-        time.sleep(2)
-    return {"verdict": "ERROR", "confidence": None, "reasoning": "LocalAI'den geçerli cevap alınamadı", "attempts": max_retries}
+    return {"verdict": "ERROR", "confidence": None, "reasoning": f"{provider.upper()} API'den geçerli cevap alınamadı. {last_error_details}", "attempts": max_retries}
+
 
 
 # ---------------------------------------------------------------------------
@@ -327,7 +408,7 @@ def run_test_mode(args, config: dict):
     results = []
     for i, item in enumerate(test_set, start=1):
         print(f"[{i}/{len(test_set)}] {item['finding_id']} ({item['file_path']}) değerlendiriliyor...")
-        pred = classify_item(item, base_url, config["LOCAL_AI_MODEL"], system_prompt, max_chars)
+        pred = classify_item(item, config, system_prompt, max_chars)
         results.append({
             "finding_id": item["finding_id"],
             "file_path": item["file_path"],
@@ -370,7 +451,7 @@ def run_full_mode(args, config: dict):
     for i, item in enumerate(findings, start=1):
         label = item.get("file_path", "?")
         print(f"[{i}/{len(findings)}] {label} değerlendiriliyor...")
-        pred = classify_item(item, base_url, config["LOCAL_AI_MODEL"], system_prompt, max_chars)
+        pred = classify_item(item, config, system_prompt, max_chars)
         results.append({
             "file_path": item.get("file_path"),
             "matched_content": item.get("matched_content"),

@@ -20,8 +20,17 @@ if [ -z "$FirmwarePath" ] || [ -z "$LogDir" ]; then
     exit 2
 fi
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
+LAVA_ROOT="$(dirname "$SCRIPT_DIR")"
+
+AI_PROVIDER="local"
+if [ -f "$LAVA_ROOT/config/ai_config.env" ]; then
+    prov_val=$(grep "AI_PROVIDER" "$LAVA_ROOT/config/ai_config.env" | cut -d '=' -f2 | tr -d '"' | tr -d "'")
+    [ -n "$prov_val" ] && AI_PROVIDER="$prov_val"
+fi
+
 # Ollama arka planda calismiyorsa baslat
-if ! curl -s http://localhost:11434/ > /dev/null; then
+if [ "$AI_PROVIDER" != "gemini" ] && ! curl -s http://localhost:11434/ > /dev/null; then
     echo "Ollama API'ye ulasilamadi. Arka planda baslatiliyor..."
     nohup ollama serve > /dev/null 2>&1 &
     sleep 3

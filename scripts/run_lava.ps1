@@ -45,25 +45,29 @@ $ReportFile = Join-Path -Path $OutDir -ChildPath "lava_report.html"
 # Config dosyasindan IP ve PORT al
 $AiIp = "127.0.0.1"
 $AiPort = "11434"
+$AiProvider = "local"
 $ConfigPath = Join-Path -Path (Get-Location) -ChildPath "config\ai_config.env"
 if (Test-Path $ConfigPath) {
     foreach ($line in Get-Content $ConfigPath) {
         if ($line -match "^\s*LOCAL_AI_IP\s*=\s*`"?([^`"\s]+)`"?") { $AiIp = $matches[1] }
         if ($line -match "^\s*LOCAL_AI_PORT\s*=\s*`"?([^`"\s]+)`"?") { $AiPort = $matches[1] }
+        if ($line -match "^\s*AI_PROVIDER\s*=\s*`"?([^`"\s]+)`"?") { $AiProvider = $matches[1] }
     }
 }
 
 # Ollama arka planda calismiyorsa baslat (Sadece Localhost icin)
-try {
-    $null = Invoke-RestMethod -Uri "http://${AiIp}:${AiPort}/" -Method Get -ErrorAction Stop
-} catch {
-    if ($AiIp -eq "127.0.0.1" -or $AiIp -eq "localhost") {
-        Write-Host "Ollama API'ye ulasilamadi (${AiIp}:${AiPort}). Arka planda baslatiliyor..." -ForegroundColor Yellow
-        Start-Process -FilePath "ollama" -ArgumentList "serve" -WindowStyle Hidden -ErrorAction SilentlyContinue
-        Start-Sleep -Seconds 3
-    } else {
-        Write-Host "UYARI: Uzak Ollama sunucusuna (${AiIp}:${AiPort}) ulasilamadi!" -ForegroundColor Red
-        Write-Host "Lutfen o makinedeki Ollama'nin calistigindan ve ag baglantisina acik oldugundan (OLLAMA_HOST=0.0.0.0) emin olun." -ForegroundColor Yellow
+if ($AiProvider -ne "gemini") {
+    try {
+        $null = Invoke-RestMethod -Uri "http://${AiIp}:${AiPort}/" -Method Get -ErrorAction Stop
+    } catch {
+        if ($AiIp -eq "127.0.0.1" -or $AiIp -eq "localhost") {
+            Write-Host "Ollama API'ye ulasilamadi (${AiIp}:${AiPort}). Arka planda baslatiliyor..." -ForegroundColor Yellow
+            Start-Process -FilePath "ollama" -ArgumentList "serve" -WindowStyle Hidden -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 3
+        } else {
+            Write-Host "UYARI: Uzak Ollama sunucusuna (${AiIp}:${AiPort}) ulasilamadi!" -ForegroundColor Red
+            Write-Host "Lutfen o makinedeki Ollama'nin calistigindan ve ag baglantisina acik oldugundan (OLLAMA_HOST=0.0.0.0) emin olun." -ForegroundColor Yellow
+        }
     }
 }
 

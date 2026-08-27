@@ -167,6 +167,51 @@ function setupEventListeners() {
     if (stopBtn) stopBtn.addEventListener('click', stopScan);
     if (browseBtn) browseBtn.addEventListener('click', browseFolder);
     if (exportBtn) exportBtn.addEventListener('click', exportHtml);
+    // AI Settings Modal
+    const aiSettingsBtn = document.getElementById('aiSettingsBtn');
+    const aiSettingsModal = document.getElementById('aiSettingsModal');
+    const cancelSettingsBtn = document.getElementById('cancelSettingsBtn');
+    const saveSettingsBtn = document.getElementById('saveSettingsBtn');
+    const aiProviderSelect = document.getElementById('aiProviderSelect');
+    const geminiKeyContainer = document.getElementById('geminiKeyContainer');
+    const geminiKeyInput = document.getElementById('geminiKeyInput');
+
+    if (aiSettingsBtn) {
+        aiSettingsBtn.addEventListener('click', async () => {
+            if (window.pywebview && window.pywebview.api.get_ai_config) {
+                const config = await window.pywebview.api.get_ai_config();
+                aiProviderSelect.value = config.AI_PROVIDER || 'local';
+                geminiKeyInput.value = config.GEMINI_API_KEY || '';
+                geminiKeyContainer.style.display = aiProviderSelect.value === 'gemini' ? 'block' : 'none';
+            }
+            aiSettingsModal.classList.remove('hidden');
+        });
+    }
+
+    if (cancelSettingsBtn) {
+        cancelSettingsBtn.addEventListener('click', () => {
+            aiSettingsModal.classList.add('hidden');
+        });
+    }
+
+    if (aiProviderSelect) {
+        aiProviderSelect.addEventListener('change', (e) => {
+            geminiKeyContainer.style.display = e.target.value === 'gemini' ? 'block' : 'none';
+        });
+    }
+
+    if (saveSettingsBtn) {
+        saveSettingsBtn.addEventListener('click', async () => {
+            if (window.pywebview && window.pywebview.api.save_ai_config) {
+                await window.pywebview.api.save_ai_config({
+                    "AI_PROVIDER": aiProviderSelect.value,
+                    "GEMINI_API_KEY": geminiKeyInput.value
+                });
+            }
+            aiSettingsModal.classList.add('hidden');
+        });
+    }
+
     let logInterval = null;
 
     if (showTerminalBtn) {
@@ -205,16 +250,28 @@ function setupEventListeners() {
                             }
                         }, { passive: false });
                         
+                        // Resize handling
                         const resizePty = () => {
                             fitAddon.fit();
+                            
+                            // EMBA için sütun genişliğini minimum 130'da tut, sığmazsa yatay scrollbar çıksın
+                            const cols = Math.max(term.cols, 130);
+                            term.resize(cols, term.rows);
+                            
+                            console.log(`[xterm.js] Terminal resized: ${term.rows} rows, ${cols} cols`);
+                            
                             if (window.pywebview && window.pywebview.api.resize_pty) {
-                                window.pywebview.api.resize_pty(term.rows, term.cols);
+                                window.pywebview.api.resize_pty(term.rows, cols);
                             }
                         };
                         
-                        window.addEventListener('resize', resizePty);
-                        // Make sure to size properly when the view is un-hidden
-                        setTimeout(resizePty, 100);
+                        window.addEventListener('resize', () => {
+                            if (!terminalView.classList.contains('hidden')) {
+                                resizePty();
+                            }
+                        });
+                        
+                        setTimeout(resizePty, 200); 
                     }
                     
                     // Start fetching logs
