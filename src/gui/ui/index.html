@@ -58,19 +58,19 @@
             </div>
 
             <!-- AI Settings Modal -->
-            <div id="aiSettingsModal" class="hidden" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(5px);">
-                <div style="background: var(--bg-surface); padding: 25px; border-radius: 12px; border: 1px solid var(--glass-border); width: 400px; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
+            <div id="aiSettingsModal" class="hidden" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; display: flex; align-items: center; justify-content: center; ">
+                <div style="background: var(--bg-surface); padding: 25px; border-radius: 0px; border: 1px solid var(--glass-border); width: 400px; ">
                     <h2 style="margin-top: 0; color: var(--text-primary);">AI Settings</h2>
                     <div style="margin-bottom: 15px;">
                         <label style="color: var(--text-secondary); display: block; margin-bottom: 8px;">AI Provider</label>
-                        <select id="aiProviderSelect" style="width: 100%; padding: 10px; background: var(--bg-primary); border: 1px solid var(--glass-border); color: var(--text-primary); border-radius: 6px;">
+                        <select id="aiProviderSelect" style="width: 100%; padding: 10px; background: var(--bg-primary); border: 1px solid var(--glass-border); color: var(--text-primary); border-radius: 0px;">
                             <option value="local">Local AI (Ollama)</option>
                             <option value="gemini">Gemini API (Cloud)</option>
                         </select>
                     </div>
                     <div id="geminiKeyContainer" style="margin-bottom: 20px; display: none;">
                         <label style="color: var(--text-secondary); display: block; margin-bottom: 8px;">Gemini API Key</label>
-                        <input type="password" id="geminiKeyInput" placeholder="AIzaSy..." style="width: 100%; padding: 10px; background: var(--bg-primary); border: 1px solid var(--glass-border); color: var(--text-primary); border-radius: 6px; box-sizing: border-box;">
+                        <input type="password" id="geminiKeyInput" placeholder="AIzaSy..." style="width: 100%; padding: 10px; background: var(--bg-primary); border: 1px solid var(--glass-border); color: var(--text-primary); border-radius: 0px; box-sizing: border-box;">
                         <small style="color: var(--text-secondary); display: block; margin-top: 5px;">Get your free key from <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color: var(--primary);">Google AI Studio</a>.</small>
                     </div>
                     <div style="display: flex; justify-content: flex-end; gap: 10px;">
@@ -81,11 +81,11 @@
             </div>
 
             <!-- Embedded Live Terminal View -->
-            <div id="terminalView" class="hidden" style="background: var(--bg-surface); padding: 15px; border-radius: 8px; border: 1px solid var(--glass-border); margin-bottom: 20px; display: flex; flex-direction: column; height: 500px;">
+            <div id="terminalView" class="hidden" style="background: var(--bg-surface); padding: 15px; border-radius: 0px; border: 1px solid var(--glass-border); margin-bottom: 20px; display: flex; flex-direction: column; height: 500px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                     <h3 style="margin: 0; color: var(--text-primary); font-size: 14px;">Live Log Viewer</h3>
                 </div>
-                <div id="terminalContent" style="background: #000; border-radius: 5px; flex: 1; overflow: hidden;"></div>
+                <div id="terminalContent" style="background: #000; border-radius: 0px; flex: 1; overflow: hidden;"></div>
             </div>
 
             <div class="controls">
