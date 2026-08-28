@@ -1,3 +1,4 @@
 requests==2.31.0
 pywebview
 pyinstaller
+mcp>=1.2          # MCP (agentic) AI provider modu - src/mcp/lava_mcp_server.py

@@ -5,7 +5,7 @@ LAVA is an AI-powered vulnerability validation pipeline designed to filter out t
 Instead of fine-tuning a model, LAVA uses an In-Context Learning (ICL) approach. It parses static findings (e.g., hardcoded credentials), extracts relevant contextual files directly from the firmware's filesystem, and feeds this enriched data to a locally running LLM (Large Language Model) like `qwen2.5-coder:7b`. The AI logically analyzes the evidence and classifies each finding as either a genuinely exploitable vulnerability (**True Positive**) or an inactive/unusable artifact (**False Positive**).
 
 ## Features
-- **Hybrid AI Architecture:** Switch seamlessly between **Zero-Data-Leak Local AI (Ollama)** for absolute privacy, or **Cloud AI (Google Gemini API)** for blazing fast, lightweight analysis.
+- **Hybrid AI Architecture:** Switch seamlessly between **Zero-Data-Leak Local AI (Ollama)** for absolute privacy, **Cloud AI (Google Gemini API)** for blazing fast, lightweight analysis, or the new **MCP Agent mode** (Claude Code / Antigravity CLI) where the model explores the raw EMBA logs autonomously.
 - **Smart Rate Limiting:** The Gemini Cloud integration includes an intelligent rate limiter (handling HTTP 429) that strictly respects Google's Free Tier quotas (20 requests/min), ensuring cost-free and continuous operation.
 - **Smart Enrichment:** Doesn't just look at the line of code. Extracts surrounding code blocks and metadata to give the AI proper context.
 - **Cross-Platform Native Desktop App:** A fully compiled desktop GUI application (Windows, Linux, macOS). Features a built-in interactive dashboard to search, filter (by True/False Positives and Dynamic Modules), and read the AI's reasoning.
@@ -35,11 +35,94 @@ If you want LAVA to also run EMBA for you automatically, you need:
    LOCAL_AI_IP="127.0.0.1"
    LOCAL_AI_PORT="11434"
    LOCAL_AI_MODEL="qwen2.5-coder:7b"
-   
+
+   # local | gemini | mcp_claude | mcp_antigravity
+   AI_PROVIDER="local"
+   GEMINI_API_KEY=""
+
    # EMBA Path (For End-to-End Pipeline on Linux)
    # On Linux: /path/to/emba/emba
    EMBA_PATH="/path/to/emba/emba"
    ```
+
+## AI Provider: MCP Agent mode (Claude Code / Antigravity CLI)
+
+In addition to **Local (Ollama)** and **Cloud (Gemini)**, LAVA supports a third
+provider where the LLM acts as an **autonomous agent** instead of a one-shot
+prompt/response layer. It connects to a small MCP server (`src/mcp/lava_mcp_server.py`)
+that exposes tools over the raw EMBA logs — the agent lists findings, greps and
+reads the log files and the extracted firmware filesystem on its own, decides
+TP/FP, and writes the verdicts back through a tool call.
+
+- **How it differs from Local/Gemini:** no per-finding context window limit,
+  genuine agentic exploration of the firmware — but token cost is variable and
+  depends on how deep the agent digs.
+- **Same output:** `verdicts.json` uses the **exact same schema** as the other
+  two modes. The dashboard / HTML report need no changes.
+- **Fully automatic:** just like Local/Gemini — press *Start Scan*, wait, results
+  appear. No chat window, no manual prompting. LAVA runs the CLI agent headless
+  (`claude -p …` / `agy -p …`) as a subprocess and waits for it to finish.
+- **No parse/enrich step:** in MCP mode the `parser.py` / `enricher.py` stages are
+  skipped — the agent reads the raw EMBA logs itself. (`parser.py` is still used
+  *inside* the MCP server to keep `verdicts.json` field-identical to the other modes.)
+
+### One-time prerequisite: log in once
+
+MCP mode uses your existing Claude / Google subscription (cached credentials),
+**not** an API key. Run the CLI once interactively to log in:
+
+```bash
+claude          # one time, to log in (for AI_PROVIDER=mcp_claude)
+agy             # one time, to log in (for AI_PROVIDER=mcp_antigravity)
+```
+
+After that every scan is fully automatic.
+
+### Enabling it
+
+Set in `config/ai_config.env`:
+
+```env
+AI_PROVIDER="mcp_claude"        # or: mcp_antigravity
+# Optional: kill a stuck agent after N seconds (default 3600)
+AGENT_TIMEOUT_SECONDS="3600"
+```
+
+Then use LAVA exactly as before (GUI *Start Scan*, `run_lava.ps1`, `run_lava.sh`,
+`run_emba_lava.sh`). The classifier picks the MCP branch automatically.
+
+### Registering the MCP server in an interactive client (optional)
+
+LAVA registers the server for you during a scan. To use it manually from an
+interactive client:
+
+**Claude Code:**
+```bash
+claude mcp add lava -- python3 /path/to/LAVA/src/mcp/lava_mcp_server.py \
+    --log-dir <LOG_DIR> --fw-root <FW_ROOT>
+```
+
+**Claude Desktop** (`claude_desktop_config.json`):
+```json
+{
+  "mcpServers": {
+    "lava": {
+      "command": "python3",
+      "args": ["/path/to/LAVA/src/mcp/lava_mcp_server.py",
+               "--log-dir", "<LOG_DIR>", "--fw-root", "<FW_ROOT>"]
+    }
+  }
+}
+```
+
+**Antigravity CLI:**
+```bash
+agy mcp add lava -- python3 /path/to/LAVA/src/mcp/lava_mcp_server.py \
+    --log-dir <LOG_DIR> --fw-root <FW_ROOT>
+```
+Verify with `agy` → `/mcp` in the prompt panel.
+
+> On Windows use `py` (or the full path to `python.exe`) instead of `python3`.
 
 ## Usage
 

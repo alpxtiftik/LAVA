@@ -65,7 +65,16 @@
                         <select id="aiProviderSelect" style="width: 100%; padding: 10px; background: var(--bg-primary); border: 1px solid var(--glass-border); color: var(--text-primary); border-radius: 0px;">
                             <option value="local">Local AI (Ollama)</option>
                             <option value="gemini">Gemini API (Cloud)</option>
+                            <option value="mcp_claude">MCP Agent - Claude Code</option>
+                            <option value="mcp_antigravity">MCP Agent - Antigravity CLI</option>
                         </select>
+                    </div>
+                    <div id="mcpInfo" style="margin-bottom: 20px; display: none;">
+                        <small style="color: var(--text-secondary); display: block;">
+                            The selected CLI agent explores the raw EMBA logs on its own and writes the verdicts.
+                            One-time setup: run <code>claude</code> or <code>agy</code> once in a terminal to log in.
+                            No API key needed (uses your existing subscription).
+                        </small>
                     </div>
                     <div id="geminiKeyContainer" style="margin-bottom: 20px; display: none;">
                         <label style="color: var(--text-secondary); display: block; margin-bottom: 8px;">Gemini API Key</label>

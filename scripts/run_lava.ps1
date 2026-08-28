@@ -11,7 +11,10 @@
 #>
 param(
     [Parameter(Mandatory=$true)]
-    [string]$LogDir
+    [string]$LogDir,
+    # run_lava.sh ile ayni: verilmezse <LogDir>/lava_out. Her kosu bunun altinda
+    # zaman damgali bir alt klasore yazilir.
+    [string]$OutDir
 )
 
 # Konsol ciktisini UTF-8 olarak ayarla (Turkce karakterlerin bozulmamasi icin)
@@ -19,10 +22,11 @@ param(
 $OutputEncoding = [System.Text.Encoding]::UTF8
 
 $Timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
-$OutDir = Join-Path -Path $LogDir -ChildPath "lava_out"
-if (-not (Test-Path -Path $OutDir)) {
-    New-Item -ItemType Directory -Path $OutDir -Force | Out-Null
+if ([string]::IsNullOrEmpty($OutDir)) {
+    $OutDir = Join-Path -Path $LogDir -ChildPath "lava_out"
 }
+$OutDir = Join-Path -Path $OutDir -ChildPath $Timestamp
+New-Item -ItemType Directory -Path $OutDir -Force | Out-Null
 
 $PidFile = Join-Path -Path $OutDir -ChildPath "lava.pid"
 if (Test-Path $PidFile) {
@@ -58,7 +62,7 @@ if (Test-Path $ConfigPath) {
 }
 
 # Ollama arka planda calismiyorsa baslat (Sadece Localhost icin)
-if ($AiProvider -ne "gemini") {
+if ($AiProvider -ne "gemini" -and $AiProvider -notlike "mcp*") {
     try {
         $null = Invoke-RestMethod -Uri "http://${AiIp}:${AiPort}/" -Method Get -ErrorAction Stop
     } catch {
@@ -78,26 +82,31 @@ Write-Host "=========================================" -ForegroundColor Cyan
 Write-Host "LAVA Pipeline Baslatiliyor..." -ForegroundColor Cyan
 if ($AiProvider -eq "gemini") {
     Write-Host "[AI_INFO] Secilen Model: Gemini API (Cloud)" -ForegroundColor Green
+} elseif ($AiProvider -like "mcp*") {
+    Write-Host "[AI_INFO] Secilen Model: MCP agent ($AiProvider)" -ForegroundColor Green
 } else {
     Write-Host "[AI_INFO] Secilen Model: $AiModel (Local AI)" -ForegroundColor Green
 }
 Write-Host "=========================================" -ForegroundColor Cyan
 
-# 1. Parse
-Write-Host "[1/3] EMBA loglari ayristiriliyor (parse)..." -ForegroundColor Yellow
-py src/core/parser.py --log-dir "$LogDir" --out "$FindingsFile" --merged-out "$MergedFile"
-if ($LASTEXITCODE -ne 0) { Write-Host "Hata: parser.py basarisiz oldu!" -ForegroundColor Red; exit $LASTEXITCODE }
-Write-Host "[OK] Ayristirma tamamlandi." -ForegroundColor Green
+# 1-2. Parse + Enrich (MCP modunda atlanir - ajan ham loglari kendisi kesfeder)
+if ($AiProvider -like "mcp*") {
+    Write-Host "[1-2/3] MCP modu: parse/enrich adimlari atlaniyor." -ForegroundColor DarkGray
+} else {
+    Write-Host "[1/3] EMBA loglari ayristiriliyor (parse)..." -ForegroundColor Yellow
+    py src/core/parser.py --log-dir "$LogDir" --out "$FindingsFile" --merged-out "$MergedFile"
+    if ($LASTEXITCODE -ne 0) { Write-Host "Hata: parser.py basarisiz oldu!" -ForegroundColor Red; exit $LASTEXITCODE }
+    Write-Host "[OK] Ayristirma tamamlandi." -ForegroundColor Green
 
-# 2. Enrich
-Write-Host "`n[2/3] Baglam olusturuluyor (enrich)..." -ForegroundColor Yellow
-py src/core/enricher.py --merged "$MergedFile" --log-dir "$LogDir" --out "$EnrichedFile"
-if ($LASTEXITCODE -ne 0) { Write-Host "Hata: enricher.py basarisiz oldu!" -ForegroundColor Red; exit $LASTEXITCODE }
-Write-Host "[OK] Baglam dosyalari (context) basariyla eklendi." -ForegroundColor Green
+    Write-Host "`n[2/3] Baglam olusturuluyor (enrich)..." -ForegroundColor Yellow
+    py src/core/enricher.py --merged "$MergedFile" --log-dir "$LogDir" --out "$EnrichedFile"
+    if ($LASTEXITCODE -ne 0) { Write-Host "Hata: enricher.py basarisiz oldu!" -ForegroundColor Red; exit $LASTEXITCODE }
+    Write-Host "[OK] Baglam dosyalari (context) basariyla eklendi." -ForegroundColor Green
+}
 
 # 3. Classify (AI)
 Write-Host "`n[3/3] LLM Siniflandirma Basliyor (Bu adim uzun surebilir)..." -ForegroundColor Yellow
-py src/core/classifier.py --mode run --config config/ai_config.env --ground-truth ground_truth.json --enriched "$EnrichedFile" --out "$VerdictsFile"
+py src/core/classifier.py --mode run --config config/ai_config.env --ground-truth ground_truth.json --enriched "$EnrichedFile" --out "$VerdictsFile" --log-dir "$LogDir"
 if ($LASTEXITCODE -ne 0) { Write-Host "Hata: classifier.py basarisiz oldu!" -ForegroundColor Red; exit $LASTEXITCODE }
 Write-Host "[OK] Siniflandirma tamamlandi! Sonuclar $VerdictsFile dosyasina yazildi." -ForegroundColor Green
 

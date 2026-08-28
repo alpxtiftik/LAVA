@@ -59,7 +59,7 @@ if [ -f "config/ai_config.env" ]; then
 fi
 
 # Ollama arka planda calismiyorsa baslat (Sadece Localhost icin ve provider local ise)
-if [ "$AI_PROVIDER" != "gemini" ] && ! curl -s "http://$AI_IP:$AI_PORT/" > /dev/null; then
+if [ "$AI_PROVIDER" != "gemini" ] && [[ "$AI_PROVIDER" != mcp* ]] && ! curl -s "http://$AI_IP:$AI_PORT/" > /dev/null; then
     if [ "$AI_IP" = "127.0.0.1" ] || [ "$AI_IP" = "localhost" ]; then
         if command -v ollama &> /dev/null; then
             echo "[AI_INFO] Ollama servisi kapali, otomatik olarak arka planda baslatiliyor..."
@@ -83,23 +83,29 @@ echo "========================================="
 echo "LAVA Pipeline Baslatiliyor..."
 if [ "$AI_PROVIDER" = "gemini" ]; then
     echo "[AI_INFO] Secilen Model: Gemini API (Cloud)"
+elif [[ "$AI_PROVIDER" == mcp* ]]; then
+    echo "[AI_INFO] Secilen Model: MCP agent ($AI_PROVIDER)"
 else
     echo "[AI_INFO] Secilen Model: $AI_MODEL (Local AI)"
 fi
 echo "========================================="
 
-echo "[1/3] EMBA loglari ayristiriliyor (parse)..."
-python3 src/core/parser.py --log-dir "$LOGDIR" --out "$FINDINGS_FILE" --merged-out "$MERGED_FILE"
-if [ $? -ne 0 ]; then echo "Hata: parser.py basarisiz oldu!"; exit 2; fi
-echo "[OK] Ayristirma tamamlandi."
+if [[ "$AI_PROVIDER" == mcp* ]]; then
+    echo "[1-2/3] MCP modu: parse/enrich adimlari atlaniyor (ajan ham loglari kendisi kesfeder)."
+else
+    echo "[1/3] EMBA loglari ayristiriliyor (parse)..."
+    python3 src/core/parser.py --log-dir "$LOGDIR" --out "$FINDINGS_FILE" --merged-out "$MERGED_FILE"
+    if [ $? -ne 0 ]; then echo "Hata: parser.py basarisiz oldu!"; exit 2; fi
+    echo "[OK] Ayristirma tamamlandi."
 
-echo -e "\n[2/3] Baglam olusturuluyor (enrich)..."
-python3 src/core/enricher.py --merged "$MERGED_FILE" --log-dir "$LOGDIR" --out "$ENRICHED_FILE"
-if [ $? -ne 0 ]; then echo "Hata: enricher.py basarisiz oldu!"; exit 2; fi
-echo "[OK] Baglam dosyalari (context) basariyla eklendi."
+    echo -e "\n[2/3] Baglam olusturuluyor (enrich)..."
+    python3 src/core/enricher.py --merged "$MERGED_FILE" --log-dir "$LOGDIR" --out "$ENRICHED_FILE"
+    if [ $? -ne 0 ]; then echo "Hata: enricher.py basarisiz oldu!"; exit 2; fi
+    echo "[OK] Baglam dosyalari (context) basariyla eklendi."
+fi
 
 echo -e "\n[3/3] LLM Siniflandirma Basliyor (Bu adim uzun surebilir)..."
-python3 src/core/classifier.py --mode run --config config/ai_config.env --ground-truth ground_truth.json --enriched "$ENRICHED_FILE" --out "$VERDICTS_FILE"
+python3 src/core/classifier.py --mode run --config config/ai_config.env --ground-truth ground_truth.json --enriched "$ENRICHED_FILE" --out "$VERDICTS_FILE" --log-dir "$LOGDIR"
 if [ $? -ne 0 ]; then echo "Hata: classifier.py basarisiz oldu!"; exit 2; fi
 echo "[OK] Siniflandirma tamamlandi! Sonuclar $VERDICTS_FILE dosyasina yazildi."
 

@@ -38,7 +38,7 @@ if [ -f "$LAVA_ROOT/config/ai_config.env" ]; then
 fi
 
 # Ollama arka planda calismiyorsa baslat
-if [ "$AI_PROVIDER" != "gemini" ] && ! curl -s http://localhost:11434/ > /dev/null; then
+if [ "$AI_PROVIDER" != "gemini" ] && [[ "$AI_PROVIDER" != mcp* ]] && ! curl -s http://localhost:11434/ > /dev/null; then
     echo "Ollama API'ye ulasilamadi. Arka planda baslatiliyor..."
     nohup ollama serve > /dev/null 2>&1 &
     sleep 3

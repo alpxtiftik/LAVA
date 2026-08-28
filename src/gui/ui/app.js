@@ -186,7 +186,7 @@ function setupEventListeners() {
                 const config = await window.pywebview.api.get_ai_config();
                 aiProviderSelect.value = config.AI_PROVIDER || 'local';
                 geminiKeyInput.value = config.GEMINI_API_KEY || '';
-                geminiKeyContainer.style.display = aiProviderSelect.value === 'gemini' ? 'block' : 'none';
+                updateProviderVisibility(aiProviderSelect.value);
             }
             aiSettingsModal.classList.remove('hidden');
         });
@@ -198,9 +198,15 @@ function setupEventListeners() {
         });
     }
 
+    function updateProviderVisibility(value) {
+        if (geminiKeyContainer) geminiKeyContainer.style.display = value === 'gemini' ? 'block' : 'none';
+        const mcpInfo = document.getElementById('mcpInfo');
+        if (mcpInfo) mcpInfo.style.display = (value && value.indexOf('mcp') === 0) ? 'block' : 'none';
+    }
+
     if (aiProviderSelect) {
         aiProviderSelect.addEventListener('change', (e) => {
-            geminiKeyContainer.style.display = e.target.value === 'gemini' ? 'block' : 'none';
+            updateProviderVisibility(e.target.value);
         });
     }
 

@@ -26,10 +26,25 @@ import os
 import argparse
 import json
 import re
+import shutil
+import subprocess
+import sys
+import tempfile
 import time
 from pathlib import Path
 
 import requests
+
+# MCP (agentic) provider modu icin sabitler
+# --------------------------------------------------------------------------
+# Ajan (claude / agy) headless kosumunun ust sinir suresi. Asilirsa subprocess
+# sonlandirilip hata olarak raporlanir (sonsuz bekleme riski yok).
+AGENT_TIMEOUT_SECONDS = int(os.environ.get("LAVA_AGENT_TIMEOUT_SECONDS", str(60 * 60)))
+MCP_SERVER_PATH = Path(__file__).resolve().parents[2] / "src" / "mcp" / "lava_mcp_server.py"
+# verdicts.json'da bulunmasi ZORUNLU alanlar (local/Gemini run-modu semasi)
+_VERDICT_REQUIRED_FIELDS = {
+    "file_path", "matched_content", "predicted_verdict", "confidence", "model_reasoning",
+}
 
 def atomic_save(data: dict | list, file_path: str):
     path = Path(file_path)
@@ -359,6 +374,238 @@ def classify_item(
 
 
 # ---------------------------------------------------------------------------
+# MCP (agentic) provider modu
+# ---------------------------------------------------------------------------
+# Local/Gemini modunda burasi requests.post(...) ile Ollama/Gemini'yi cagirir.
+# MCP modunda ayni islevin karsiligi: lava_mcp_server.py'yi bir MCP sunucusu
+# olarak taniml, secilen CLI'yi (claude / agy) headless modda tetikle, sürec
+# bitene kadar bekle. Ajan, MCP tool'lariyla kendi kesfini yapip verdict'leri
+# dogrudan verdicts.json'a yazar (sema local/Gemini ile birebir ayni).
+# ---------------------------------------------------------------------------
+
+def _build_agent_prompt(ground_truth_path: str | None) -> str:
+    """Ajana verilecek gorev promptu. Siniflandirma kurallari/few-shot'lari
+    local/Gemini moduyla AYNI kaynaktan (build_system_prompt) gelir."""
+    few_shot: list[dict] = []
+    if ground_truth_path and Path(ground_truth_path).exists():
+        try:
+            data = json.loads(Path(ground_truth_path).read_text(encoding="utf-8"))
+            few_shot = data.get("few_shot", []) or []
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    rules = build_system_prompt(few_shot)
+    return f"""{rules}
+
+=== TASK (MCP agent mode) ===
+You are connected to the LAVA MCP server. Its tools are prefixed `mcp__lava__`
+(a.k.a. the "lava" server). Work fully autonomously - do NOT ask questions.
+
+Steps:
+1. Call `list_findings` to get every finding and its `finding_id`.
+2. Call `get_hardcoded_keys_module_output` to read the raw EMBA module output.
+3. For each finding, investigate as needed with `read_log_file`,
+   `search_log_content`, `list_log_files`, and especially `read_firmware_file`
+   (check whether the credential is real and actually used - init scripts,
+   configs, /etc/passwd vs /etc/shadow, etc.).
+4. Decide TP or FP for EVERY finding using the rules above.
+5. Write results with ONE `submit_all_verdicts` call: a list of
+   {{"finding_id": ..., "verdict": "TP"|"FP", "confidence": 0.0-1.0,
+     "reasoning": "1-2 sentence English"}}.
+   (Use `submit_verdict` only for follow-up corrections.)
+
+Every finding_id returned by `list_findings` must receive a verdict.
+When all verdicts are written, stop.
+"""
+
+
+def _mcp_config_dict(log_dir: str, fw_root: str, verdicts_out: str) -> dict:
+    return {
+        "mcpServers": {
+            "lava": {
+                "command": sys.executable,
+                "args": [
+                    str(MCP_SERVER_PATH),
+                    "--log-dir", log_dir,
+                    "--fw-root", fw_root,
+                    "--verdicts-out", verdicts_out,
+                ],
+            }
+        }
+    }
+
+
+_MCP_TOOL_NAMES = [
+    "list_findings", "get_hardcoded_keys_module_output", "list_log_files",
+    "read_log_file", "read_firmware_file", "search_log_content",
+    "submit_verdict", "submit_all_verdicts",
+]
+
+
+def _resolve_cli(name: str) -> str:
+    """CLI'yi PATH'te, olmazsa yaygin kurulum konumlarinda arar (installer
+    PATH'e eklemeyi atlamis / shell yeniden baslatilmamis olabilir)."""
+    found = (shutil.which(name) or shutil.which(f"{name}.cmd")
+             or shutil.which(f"{name}.exe"))
+    if found:
+        return found
+    home = Path.home()
+    candidates = [
+        home / ".local" / "bin" / name,
+        home / ".local" / "bin" / f"{name}.exe",
+        home / "AppData" / "Local" / name / "bin" / f"{name}.exe",
+        home / "AppData" / "Roaming" / "npm" / f"{name}.cmd",
+        home / "bin" / name,
+        Path("/usr/local/bin") / name,
+        Path("/opt") / name / "bin" / name,
+    ]
+    for c in candidates:
+        if c.is_file():
+            return str(c)
+    return name
+
+
+def _build_agent_command(
+    agent: str, prompt: str, mcp_config_path: str,
+) -> tuple[list[str], str | None, list[list[str]], list[list[str]]]:
+    """Doner: (ana_komut, stdin_metni, on_hazirlik_komutlari, temizlik_komutlari).
+
+    Prompt cok satirli oldugu icin, argv uzerinden gecirmek yerine (Windows'ta
+    .cmd shim'leri newline'lari bozabiliyor) mumkun oldugunca stdin ile verilir.
+    """
+    if agent in ("claude", "mcp_claude"):
+        # --allowedTools degiskin (variadic); "mcp__lava" = sunucunun tum tool'lari.
+        allowed = ["mcp__lava", *(f"mcp__lava__{t}" for t in _MCP_TOOL_NAMES)]
+        cmd = [
+            _resolve_cli("claude"), "-p",
+            "--output-format", "json",
+            "--permission-mode", "acceptEdits",
+            "--strict-mcp-config",
+            "--mcp-config", mcp_config_path,
+            "--allowedTools", *allowed,  # en sona: sonraki argumani yemesin
+        ]
+        return cmd, prompt, [], []  # prompt stdin uzerinden
+
+    if agent in ("antigravity", "mcp_antigravity", "agy", "gemini_cli"):
+        agy = _resolve_cli("agy")
+        cfg = json.loads(Path(mcp_config_path).read_text(encoding="utf-8"))
+        srv = cfg["mcpServers"]["lava"]
+        # agy'de --mcp-config yok; kalici config'e ekle/guncelle, sonra kaldir.
+        pre = [[agy, "mcp", "add", "lava", "--", srv["command"], *srv["args"]]]
+        post = [[agy, "mcp", "remove", "lava"]]
+        # agy'de -p bir sonraki argumani prompt olarak alir -> en sona koy.
+        cmd = [
+            agy,
+            "--dangerously-skip-permissions",
+            "--output-format", "json",
+            "--mode", "accept-edits",
+            "-p", prompt,
+        ]
+        return cmd, None, pre, post
+
+    raise ValueError(f"Bilinmeyen MCP ajani: {agent!r} (beklenen: 'claude' | 'antigravity')")
+
+
+def _validate_verdicts_schema(verdicts_path: str) -> int:
+    """verdicts.json'un local/Gemini moduyla ayni semada olup olmadigini dogrular.
+    Doner: verdict sayisi."""
+    p = Path(verdicts_path)
+    if not p.exists():
+        raise RuntimeError(f"Ajan kosumu bitti ama verdicts.json yazilmadi: {verdicts_path}")
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as e:
+        raise RuntimeError(f"verdicts.json okunamadi/gecersiz JSON: {e}") from e
+    if not isinstance(data, list) or not data:
+        raise RuntimeError("verdicts.json bir liste degil veya bos (ajan hic verdict yazmadi).")
+    for i, rec in enumerate(data):
+        if not isinstance(rec, dict):
+            raise RuntimeError(f"verdicts.json[{i}] bir obje degil.")
+        missing = _VERDICT_REQUIRED_FIELDS - set(rec)
+        if missing:
+            raise RuntimeError(f"verdicts.json[{i}] eksik alan(lar): {sorted(missing)}")
+        if str(rec["predicted_verdict"]).upper() not in ("TP", "FP", "ERROR"):
+            raise RuntimeError(
+                f"verdicts.json[{i}] gecersiz predicted_verdict: {rec['predicted_verdict']!r}"
+            )
+    return len(data)
+
+
+def classify_via_mcp_agent(
+    log_dir: str,
+    fw_root: str,
+    out_path: str,
+    agent: str = "claude",
+    ground_truth_path: str | None = None,
+    timeout_seconds: int | None = None,
+) -> None:
+    """MCP sunucusunu bir CLI ajanina (claude / agy) taniml, ajani headless
+    modda tetikle, sürec bitene kadar bekle. classify_via_ollama /
+    classify_via_gemini ile ayni rolde: orchestrator hangi provider secilirse
+    ayni sekilde cagirir, cikti semasi degismez.
+
+        agent: "claude" (Claude Code) veya "antigravity" (Antigravity/agy CLI)
+    """
+    log_dir = str(Path(log_dir).expanduser().resolve())
+    fw_root = str(Path(fw_root).expanduser().resolve())
+    out_path = str(Path(out_path).expanduser().resolve())
+    Path(out_path).parent.mkdir(parents=True, exist_ok=True)
+    timeout_seconds = int(timeout_seconds or AGENT_TIMEOUT_SECONDS)
+
+    if not MCP_SERVER_PATH.exists():
+        raise RuntimeError(f"MCP sunucusu bulunamadi: {MCP_SERVER_PATH}")
+
+    prompt = _build_agent_prompt(ground_truth_path)
+
+    tmpdir = tempfile.mkdtemp(prefix="lava_mcp_")
+    mcp_config_path = os.path.join(tmpdir, "mcp_config.json")
+    Path(mcp_config_path).write_text(
+        json.dumps(_mcp_config_dict(log_dir, fw_root, out_path), indent=2), encoding="utf-8"
+    )
+
+    cmd, stdin_text, pre_cmds, post_cmds = _build_agent_command(agent, prompt, mcp_config_path)
+    exe = cmd[0]
+    cli_name = Path(exe).name
+    if not ((os.path.isabs(exe) and os.path.isfile(exe)) or shutil.which(exe)):
+        raise RuntimeError(
+            f"'{cli_name}' CLI bulunamadi (PATH'te veya yaygin kurulum konumlarinda). "
+            f"MCP modu icin once kurup bir kez login olun (bkz. README - 'MCP provider modu')."
+        )
+
+    print(f"\n[+] Using AI Provider: MCP agent ({agent})")
+    print(f"    MCP server : {MCP_SERVER_PATH}")
+    print(f"    log-dir    : {log_dir}")
+    print(f"    fw-root    : {fw_root}")
+    print(f"    verdicts   : {out_path}")
+
+    try:
+        for pc in pre_cmds:
+            subprocess.run(pc, capture_output=True, text=True, timeout=120, check=False)
+        try:
+            result = subprocess.run(
+                cmd, input=stdin_text, capture_output=True, text=True,
+                timeout=timeout_seconds,
+            )
+        except subprocess.TimeoutExpired as e:
+            raise RuntimeError(
+                f"Ajan {timeout_seconds}s icinde bitmedi, sonlandirildi "
+                f"(ai_config.env icinde AGENT_TIMEOUT_SECONDS veya "
+                f"LAVA_AGENT_TIMEOUT_SECONDS ile artirilabilir)."
+            ) from e
+
+        if result.returncode != 0:
+            tail = (result.stderr or result.stdout or "").strip()[-1500:]
+            raise RuntimeError(f"Ajan kosumu basarisiz (exit {result.returncode}):\n{tail}")
+
+        count = _validate_verdicts_schema(out_path)
+        print(f"[OK] MCP ajani {count} verdict yazdi -> {out_path}")
+    finally:
+        for pc in post_cmds:
+            subprocess.run(pc, capture_output=True, text=True, timeout=120, check=False)
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+# ---------------------------------------------------------------------------
 # Degerlendirme (test modu icin)
 # ---------------------------------------------------------------------------
 def compute_metrics(results: list[dict]) -> dict:
@@ -485,9 +732,48 @@ def main():
     ap.add_argument("--ground-truth", help="test modunda zorunlu; run modunda opsiyonel (sadece few-shot icin)")
     ap.add_argument("--enriched", help="run modunda zorunlu - enrich_context.py ciktisi")
     ap.add_argument("--out", required=True)
+    ap.add_argument("--log-dir", help="EMBA log dizini (sadece MCP provider modunda kullanilir)")
+    ap.add_argument("--fw-root", help="firmware extract koku (MCP modu; verilmezse --log-dir kullanilir)")
     args = ap.parse_args()
 
     config = load_ai_config(Path(args.config))
+    provider = (config.get("AI_PROVIDER") or "local").strip().lower()
+
+    # --- MCP (agentic) provider modu -------------------------------------
+    # AI_PROVIDER = mcp_claude | mcp_antigravity | mcp
+    # Local/Gemini dallarina hic dokunmadan, ucuncu bir provider dali.
+    if provider.startswith("mcp"):
+        agent = {
+            "mcp_claude": "claude",
+            "mcp_antigravity": "antigravity",
+            "mcp": "claude",
+        }.get(provider, "claude")
+
+        log_dir = args.log_dir
+        if not log_dir and args.enriched:
+            # run_lava.sh: --out <LogDir>/lava_out/<ts>/verdicts.json
+            log_dir = str(Path(args.out).resolve().parents[2])
+        if not log_dir:
+            ap.error("MCP provider modu icin --log-dir zorunlu")
+        fw_root = args.fw_root or log_dir
+
+        if args.mode != "run":
+            ap.error("MCP provider modu sadece --mode run ile calisir")
+
+        try:
+            _to = int(config.get("AGENT_TIMEOUT_SECONDS") or 0) or None
+        except (TypeError, ValueError):
+            _to = None
+        classify_via_mcp_agent(
+            log_dir=log_dir,
+            fw_root=fw_root,
+            out_path=args.out,
+            agent=agent,
+            ground_truth_path=args.ground_truth,
+            timeout_seconds=_to,
+        )
+        return
+
     if not config["LOCAL_AI_MODEL"]:
         print("[!] UYARI: LOCAL_AI_MODEL config'te bos - identify_ai_model mantigi burada yok, dogru modeli config'e yazdiginizdan emin olun.")
 
