@@ -24,7 +24,7 @@ if [ -z "$LogDir" ]; then
     FIRMWARE_DIR=$(dirname "$FirmwarePath")
     FIRMWARE_BASENAME=$(basename "$FirmwarePath")
     TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-    LogDir="${FIRMWARE_DIR}/emba_logs_${FIRMWARE_BASENAME}_${TIMESTAMP}"
+    LogDir="${FIRMWARE_DIR}/lava_scan_${FIRMWARE_BASENAME}_${TIMESTAMP}"
     echo "[*] LogDir belirtilmedi, otomatik olusturuldu: $LogDir"
 fi
 
@@ -67,6 +67,7 @@ CANDIDATE_PATHS=(
     "/usr/local/emba/emba"
     "/root/emba/emba"
     "/home/kali/emba/emba"
+	"/home/ahtiftik/emba"
 )
 
 # Config dosyasini oku ve listeye ekle (Geriye donuk uyumluluk)
@@ -108,7 +109,7 @@ fi
 
 echo "[1/2] EMBA calistiriliyor..."
 echo "Firmware: $FirmwarePath"
-echo "Log Dizini: $LogDir"
+echo "Ana Dizin (LAVA & EMBA): $LogDir"
 echo "EMBA Dizin: $EMBA_PATH"
 
 emba_dir=$(dirname "$EMBA_PATH")
@@ -126,9 +127,14 @@ else
     PROFILE_ARG=""
 fi
 
+# Dizinleri ayarla
+PARENT_DIR="$LogDir"
+EMBA_DIR="$PARENT_DIR/emba_logs"
+LAVA_OUT_DIR="$PARENT_DIR/lava_out"
+
 # Run EMBA directly. Python's PTY will handle the terminal dimensions and UTF-8 base64 encoding.
 cd "$emba_dir"
-sudo LC_ALL="en_US.UTF-8" LANG="en_US.UTF-8" ./emba -f "$FirmwarePath" -l "$LogDir" $PROFILE_ARG
+sudo LC_ALL="en_US.UTF-8" LANG="en_US.UTF-8" ./emba -f "$FirmwarePath" -l "$EMBA_DIR" $PROFILE_ARG
 if [ $? -ne 0 ]; then
     echo "Hata: EMBA taramasi basarisiz oldu veya EMBA bulunamadi!"
     exit 2
@@ -137,10 +143,13 @@ fi
 echo "[OK] EMBA taramasi tamamlandi!"
 
 # 3. LAVA analizini baslat
+# EMBA log dizini root tarafindan olusturuldu, LAVA tarafindan okunabilmesi icin izinleri duzeltelim
+sudo chown -R "$USER:$USER" "$PARENT_DIR" 2>/dev/null
+
 echo ""
 echo "[2/2] LAVA yapay zeka analizi baslatiliyor..."
 cd "$LAVA_ROOT" || exit 2
-bash "$SCRIPT_DIR/run_lava.sh" -LogDir "$LogDir"
+bash "$SCRIPT_DIR/run_lava.sh" -LogDir "$EMBA_DIR" -OutDir "$LAVA_OUT_DIR"
 
 if [ $? -ne 0 ]; then
     echo "Hata: LAVA yapay zeka analizi adiminda (run_lava.sh) hata olustu! Ayrintilar icin LAVA loglarini kontrol edin."

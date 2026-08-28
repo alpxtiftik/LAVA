@@ -142,7 +142,7 @@ class Api:
             else:
                 if mode == "firmware":
                     sh_path = os.path.join(APP_DIR, "scripts", "run_emba_lava.sh")
-                    base_log_dir = os.path.join(os.path.dirname(input_path), "emba_logs_" + os.path.basename(input_path))
+                    base_log_dir = os.path.join(os.path.dirname(input_path), "lava_scan_" + os.path.basename(input_path))
                     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
                     log_dir = f"{base_log_dir}_{timestamp}"
                     cmd = ["bash", sh_path, "-FirmwarePath", input_path, "-LogDir", log_dir]
@@ -176,10 +176,16 @@ class Api:
                 os.close(slave_fd)
                 
                 actual_log_dir = log_dir if mode == "firmware" else input_path
-                lava_out_dir = os.path.join(actual_log_dir, "lava_out")
-                os.makedirs(lava_out_dir, exist_ok=True)
-                self.current_log_file = os.path.join(lava_out_dir, "lava_scan.log")
-                open(self.current_log_file, 'w').close()
+                
+                # Do not create the log directory beforehand if we are running EMBA (firmware mode)
+                # because EMBA checks if the log directory is empty and prompts for deletion.
+                if mode == "firmware":
+                    self.current_log_file = None
+                else:
+                    lava_out_dir = os.path.join(actual_log_dir, "lava_out")
+                    os.makedirs(lava_out_dir, exist_ok=True)
+                    self.current_log_file = os.path.join(lava_out_dir, "lava_scan.log")
+                    open(self.current_log_file, 'w').close()
                 
                 def _reader():
                     while True:
@@ -191,11 +197,13 @@ class Api:
                             break
                         with scan_buffer_lock:
                             scan_buffer.extend(chunk)
-                        try:
-                            with open(self.current_log_file, "ab") as f:
-                                f.write(chunk)
-                        except Exception:
-                            pass
+                        
+                        if self.current_log_file:
+                            try:
+                                with open(self.current_log_file, "ab") as f:
+                                    f.write(chunk)
+                            except Exception:
+                                pass
                             
                 threading.Thread(target=_reader, daemon=True).start()
             

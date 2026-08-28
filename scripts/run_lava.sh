@@ -5,6 +5,7 @@
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         -LogDir|--log-dir) LOGDIR="$2"; shift ;;
+        -OutDir|--out-dir) BASEOUTDIR="$2"; shift ;;
         *) echo "Bilinmeyen parametre: $1"; exit 2 ;;
     esac
     shift
@@ -15,8 +16,12 @@ if [ -z "$LOGDIR" ]; then
     exit 2
 fi
 
+if [ -z "$BASEOUTDIR" ]; then
+    BASEOUTDIR="$LOGDIR/lava_out"
+fi
+
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-OUTDIR="$LOGDIR/lava_out/$TIMESTAMP"
+OUTDIR="$BASEOUTDIR/$TIMESTAMP"
 mkdir -p "$OUTDIR"
 
 PID_FILE="$OUTDIR/lava.pid"
