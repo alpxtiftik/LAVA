@@ -9,6 +9,7 @@ build/
 *.exe
 *.log
 venv/
+.venv/
 LAVA_UI
 config/ai_config.env
 *.env

@@ -33,7 +33,10 @@ LAVA_ROOT="$(dirname "$SCRIPT_DIR")"
 
 AI_PROVIDER="local"
 if [ -f "$LAVA_ROOT/config/ai_config.env" ]; then
-    prov_val=$(grep "AI_PROVIDER" "$LAVA_ROOT/config/ai_config.env" | cut -d '=' -f2 | tr -d '"' | tr -d "'")
+    # Sadece satir-basi "AI_PROVIDER=" ile eslesir; "# AI_PROVIDER secenekleri:"
+    # gibi yorum satirlarini atlar, ilk eslesmeyi alir, tirnak/bosluk kirpar.
+    prov_val=$(grep -E "^[[:space:]]*AI_PROVIDER[[:space:]]*=" "$LAVA_ROOT/config/ai_config.env" 2>/dev/null | head -n1 \
+        | sed -E "s/^[[:space:]]*AI_PROVIDER[[:space:]]*=[[:space:]]*[\"']?([^\"']*)[\"']?[[:space:]]*\$/\1/")
     [ -n "$prov_val" ] && AI_PROVIDER="$prov_val"
 fi
 

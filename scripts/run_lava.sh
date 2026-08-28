@@ -47,11 +47,20 @@ AI_IP="127.0.0.1"
 AI_PORT="11434"
 AI_PROVIDER="local"
 AI_MODEL="qwen2.5-coder:7b"
+
+# ai_config.env'den bir anahtarin degerini oku. Sadece satir-basi "KEY=" ile
+# eslesir (yorum satirlarini - ornegin "# AI_PROVIDER secenekleri:" - atlar),
+# ilk eslesmeyi alir, tirnak ve bosluklari kirpar. (run_lava.ps1 ile ayni mantik.)
+read_env_val() {
+    grep -E "^[[:space:]]*$1[[:space:]]*=" "$2" 2>/dev/null | head -n1 \
+        | sed -E "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*[\"']?([^\"']*)[\"']?[[:space:]]*\$/\1/"
+}
+
 if [ -f "config/ai_config.env" ]; then
-    ip_val=$(grep "LOCAL_AI_IP" config/ai_config.env | cut -d '=' -f2 | tr -d '"' | tr -d "'")
-    port_val=$(grep "LOCAL_AI_PORT" config/ai_config.env | cut -d '=' -f2 | tr -d '"' | tr -d "'")
-    prov_val=$(grep "AI_PROVIDER" config/ai_config.env | cut -d '=' -f2 | tr -d '"' | tr -d "'")
-    mod_val=$(grep "LOCAL_AI_MODEL" config/ai_config.env | cut -d '=' -f2 | tr -d '"' | tr -d "'")
+    ip_val=$(read_env_val LOCAL_AI_IP config/ai_config.env)
+    port_val=$(read_env_val LOCAL_AI_PORT config/ai_config.env)
+    prov_val=$(read_env_val AI_PROVIDER config/ai_config.env)
+    mod_val=$(read_env_val LOCAL_AI_MODEL config/ai_config.env)
     [ -n "$ip_val" ] && AI_IP="$ip_val"
     [ -n "$port_val" ] && AI_PORT="$port_val"
     [ -n "$prov_val" ] && AI_PROVIDER="$prov_val"
