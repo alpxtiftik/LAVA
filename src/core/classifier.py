@@ -558,6 +558,10 @@ def classify_via_mcp_agent(
     prompt = _build_agent_prompt(ground_truth_path)
 
     tmpdir = tempfile.mkdtemp(prefix="lava_mcp_")
+    # Ajan, calisma dizinine ('workspace') gecici analiz dosyalari yazabiliyor;
+    # bunun LAVA repo kokunu kirletmemesi icin ajani bu izole klasorde calistiriyoruz.
+    agent_cwd = os.path.join(tmpdir, "workspace")
+    os.makedirs(agent_cwd, exist_ok=True)
     mcp_config_path = os.path.join(tmpdir, "mcp_config.json")
     Path(mcp_config_path).write_text(
         json.dumps(_mcp_config_dict(log_dir, fw_root, out_path), indent=2), encoding="utf-8"
@@ -580,10 +584,11 @@ def classify_via_mcp_agent(
 
     try:
         for pc in pre_cmds:
-            subprocess.run(pc, capture_output=True, text=True, timeout=120, check=False)
+            subprocess.run(pc, cwd=agent_cwd, capture_output=True, text=True,
+                           timeout=120, check=False)
         try:
             result = subprocess.run(
-                cmd, input=stdin_text, capture_output=True, text=True,
+                cmd, cwd=agent_cwd, input=stdin_text, capture_output=True, text=True,
                 timeout=timeout_seconds,
             )
         except subprocess.TimeoutExpired as e:
