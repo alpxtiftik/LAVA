@@ -146,15 +146,31 @@ fi
 echo "[OK] EMBA taramasi tamamlandi!"
 
 # 3. LAVA analizini baslat
-# EMBA log dizini root tarafindan olusturuldu, LAVA tarafindan okunabilmesi icin izinleri duzeltelim
-sudo chown -R "$USER:$USER" "$PARENT_DIR" 2>/dev/null
+# EMBA log dizini root tarafindan olusturuldu; LAVA (ve MCP modunda ajan CLI'si)
+# normal kullanici olarak calisacagi icin sahipligi ona geri veriyoruz.
+# `sudo` altinda $USER = root olur; asil kullaniciyi $SUDO_USER'dan aliyoruz.
+TARGET_USER="${SUDO_USER:-$USER}"
+sudo chown -R "$TARGET_USER:$TARGET_USER" "$PARENT_DIR" 2>/dev/null
 
 echo ""
 echo "[2/2] LAVA yapay zeka analizi baslatiliyor..."
 cd "$LAVA_ROOT" || exit 2
-bash "$SCRIPT_DIR/run_lava.sh" -LogDir "$EMBA_DIR" -OutDir "$LAVA_OUT_DIR"
 
-if [ $? -ne 0 ]; then
+# LAVA AI analizi root gerektirmez. MCP modunda ajan CLI'leri (claude / agy) ve
+# venv kullaniciya ozeldir; root PATH'inde/HOME'unda gorunmezler. Bu yuzden bu
+# betik root olarak calisiyorsa, analiz adimini asil kullaniciya birakiyoruz.
+if [ "$EUID" -eq 0 ] && [ -n "$SUDO_USER" ] && [ "$SUDO_USER" != "root" ]; then
+    echo "[*] AI analizi '$SUDO_USER' kullanicisi olarak calistiriliyor (root degil)."
+    sudo -u "$SUDO_USER" -H bash -lc \
+        'cd "$1" && exec bash scripts/run_lava.sh -LogDir "$2" -OutDir "$3"' \
+        lava-analiz "$LAVA_ROOT" "$EMBA_DIR" "$LAVA_OUT_DIR"
+    lava_rc=$?
+else
+    bash "$SCRIPT_DIR/run_lava.sh" -LogDir "$EMBA_DIR" -OutDir "$LAVA_OUT_DIR"
+    lava_rc=$?
+fi
+
+if [ $lava_rc -ne 0 ]; then
     echo "Hata: LAVA yapay zeka analizi adiminda (run_lava.sh) hata olustu! Ayrintilar icin LAVA loglarini kontrol edin."
     exit 2
 fi

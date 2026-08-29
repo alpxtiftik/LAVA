@@ -449,19 +449,39 @@ def _resolve_cli(name: str) -> str:
              or shutil.which(f"{name}.exe"))
     if found:
         return found
-    home = Path.home()
-    candidates = [
-        home / ".local" / "bin" / name,
-        home / ".local" / "bin" / f"{name}.exe",
-        home / "AppData" / "Local" / name / "bin" / f"{name}.exe",
-        home / "AppData" / "Roaming" / "npm" / f"{name}.cmd",
-        home / "bin" / name,
+
+    # Aday HOME dizinleri. `sudo` altinda calisiyorsak (EMBA root ister ama
+    # claude/agy kullaniciya ozeldir) Path.home() genelde /root'tur; asil
+    # kullanicinin HOME'unu da tara.
+    homes: list[Path] = [Path.home()]
+    sudo_user = os.environ.get("SUDO_USER")
+    if sudo_user and sudo_user != "root":
+        try:
+            import pwd  # POSIX
+            homes.append(Path(pwd.getpwnam(sudo_user).pw_dir))
+        except (KeyError, ModuleNotFoundError):
+            homes.append(Path("/home") / sudo_user)
+
+    candidates: list[Path] = []
+    for home in homes:
+        candidates += [
+            home / ".local" / "bin" / name,
+            home / ".local" / "bin" / f"{name}.exe",
+            home / ".npm-global" / "bin" / name,
+            home / "AppData" / "Local" / name / "bin" / f"{name}.exe",
+            home / "AppData" / "Roaming" / "npm" / f"{name}.cmd",
+            home / "bin" / name,
+        ]
+    candidates += [
         Path("/usr/local/bin") / name,
         Path("/opt") / name / "bin" / name,
     ]
     for c in candidates:
-        if c.is_file():
-            return str(c)
+        try:
+            if c.is_file():
+                return str(c)
+        except OSError:  # okunamayan aday (orn. baska kullanicinin /root'u)
+            continue
     return name
 
 
@@ -558,31 +578,35 @@ def classify_via_mcp_agent(
     prompt = _build_agent_prompt(ground_truth_path)
 
     tmpdir = tempfile.mkdtemp(prefix="lava_mcp_")
-    # Ajan, calisma dizinine ('workspace') gecici analiz dosyalari yazabiliyor;
-    # bunun LAVA repo kokunu kirletmemesi icin ajani bu izole klasorde calistiriyoruz.
-    agent_cwd = os.path.join(tmpdir, "workspace")
-    os.makedirs(agent_cwd, exist_ok=True)
-    mcp_config_path = os.path.join(tmpdir, "mcp_config.json")
-    Path(mcp_config_path).write_text(
-        json.dumps(_mcp_config_dict(log_dir, fw_root, out_path), indent=2), encoding="utf-8"
-    )
-
-    cmd, stdin_text, pre_cmds, post_cmds = _build_agent_command(agent, prompt, mcp_config_path)
-    exe = cmd[0]
-    cli_name = Path(exe).name
-    if not ((os.path.isabs(exe) and os.path.isfile(exe)) or shutil.which(exe)):
-        raise RuntimeError(
-            f"'{cli_name}' CLI bulunamadi (PATH'te veya yaygin kurulum konumlarinda). "
-            f"MCP modu icin once kurup bir kez login olun (bkz. README - 'MCP provider modu')."
+    post_cmds: list[list[str]] = []  # finally her kosulda erisebilsin
+    try:
+        # Ajan, calisma dizinine ('workspace') gecici analiz dosyalari yazabiliyor;
+        # bunun LAVA repo kokunu kirletmemesi icin ajani bu izole klasorde calistiriyoruz.
+        agent_cwd = os.path.join(tmpdir, "workspace")
+        os.makedirs(agent_cwd, exist_ok=True)
+        mcp_config_path = os.path.join(tmpdir, "mcp_config.json")
+        Path(mcp_config_path).write_text(
+            json.dumps(_mcp_config_dict(log_dir, fw_root, out_path), indent=2), encoding="utf-8"
         )
 
-    print(f"\n[+] Using AI Provider: MCP agent ({agent})")
-    print(f"    MCP server : {MCP_SERVER_PATH}")
-    print(f"    log-dir    : {log_dir}")
-    print(f"    fw-root    : {fw_root}")
-    print(f"    verdicts   : {out_path}")
+        cmd, stdin_text, pre_cmds, _post = _build_agent_command(agent, prompt, mcp_config_path)
+        post_cmds = _post
+        exe = cmd[0]
+        cli_name = Path(exe).name
+        if not ((os.path.isabs(exe) and os.path.isfile(exe)) or shutil.which(exe)):
+            raise RuntimeError(
+                f"'{cli_name}' CLI bulunamadi (PATH'te veya yaygin kurulum konumlarinda). "
+                f"MCP modu icin once kurup bir kez login olun (bkz. README - 'MCP provider modu'). "
+                f"Not: EMBA root ister ama LAVA'nin AI analizi ROOT ILE CALISMAZ - "
+                f"claude/agy kurulumu ve login'i kullaniciya ozeldir."
+            )
 
-    try:
+        print(f"\n[+] Using AI Provider: MCP agent ({agent})")
+        print(f"    MCP server : {MCP_SERVER_PATH}")
+        print(f"    log-dir    : {log_dir}")
+        print(f"    fw-root    : {fw_root}")
+        print(f"    verdicts   : {out_path}")
+
         for pc in pre_cmds:
             subprocess.run(pc, cwd=agent_cwd, capture_output=True, text=True,
                            timeout=120, check=False)
@@ -602,7 +626,16 @@ def classify_via_mcp_agent(
             tail = (result.stderr or result.stdout or "").strip()[-1500:]
             raise RuntimeError(f"Ajan kosumu basarisiz (exit {result.returncode}):\n{tail}")
 
-        count = _validate_verdicts_schema(out_path)
+        try:
+            count = _validate_verdicts_schema(out_path)
+        except RuntimeError as e:
+            # Ajan exit 0 dondu ama verdict yazmadi - ne dedigini gorelim.
+            out_tail = (result.stdout or "").strip()[-2000:]
+            err_tail = (result.stderr or "").strip()[-800:]
+            raise RuntimeError(
+                f"{e}\n--- ajan ({agent}) stdout ---\n{out_tail}\n"
+                f"--- ajan stderr ---\n{err_tail}"
+            ) from e
         print(f"[OK] MCP ajani {count} verdict yazdi -> {out_path}")
     finally:
         for pc in post_cmds:

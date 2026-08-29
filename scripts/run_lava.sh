@@ -20,6 +20,15 @@ if [ -z "$BASEOUTDIR" ]; then
     BASEOUTDIR="$LOGDIR/lava_out"
 fi
 
+# Zaten bir venv icinde degilsek ve repo kokunde .venv varsa otomatik etkinlestir.
+# (start_linux.sh bunu yapar; ama betik dogrudan ya da sudo -> yetki-dusurme
+# sonrasi cagrilinca VIRTUAL_ENV bos olur ve `mcp` gibi paketler bulunamaz.)
+_LAVA_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if [ -z "${VIRTUAL_ENV:-}" ] && [ -x "$_LAVA_ROOT/.venv/bin/python3" ]; then
+    # shellcheck disable=SC1091
+    source "$_LAVA_ROOT/.venv/bin/activate"
+fi
+
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 OUTDIR="$BASEOUTDIR/$TIMESTAMP"
 mkdir -p "$OUTDIR"
