@@ -4,18 +4,6 @@ let term = null;
 let currentLogDir = "";
 
 window.addEventListener('pywebviewready', async () => {
-    try {
-        const platform = await window.pywebview.api.get_platform();
-        if (platform === "win32") {
-            const firmwareRadio = document.querySelector('input[value="firmware"]');
-            if (firmwareRadio) {
-                firmwareRadio.parentElement.style.display = 'none';
-            }
-        }
-    } catch (e) {
-        console.warn("Could not fetch platform", e);
-    }
-    
     fetchData();
     setupEventListeners();
     checkStatus();
@@ -25,7 +13,7 @@ window.addEventListener('pywebviewready', async () => {
 setTimeout(() => {
     if (!window.pywebview) {
         const grid = document.getElementById('findingsGrid');
-        if (grid) grid.innerHTML = '<div class="loading-state"><p style="color: var(--danger)">PyWebView not detected. Please run LAVA_UI.exe</p></div>';
+        if (grid) grid.innerHTML = '<div class="loading-state"><p style="color: var(--danger)">PyWebView not detected. Please launch the UI with: bash scripts/start_linux.sh</p></div>';
     }
 }, 2000);
 
@@ -64,7 +52,7 @@ async function fetchData() {
     } catch (error) {
         document.getElementById('findingsGrid').innerHTML = `
             <div class="loading-state">
-                <p style="color: var(--danger)">Error loading verdicts.json. Make sure you are running start_ui.py</p>
+                <p style="color: var(--danger)">Error loading verdicts.json. Make sure you launched the UI with: bash scripts/start_linux.sh</p>
                 <p>${error.message}</p>
             </div>
         `;
@@ -487,7 +475,7 @@ async function checkStatus() {
                 fetchData();
                 if (data.exit_code === 0) {
                     alert("Scan completed successfully!");
-                } else if (data.exit_code !== null && data.exit_code !== undefined && data.exit_code !== 1) { // 1 is taskkill error on stop, mostly ignore
+                } else if (data.exit_code !== null && data.exit_code !== undefined && data.exit_code !== 143 && data.exit_code !== 130) { // 143=SIGTERM, 130=SIGINT on stop, mostly ignore
                     alert("Scan failed or was stopped (exit code: " + data.exit_code + "). Check lava_out/lava_scan.log for details.");
                 }
             }
@@ -524,7 +512,7 @@ async function browseFolder() {
             console.error("Folder selection failed:", e);
         }
     } else {
-        alert("Native file browser is only available in the LAVA Desktop App (LAVA_UI.exe).");
+        alert("Native file browser is only available in the LAVA Desktop App (bash scripts/start_linux.sh).");
     }
 }
 

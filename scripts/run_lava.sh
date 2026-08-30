@@ -59,7 +59,7 @@ AI_MODEL="qwen2.5-coder:7b"
 
 # ai_config.env'den bir anahtarin degerini oku. Sadece satir-basi "KEY=" ile
 # eslesir (yorum satirlarini - ornegin "# AI_PROVIDER secenekleri:" - atlar),
-# ilk eslesmeyi alir, tirnak ve bosluklari kirpar. (run_lava.ps1 ile ayni mantik.)
+# ilk eslesmeyi alir, tirnak ve bosluklari kirpar.
 read_env_val() {
     grep -E "^[[:space:]]*$1[[:space:]]*=" "$2" 2>/dev/null | head -n1 \
         | sed -E "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*[\"']?([^\"']*)[\"']?[[:space:]]*\$/\1/"
@@ -93,7 +93,7 @@ if [ "$AI_PROVIDER" != "gemini" ] && [[ "$AI_PROVIDER" != mcp* ]] && ! curl -s "
         fi
     else
         echo "UYARI: Uzak Ollama sunucusuna ($AI_IP:$AI_PORT) ulasilamadi!"
-        echo "Lutfen Windows makinenizdeki Ollama'nin calistigindan ve ag baglantisina acik oldugundan (OLLAMA_HOST=0.0.0.0) emin olun."
+        echo "Lutfen uzak makinedeki Ollama'nin calistigindan ve ag baglantisina acik oldugundan (OLLAMA_HOST=0.0.0.0) emin olun."
     fi
 fi
 

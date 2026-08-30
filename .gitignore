@@ -3,13 +3,8 @@ __pycache__/
 verdicts.json
 verdicts_test.json
 emba_*/
-dist/
-build/
-*.spec
-*.exe
 *.log
 venv/
 .venv/
-LAVA_UI
 config/ai_config.env
 *.env

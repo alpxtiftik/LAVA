@@ -9,27 +9,19 @@ import base64
 import threading
 import datetime
 import re
-
-if sys.platform != "win32":
-    import pty
-    import fcntl
-    import termios
-    import struct
+import pty
+import fcntl
+import termios
+import struct
 
 scan_process = None
 scan_buffer = bytearray()
 scan_buffer_lock = threading.Lock()
 master_fd_global = None
 
-# PyInstaller .exe olarak paketlendiğinde geçici klasörü (_MEIPASS) kullan, aksi halde mevcut dizini kullan
-if getattr(sys, 'frozen', False):
-    DIRECTORY = sys._MEIPASS
-    # Uygulama dizini, exe'nin bulunduğu yerdir
-    APP_DIR = os.path.dirname(sys.executable)
-else:
-    DIRECTORY = os.path.dirname(os.path.abspath(__file__))
-    # Uygulama kök dizini LAVA klasörüdür (src/gui -> üstü src -> üstü LAVA)
-    APP_DIR = os.path.dirname(os.path.dirname(DIRECTORY))
+# Uygulama kök dizini LAVA klasörüdür (src/gui -> üstü src -> üstü LAVA)
+DIRECTORY = os.path.dirname(os.path.abspath(__file__))
+APP_DIR = os.path.dirname(os.path.dirname(DIRECTORY))
 
 class Api:
     def __init__(self):
@@ -55,9 +47,6 @@ class Api:
             print(f"Dialog error: {e}")
         return ""
 
-    def get_platform(self):
-        return sys.platform
-
     def get_ai_config(self):
         config_path = os.path.join(APP_DIR, "config", "ai_config.env")
         config = {"AI_PROVIDER": "local", "GEMINI_API_KEY": ""}
@@ -77,13 +66,13 @@ class Api:
         if os.path.exists(config_path):
             with open(config_path, "r", encoding="utf-8") as f:
                 lines = f.readlines()
-        
+
         provider = new_config.get("AI_PROVIDER", "local")
         gemini_key = new_config.get("GEMINI_API_KEY", "")
-        
+
         provider_found = False
         gemini_found = False
-        
+
         for i, line in enumerate(lines):
             if line.strip().startswith("AI_PROVIDER="):
                 lines[i] = f'AI_PROVIDER="{provider}"\n'
@@ -91,16 +80,16 @@ class Api:
             elif line.strip().startswith("GEMINI_API_KEY="):
                 lines[i] = f'GEMINI_API_KEY="{gemini_key}"\n'
                 gemini_found = True
-                
+
         # Son satırda newline yoksa ekle
         if lines and not lines[-1].endswith('\n'):
             lines[-1] = lines[-1] + '\n'
-            
+
         if not provider_found:
             lines.append(f'AI_PROVIDER="{provider}"\n')
         if not gemini_found:
             lines.append(f'GEMINI_API_KEY="{gemini_key}"\n')
-            
+
         with open(config_path, "w", encoding="utf-8") as f:
             f.writelines(lines)
         return {"status": "success"}
@@ -110,103 +99,78 @@ class Api:
         input_path = input_path.strip()
         if not input_path:
             return {"status": "error", "message": "Input path required"}
-        
+
         if scan_process and scan_process.poll() is None:
             return {"status": "error", "message": "Scan already running"}
-        
+
         try:
             log_dir = None
-            if sys.platform == "win32":
-                CREATE_NO_WINDOW = 0x08000000
-                CREATE_NEW_PROCESS_GROUP = 0x00000200
-                
-                if mode == "firmware":
-                    return {"status": "error", "message": "Windows uzerinde otomatik EMBA calistirma (WSL kisitlamalari nedeniyle) desteklenmemektedir. Lutfen EMBA'yi native Linux uzerinde calistirip log dizinini secin."}
-                else:
-                    ps1_path = os.path.join(APP_DIR, "scripts", "run_lava.ps1")
-                    cmd = ["powershell", "-ExecutionPolicy", "Bypass", "-File", ps1_path, "-LogDir", input_path]
-                    
-                actual_log_dir = input_path
+            if mode == "firmware":
+                sh_path = os.path.join(APP_DIR, "scripts", "run_emba_lava.sh")
+                base_log_dir = os.path.join(os.path.dirname(input_path), "lava_scan_" + os.path.basename(input_path))
+                timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                log_dir = f"{base_log_dir}_{timestamp}"
+                cmd = ["bash", sh_path, "-FirmwarePath", input_path, "-LogDir", log_dir]
+            else:
+                sh_path = os.path.join(APP_DIR, "scripts", "run_lava.sh")
+                cmd = ["bash", sh_path, "-LogDir", input_path]
+
+            global scan_buffer, master_fd_global
+            with scan_buffer_lock:
+                scan_buffer.clear()
+
+            master_fd, slave_fd = pty.openpty()
+            master_fd_global = master_fd
+            winsize = struct.pack("HHHH", 30, 120, 0, 0)
+            fcntl.ioctl(slave_fd, termios.TIOCSWINSZ, winsize)
+
+            env = os.environ.copy()
+            env["TERM"] = "xterm-256color"
+            env["LAVA_GUI_MODE"] = "1"
+
+            scan_process = subprocess.Popen(
+                cmd,
+                preexec_fn=os.setsid,
+                cwd=APP_DIR,
+                stdin=slave_fd,
+                stdout=slave_fd,
+                stderr=slave_fd,
+                env=env
+            )
+            os.close(slave_fd)
+
+            actual_log_dir = log_dir if mode == "firmware" else input_path
+
+            # Do not create the log directory beforehand if we are running EMBA (firmware mode)
+            # because EMBA checks if the log directory is empty and prompts for deletion.
+            if mode == "firmware":
+                self.current_log_file = None
+            else:
                 lava_out_dir = os.path.join(actual_log_dir, "lava_out")
                 os.makedirs(lava_out_dir, exist_ok=True)
                 self.current_log_file = os.path.join(lava_out_dir, "lava_scan.log")
-                
-                log_out = open(self.current_log_file, "w", encoding="utf-8")
-                scan_process = subprocess.Popen(
-                    cmd, 
-                    creationflags=CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP,
-                    cwd=APP_DIR,
-                    stdout=log_out,
-                    stderr=subprocess.STDOUT
-                )
-            else:
-                if mode == "firmware":
-                    sh_path = os.path.join(APP_DIR, "scripts", "run_emba_lava.sh")
-                    base_log_dir = os.path.join(os.path.dirname(input_path), "lava_scan_" + os.path.basename(input_path))
-                    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-                    log_dir = f"{base_log_dir}_{timestamp}"
-                    cmd = ["bash", sh_path, "-FirmwarePath", input_path, "-LogDir", log_dir]
-                else:
-                    sh_path = os.path.join(APP_DIR, "scripts", "run_lava.sh")
-                    cmd = ["bash", sh_path, "-LogDir", input_path]
-                    
-                global scan_buffer, master_fd_global
-                with scan_buffer_lock:
-                    scan_buffer.clear()
-                    
-                master_fd, slave_fd = pty.openpty()
-                master_fd_global = master_fd
-                winsize = struct.pack("HHHH", 30, 120, 0, 0)
-                fcntl.ioctl(slave_fd, termios.TIOCSWINSZ, winsize)
+                open(self.current_log_file, 'w').close()
 
-                
-                env = os.environ.copy()
-                env["TERM"] = "xterm-256color"
-                env["LAVA_GUI_MODE"] = "1"
-                
-                scan_process = subprocess.Popen(
-                    cmd, 
-                    preexec_fn=os.setsid,
-                    cwd=APP_DIR,
-                    stdin=slave_fd,
-                    stdout=slave_fd,
-                    stderr=slave_fd,
-                    env=env
-                )
-                os.close(slave_fd)
-                
-                actual_log_dir = log_dir if mode == "firmware" else input_path
-                
-                # Do not create the log directory beforehand if we are running EMBA (firmware mode)
-                # because EMBA checks if the log directory is empty and prompts for deletion.
-                if mode == "firmware":
-                    self.current_log_file = None
-                else:
-                    lava_out_dir = os.path.join(actual_log_dir, "lava_out")
-                    os.makedirs(lava_out_dir, exist_ok=True)
-                    self.current_log_file = os.path.join(lava_out_dir, "lava_scan.log")
-                    open(self.current_log_file, 'w').close()
-                
-                def _reader():
-                    while True:
+            def _reader():
+                while True:
+                    try:
+                        chunk = os.read(master_fd, 4096)
+                    except OSError:
+                        break
+                    if not chunk:
+                        break
+                    with scan_buffer_lock:
+                        scan_buffer.extend(chunk)
+
+                    if self.current_log_file:
                         try:
-                            chunk = os.read(master_fd, 4096)
-                        except OSError:
-                            break
-                        if not chunk:
-                            break
-                        with scan_buffer_lock:
-                            scan_buffer.extend(chunk)
-                        
-                        if self.current_log_file:
-                            try:
-                                with open(self.current_log_file, "ab") as f:
-                                    f.write(chunk)
-                            except Exception:
-                                pass
-                            
-                threading.Thread(target=_reader, daemon=True).start()
-            
+                            with open(self.current_log_file, "ab") as f:
+                                f.write(chunk)
+                        except Exception:
+                            pass
+
+            threading.Thread(target=_reader, daemon=True).start()
+
             msg = f"Started LAVA pipeline for {input_path}"
             if mode == "firmware":
                 msg = f"Started EMBA + LAVA pipeline for firmware {input_path}"
@@ -217,15 +181,10 @@ class Api:
     def stop_scan(self):
         global scan_process
         if scan_process and scan_process.poll() is None:
-            if sys.platform == "win32":
-                subprocess.call(['taskkill', '/F', '/T', '/PID', str(scan_process.pid)], creationflags=subprocess.CREATE_NO_WINDOW)
-                # Cleanup WSL ghost processes to be safe
-                subprocess.call(['wsl', '-u', 'root', '--', 'bash', '-c', 'pkill -f emba; pkill -f run_emba; docker ps -q --filter ancestor=emba | xargs -r docker stop'], creationflags=subprocess.CREATE_NO_WINDOW)
-            else:
-                try:
-                    os.killpg(os.getpgid(scan_process.pid), signal.SIGTERM)
-                except Exception:
-                    scan_process.terminate()
+            try:
+                os.killpg(os.getpgid(scan_process.pid), signal.SIGTERM)
+            except Exception:
+                scan_process.terminate()
             scan_process = None
             return {"status": "success"}
         return {"status": "error", "message": "No scan running"}
@@ -239,7 +198,7 @@ class Api:
 
     def resize_pty(self, rows, cols):
         global master_fd_global
-        if sys.platform != "win32" and master_fd_global is not None:
+        if master_fd_global is not None:
             try:
                 winsize = struct.pack("HHHH", int(rows), int(cols), 0, 0)
                 fcntl.ioctl(master_fd_global, termios.TIOCSWINSZ, winsize)
@@ -249,27 +208,12 @@ class Api:
         return {"status": "ignored"}
 
     def get_scan_logs(self, last_offset=0):
-        # Linux (pty buffer)
-        if sys.platform != "win32":
-            global scan_buffer
-            with scan_buffer_lock:
-                data = bytes(scan_buffer[last_offset:])
-                new_offset = len(scan_buffer)
-            if data:
-                return {"data": base64.b64encode(data).decode("ascii"), "offset": new_offset}
-            return {"data": "", "offset": last_offset}
-            
-        # Windows (file buffer fallback)
-        if self.current_log_file and os.path.exists(self.current_log_file):
-            try:
-                with open(self.current_log_file, "rb") as f:
-                    f.seek(last_offset)
-                    data = f.read()
-                    new_offset = f.tell()
-                    if data:
-                        return {"data": base64.b64encode(data).decode("ascii"), "offset": new_offset}
-            except Exception:
-                pass
+        global scan_buffer
+        with scan_buffer_lock:
+            data = bytes(scan_buffer[last_offset:])
+            new_offset = len(scan_buffer)
+        if data:
+            return {"data": base64.b64encode(data).decode("ascii"), "offset": new_offset}
         return {"data": "", "offset": last_offset}
 
     def save_terminal_log(self):
@@ -278,22 +222,15 @@ class Api:
             result = window.create_file_dialog(webview.SAVE_DIALOG, save_filename='lava_terminal_log.txt')
             if result and len(result) > 0:
                 save_path = result[0]
-                data = b""
-                
-                if sys.platform != "win32":
-                    global scan_buffer
-                    with scan_buffer_lock:
-                        data = bytes(scan_buffer)
-                else:
-                    if self.current_log_file and os.path.exists(self.current_log_file):
-                        with open(self.current_log_file, "rb") as f:
-                            data = f.read()
-                            
+                global scan_buffer
+                with scan_buffer_lock:
+                    data = bytes(scan_buffer)
+
                 # Strip ANSI codes for clean text file
                 data_str = data.decode('utf-8', 'replace')
                 ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
                 clean_data = ansi_escape.sub('', data_str)
-                
+
                 with open(save_path, "w", encoding="utf-8") as f:
                     f.write(clean_data)
                 return {"status": "success", "path": save_path}
@@ -344,33 +281,22 @@ class Api:
     def export_html(self, log_dir):
         if not log_dir:
             return {"status": "error", "message": "logDir required"}
-            
+
         out_dir = self._get_latest_out_dir(log_dir)
         verdicts_file = os.path.join(out_dir, "verdicts.json")
         report_file = os.path.join(out_dir, "lava_report.html")
-        
+
         if not os.path.exists(verdicts_file):
             return {"status": "error", "message": "No verdicts.json found. Please run a scan first."}
-            
+
         try:
             generator_script = os.path.join(APP_DIR, "src", "reporting", "html_report.py")
-            python_exec = "py" if sys.platform == "win32" else "python3"
-            cmd = [python_exec, generator_script, "--verdicts", verdicts_file, "--out", report_file]
-            
-            # Subprocess without console window on Windows
-            if sys.platform == "win32":
-                subprocess.check_call(cmd, creationflags=subprocess.CREATE_NO_WINDOW)
-            else:
-                subprocess.check_call(cmd)
-                
+            cmd = ["python3", generator_script, "--verdicts", verdicts_file, "--out", report_file]
+            subprocess.check_call(cmd)
+
             filepath = os.path.abspath(report_file)
-            if sys.platform == "win32":
-                os.startfile(filepath)
-            elif sys.platform == "darwin":
-                subprocess.call(["open", filepath])
-            else:
-                subprocess.call(["xdg-open", filepath])
-                
+            subprocess.call(["xdg-open", filepath])
+
             return {"status": "success", "path": report_file}
         except Exception as e:
             return {"status": "error", "message": str(e)}
@@ -378,7 +304,7 @@ class Api:
 if __name__ == "__main__":
     html_file = os.path.join(DIRECTORY, "ui", "index.html")
     print(f"[*] LAVA Masaüstü Arayüzü başlatılıyor...")
-    
+
     # PyWebView ile yerel masaüstü penceresi oluştur
     api = Api()
     window = webview.create_window(
@@ -389,26 +315,23 @@ if __name__ == "__main__":
         resizable=True,
         js_api=api
     )
-    
+
     def on_closing():
         try:
             api.stop_scan()
         except Exception:
             pass
         # Do not return False, because returning False cancels the close event in pywebview
-        
+
     window.events.closing += on_closing
-    
+
     webview.start()
-    
+
     print("\n[!] Uygulama sonlandırıldı.")
     if 'scan_process' in globals() and scan_process and scan_process.poll() is None:
         try:
-            if sys.platform == "win32":
-                subprocess.call(['taskkill', '/F', '/T', '/PID', str(scan_process.pid)], creationflags=subprocess.CREATE_NO_WINDOW)
-            else:
-                os.killpg(os.getpgid(scan_process.pid), signal.SIGTERM)
+            os.killpg(os.getpgid(scan_process.pid), signal.SIGTERM)
             scan_process.terminate()
-        except:
+        except Exception:
             pass
     sys.exit(0)

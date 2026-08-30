@@ -445,8 +445,7 @@ _MCP_TOOL_NAMES = [
 def _resolve_cli(name: str) -> str:
     """CLI'yi PATH'te, olmazsa yaygin kurulum konumlarinda arar (installer
     PATH'e eklemeyi atlamis / shell yeniden baslatilmamis olabilir)."""
-    found = (shutil.which(name) or shutil.which(f"{name}.cmd")
-             or shutil.which(f"{name}.exe"))
+    found = shutil.which(name)
     if found:
         return found
 
@@ -459,17 +458,14 @@ def _resolve_cli(name: str) -> str:
         try:
             import pwd  # POSIX
             homes.append(Path(pwd.getpwnam(sudo_user).pw_dir))
-        except (KeyError, ModuleNotFoundError):
+        except KeyError:
             homes.append(Path("/home") / sudo_user)
 
     candidates: list[Path] = []
     for home in homes:
         candidates += [
             home / ".local" / "bin" / name,
-            home / ".local" / "bin" / f"{name}.exe",
             home / ".npm-global" / "bin" / name,
-            home / "AppData" / "Local" / name / "bin" / f"{name}.exe",
-            home / "AppData" / "Roaming" / "npm" / f"{name}.cmd",
             home / "bin" / name,
         ]
     candidates += [
@@ -490,8 +486,7 @@ def _build_agent_command(
 ) -> tuple[list[str], str | None, list[list[str]], list[list[str]]]:
     """Doner: (ana_komut, stdin_metni, on_hazirlik_komutlari, temizlik_komutlari).
 
-    Prompt cok satirli oldugu icin, argv uzerinden gecirmek yerine (Windows'ta
-    .cmd shim'leri newline'lari bozabiliyor) mumkun oldugunca stdin ile verilir.
+    Prompt cok satirli oldugu icin, mumkun oldugunca argv yerine stdin ile verilir.
     """
     if agent in ("claude", "mcp_claude"):
         # --allowedTools degiskin (variadic); "mcp__lava" = sunucunun tum tool'lari.
