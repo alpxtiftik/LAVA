@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
-# LAVA Full Pipeline Runner for Linux
-# EMBA'yi calistirip ardindan LAVA AI analizini baslatir.
+# LAVA full pipeline runner for Linux.
+# Runs EMBA and then starts the LAVA AI analysis.
 
 FirmwarePath=""
 LogDir=""
@@ -10,13 +10,13 @@ while [[ "$#" -gt 0 ]]; do
     case $1 in
         -FirmwarePath|--firmware-path) FirmwarePath="$2"; shift ;;
         -LogDir|--log-dir) LogDir="$2"; shift ;;
-        *) echo "Bilinmeyen parametre: $1"; exit 2 ;;
+        *) echo "Unknown parameter: $1"; exit 2 ;;
     esac
     shift
 done
 
 if [ -z "$FirmwarePath" ]; then
-    echo "Kullanim: $0 -FirmwarePath <path> [-LogDir <dir>]"
+    echo "Usage: $0 -FirmwarePath <path> [-LogDir <dir>]"
     exit 2
 fi
 
@@ -25,7 +25,7 @@ if [ -z "$LogDir" ]; then
     FIRMWARE_BASENAME=$(basename "$FirmwarePath")
     TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
     LogDir="${FIRMWARE_DIR}/lava_scan_${FIRMWARE_BASENAME}_${TIMESTAMP}"
-    echo "[*] LogDir belirtilmedi, otomatik olusturuldu: $LogDir"
+    echo "[*] -LogDir not given, using: $LogDir"
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
@@ -33,37 +33,38 @@ LAVA_ROOT="$(dirname "$SCRIPT_DIR")"
 
 AI_PROVIDER="local"
 if [ -f "$LAVA_ROOT/config/ai_config.env" ]; then
-    # Sadece satir-basi "AI_PROVIDER=" ile eslesir; "# AI_PROVIDER secenekleri:"
-    # gibi yorum satirlarini atlar, ilk eslesmeyi alir, tirnak/bosluk kirpar.
+    # Only match a line-leading "AI_PROVIDER="; skip comment lines such as
+    # "# AI_PROVIDER options:", take the first match, strip quotes/whitespace.
     prov_val=$(grep -E "^[[:space:]]*AI_PROVIDER[[:space:]]*=" "$LAVA_ROOT/config/ai_config.env" 2>/dev/null | head -n1 \
         | sed -E "s/^[[:space:]]*AI_PROVIDER[[:space:]]*=[[:space:]]*[\"']?([^\"']*)[\"']?[[:space:]]*\$/\1/")
     [ -n "$prov_val" ] && AI_PROVIDER="$prov_val"
 fi
 
-# Ollama arka planda calismiyorsa baslat
+# Start Ollama in the background if it is not running
 if [ "$AI_PROVIDER" != "gemini" ] && [[ "$AI_PROVIDER" != mcp* ]] && ! curl -s http://localhost:11434/ > /dev/null; then
-    echo "Ollama API'ye ulasilamadi. Arka planda baslatiliyor..."
+    echo "Could not reach the Ollama API. Starting it in the background..."
     nohup ollama serve > /dev/null 2>&1 &
     sleep 3
 fi
 
 echo "========================================="
-echo "LAVA FULL PIPELINE BASLATILIYOR (LINUX)"
+echo "STARTING THE LAVA FULL PIPELINE (LINUX)"
 echo "========================================="
 
-# Eger root degilsek ve terminal baglantimiz yoksa (GUI'den calisiyorsa), sudo sifre soramayacagi icin uyar
-if [ "$EUID" -ne 0 ] && [ "$LAVA_GUI_MODE" == "1" ]; then
-    echo "HATA: EMBA'nin calisabilmesi icin ROOT yetkisine ihtiyaci var!"
-    echo "Arayuz uzerinden sifre girilemedigi icin islem iptal edildi."
-    echo "COZUM: Lutfen arayuzu kapatin ve terminalden baslatici komutun basina 'sudo' ekleyerek calistirin:"
+# If we are not root and there is no terminal to type a sudo password into
+# (i.e. started from the GUI), warn instead of hanging on a password prompt.
+if [ "$EUID" -ne 0 ] && [ "${LAVA_GUI_MODE:-}" == "1" ]; then
+    echo "ERROR: EMBA needs ROOT privileges to run."
+    echo "A password cannot be entered from the GUI, so the operation was cancelled."
+    echo "FIX: close the UI and re-run the launcher with 'sudo' from a terminal:"
     echo "       sudo bash scripts/start_linux.sh"
     exit 2
 fi
 
-# 1. EMBA_PATH'i dinamik olarak bul
+# 1. Locate the EMBA executable
 EMBA_PATH=""
 
-# Aday yollari tanimla (Guvenlik sebebiyle dinamik command -v ve home dizini taramalari kaldirildi)
+# Candidate paths (dynamic `command -v` and home-dir scans removed for safety)
 CANDIDATE_PATHS=(
     "/emba/emba"
     "/opt/emba/emba"
@@ -73,7 +74,7 @@ CANDIDATE_PATHS=(
 	"/home/ahtiftik/emba"
 )
 
-# Config dosyasini oku ve listeye ekle (Geriye donuk uyumluluk)
+# Read EMBA_PATH from the config file and prepend it (backward compatibility)
 if [ -f "config/ai_config.env" ]; then
     while IFS='=' read -r key value; do
         if [ "$key" == "EMBA_PATH" ]; then
@@ -83,15 +84,15 @@ if [ -f "config/ai_config.env" ]; then
     done < "config/ai_config.env"
 fi
 
-# Aday yollari test et
+# Test the candidate paths
 for p in "${CANDIDATE_PATHS[@]}"; do
     if [ -n "$p" ]; then
-        # Eger kullanici klasor vermisse (or: /opt/emba), icindeki emba dosyasina bak
+        # If the user gave a directory (e.g. /opt/emba), look for the emba file inside it
         if [ -d "$p" ] && [ -f "$p/emba" ]; then
             p="$p/emba"
         fi
-        
-        # Dosya varsa ve calistirilabilirse sec
+
+        # Pick it if it exists and is executable
         if [ -x "$p" ]; then
             EMBA_PATH="$p"
             break
@@ -100,20 +101,20 @@ for p in "${CANDIDATE_PATHS[@]}"; do
 done
 
 if [ -z "$EMBA_PATH" ]; then
-    echo "Hata: EMBA calistirilabilir dosyasi bulunamadi veya calistirma izni (execute) yok!"
-    echo "Lutfen EMBA'nin kurulu oldugundan ve '+x' iznine sahip oldugundan emin olun. (Beklenen yerler: /opt/emba/emba, /home/kali/emba/emba vb.)"
+    echo "Error: EMBA executable not found, or it is not executable."
+    echo "Make sure EMBA is installed and has the '+x' bit. (Expected at: /opt/emba/emba, /home/kali/emba/emba, etc.)"
     exit 2
 fi
 
 if [ ! -f "$FirmwarePath" ]; then
-    echo "Hata: Firmware dosyasi bulunamadi: $FirmwarePath"
+    echo "Error: firmware file not found: $FirmwarePath"
     exit 2
 fi
 
-echo "[1/2] EMBA calistiriliyor..."
+echo "[1/2] Running EMBA..."
 echo "Firmware: $FirmwarePath"
-echo "Ana Dizin (LAVA & EMBA): $LogDir"
-echo "EMBA Dizin: $EMBA_PATH"
+echo "Parent directory (LAVA & EMBA): $LogDir"
+echo "EMBA directory: $EMBA_PATH"
 
 emba_dir=$(dirname "$EMBA_PATH")
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
@@ -121,16 +122,16 @@ LAVA_ROOT="$(dirname "$SCRIPT_DIR")"
 PROFILE_SRC="$LAVA_ROOT/EMBA - Scan Profile/lava.00-quick-scan.emba"
 
 if [ -f "$PROFILE_SRC" ]; then
-    echo "Hizli tarama profili bulundu, kopyalaniyor: $PROFILE_SRC"
+    echo "Quick-scan profile found, copying: $PROFILE_SRC"
     sudo mkdir -p "$emba_dir/scan-profiles/"
     sudo cp "$PROFILE_SRC" "$emba_dir/scan-profiles/"
     PROFILE_ARG="-p lava.00-quick-scan.emba"
 else
-    echo "Uyari: Hizli tarama profili bulunamadi, varsayilan tarama yapilacak."
+    echo "Warning: quick-scan profile not found, using EMBA's default scan."
     PROFILE_ARG=""
 fi
 
-# Dizinleri ayarla
+# Set up directories
 PARENT_DIR="$LogDir"
 EMBA_DIR="$PARENT_DIR/emba_logs"
 LAVA_OUT_DIR="$PARENT_DIR/lava_out"
@@ -139,31 +140,31 @@ LAVA_OUT_DIR="$PARENT_DIR/lava_out"
 cd "$emba_dir"
 sudo LC_ALL="en_US.UTF-8" LANG="en_US.UTF-8" ./emba -f "$FirmwarePath" -l "$EMBA_DIR" $PROFILE_ARG
 if [ $? -ne 0 ]; then
-    echo "Hata: EMBA taramasi basarisiz oldu veya EMBA bulunamadi!"
+    echo "Error: the EMBA scan failed, or EMBA was not found."
     exit 2
 fi
 
-echo "[OK] EMBA taramasi tamamlandi!"
+echo "[OK] EMBA scan complete."
 
-# 3. LAVA analizini baslat
-# EMBA log dizini root tarafindan olusturuldu; LAVA (ve MCP modunda ajan CLI'si)
-# normal kullanici olarak calisacagi icin sahipligi ona geri veriyoruz.
-# `sudo` altinda $USER = root olur; asil kullaniciyi $SUDO_USER'dan aliyoruz.
+# 3. Start the LAVA analysis.
+# The EMBA log directory was created by root; LAVA (and, in MCP mode, the agent
+# CLI) runs as a normal user, so hand ownership back.
+# Under `sudo`, $USER is root; get the real user from $SUDO_USER.
 TARGET_USER="${SUDO_USER:-$USER}"
 sudo chown -R "$TARGET_USER:$TARGET_USER" "$PARENT_DIR" 2>/dev/null
 
 echo ""
-echo "[2/2] LAVA yapay zeka analizi baslatiliyor..."
+echo "[2/2] Starting the LAVA AI analysis..."
 cd "$LAVA_ROOT" || exit 2
 
-# LAVA AI analizi root gerektirmez. MCP modunda ajan CLI'leri (claude / agy) ve
-# venv kullaniciya ozeldir; root PATH'inde/HOME'unda gorunmezler. Bu yuzden bu
-# betik root olarak calisiyorsa, analiz adimini asil kullaniciya birakiyoruz.
+# The LAVA AI analysis does not need root. In MCP mode the agent CLIs (claude /
+# agy) and the venv are per-user; they are invisible in root's PATH/HOME. So if
+# this script is running as root, run the analysis step as the real user.
 if [ "$EUID" -eq 0 ] && [ -n "$SUDO_USER" ] && [ "$SUDO_USER" != "root" ]; then
-    echo "[*] AI analizi '$SUDO_USER' kullanicisi olarak calistiriliyor (root degil)."
+    echo "[*] Running the AI analysis as user '$SUDO_USER' (not root)."
     sudo -u "$SUDO_USER" -H bash -lc \
         'cd "$1" && exec bash scripts/run_lava.sh -LogDir "$2" -OutDir "$3"' \
-        lava-analiz "$LAVA_ROOT" "$EMBA_DIR" "$LAVA_OUT_DIR"
+        lava-analysis "$LAVA_ROOT" "$EMBA_DIR" "$LAVA_OUT_DIR"
     lava_rc=$?
 else
     bash "$SCRIPT_DIR/run_lava.sh" -LogDir "$EMBA_DIR" -OutDir "$LAVA_OUT_DIR"
@@ -171,11 +172,11 @@ else
 fi
 
 if [ $lava_rc -ne 0 ]; then
-    echo "Hata: LAVA yapay zeka analizi adiminda (run_lava.sh) hata olustu! Ayrintilar icin LAVA loglarini kontrol edin."
+    echo "Error: the LAVA AI analysis step (run_lava.sh) failed. Check the LAVA logs for details."
     exit 2
 fi
 
 echo ""
 echo "========================================="
-echo "FULL PIPELINE TAMAMLANDI!"
+echo "FULL PIPELINE COMPLETE."
 echo "========================================="

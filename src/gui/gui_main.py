@@ -19,7 +19,7 @@ scan_buffer = bytearray()
 scan_buffer_lock = threading.Lock()
 master_fd_global = None
 
-# Uygulama kök dizini LAVA klasörüdür (src/gui -> üstü src -> üstü LAVA)
+# The application root is the LAVA folder (src/gui -> parent src -> parent LAVA)
 DIRECTORY = os.path.dirname(os.path.abspath(__file__))
 APP_DIR = os.path.dirname(os.path.dirname(DIRECTORY))
 
@@ -81,7 +81,7 @@ class Api:
                 lines[i] = f'GEMINI_API_KEY="{gemini_key}"\n'
                 gemini_found = True
 
-        # Son satırda newline yoksa ekle
+        # Add a trailing newline if the last line lacks one
         if lines and not lines[-1].endswith('\n'):
             lines[-1] = lines[-1] + '\n'
 
@@ -303,9 +303,9 @@ class Api:
 
 if __name__ == "__main__":
     html_file = os.path.join(DIRECTORY, "ui", "index.html")
-    print(f"[*] LAVA Masaüstü Arayüzü başlatılıyor...")
+    print("[*] Starting the LAVA desktop UI...")
 
-    # PyWebView ile yerel masaüstü penceresi oluştur
+    # Create a native desktop window with PyWebView
     api = Api()
     window = webview.create_window(
         title='LAVA - Local AI Vulnerability Auditor',
@@ -327,7 +327,7 @@ if __name__ == "__main__":
 
     webview.start()
 
-    print("\n[!] Uygulama sonlandırıldı.")
+    print("\n[!] Application closed.")
     if 'scan_process' in globals() and scan_process and scan_process.poll() is None:
         try:
             os.killpg(os.getpgid(scan_process.pid), signal.SIGTERM)

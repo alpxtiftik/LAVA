@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-LAVA - Context Enrichment
-==========================
-merged_findings.json icindeki her bulgu icin, EMBA'nin extraction sirasinda
-diske cikardigi GERCEK firmware dosyasindan +-N satirlik context ekler.
-Boylece LLM'e izole bir string yerine, o satirin dosyada nerede/nasil
-gectigini gosteren gercek bir kod/config parcasi verilir.
+LAVA - context enrichment
+=========================
+For every finding in merged_findings.json, adds +/-N lines of context from the
+REAL firmware file that EMBA extracted to disk. This gives the LLM an actual
+code/config snippet showing where and how the line appears, instead of an
+isolated string.
 
-Kullanim:
-    python3 enrich_context.py --merged merged_findings.json --log-dir lava_iotgoat_log --out enriched_findings.json
+Usage:
+    python3 enricher.py --merged merged_findings.json --log-dir emba_log --out enriched_findings.json
 """
 
 import argparse
@@ -17,18 +17,18 @@ from pathlib import Path
 
 
 def find_extraction_roots(log_dir: Path) -> list[Path]:
-    """EMBA'nin olusturdugu tum '<...>_extract' dizinlerini bulur (squashfs,
-    fat, vs. birden fazla partisyon olabilir). En spesifik/derin olanlar
-    once denenir ki dogru dosyayi yanlislikla baska bir extraction'dan almayalim."""
+    """Finds every '<...>_extract' directory EMBA created (there can be several
+    partitions: squashfs, fat, ...). The most specific/deepest ones are tried
+    first so we do not accidentally take the file from another extraction."""
     roots = [p for p in log_dir.rglob("*extract*") if p.is_dir()]
     roots.sort(key=lambda p: len(str(p)), reverse=True)
     return roots
 
 
 def resolve_real_path(relative_path: str, log_dir: Path, roots: list[Path]) -> Path | None:
-    """normalize_path() tarafindan kisaltilmis path'i (orn. 'etc/shadow')
-    gercek extraction dizinindeki fiziksel dosyaya geri baglar.
-    Path traversal saldirilarini engellemek icin is_relative_to kullanir."""
+    """Maps the path shortened by normalize_path() (e.g. 'etc/shadow') back to
+    the physical file inside the real extraction directory.
+    Uses is_relative_to to block path traversal attacks."""
     if relative_path.startswith("/logs/"):
         candidate = (log_dir / relative_path[6:]).resolve()
         try:
@@ -45,8 +45,8 @@ def resolve_real_path(relative_path: str, log_dir: Path, roots: list[Path]) -> P
                 return candidate
         except ValueError:
             pass
-            
-    # Fallback: eger sadece dosya adi varsa, root icinde ara
+
+    # Fallback: if only a file name is left, search for it inside the roots
     filename = Path(relative_path).name
     if "/" in filename or "\\" in filename:
         return None  # Prevent weird names that might bypass traversal
@@ -58,8 +58,8 @@ def resolve_real_path(relative_path: str, log_dir: Path, roots: list[Path]) -> P
 
 
 def is_probably_binary(path: Path, sniff_bytes: int = 512) -> bool:
-    """Null byte iceren dosyalari binary sayariz - text context cikarmak
-    anlamsiz (ELF, .so, sikistirilmis dosya vb.)."""
+    """We treat files containing a null byte as binary - extracting text context
+    from them is meaningless (ELF, .so, compressed files, etc.)."""
     try:
         with open(path, "rb") as f:
             chunk = f.read(sniff_bytes)
@@ -79,8 +79,8 @@ def extract_context(path: Path, line_no: int | None, matched_content: str, windo
     if line_no is not None and 1 <= line_no <= len(lines):
         idx = line_no - 1
     else:
-        # line_no yoksa (S45/S106/S107/S108), matched_content'i iceren
-        # satiri dosya icinde arayarak buluyoruz.
+        # No line_no (S45/S106/S107/S108): find the line containing
+        # matched_content inside the file.
         needle = matched_content.strip()
         if needle:
             needle_lines = needle.splitlines()
@@ -110,12 +110,11 @@ def extract_context(path: Path, line_no: int | None, matched_content: str, windo
             "exact_match_located": True,
         }
 
-    # Fallback: eslesen satir bulunamadi - orn. S45_pass_file_check'in
-    # jenerik "flagged as password-related file" mesaji dosyanin gercek
-    # icerigi degil, dosyanin icinde literal olarak hic gecmiyor. Bu durumda
-    # sessizce context'siz birakmak yerine dosyanin basindan bir ornek
-    # veriyoruz - model en azindan GERCEK icerigi gorsun, sadece dosya
-    # adina bakip tahmin yurutmesin.
+    # Fallback: the matched line was not found - e.g. S45_pass_file_check's
+    # generic "flagged as password-related file" message is not the file's real
+    # content and never appears literally inside it. Instead of silently leaving
+    # it context-free, we give a sample from the start of the file so the model
+    # at least sees the REAL content and does not just guess from the file name.
     if not lines:
         return None
     end = min(len(lines), window * 2 + 1)
@@ -147,7 +146,7 @@ def enrich(merged_findings: list[dict], log_dir: Path, window: int) -> tuple[int
             binary_skipped += 1
             continue
 
-        # line_no bilgisi sadece S99_grepit'te var; oradan alalim.
+        # line_no is only present for S99_grepit; take it from there.
         line_no = None
         for src in group.get("source_findings", []):
             ln = src.get("extra", {}).get("line_no")
@@ -169,11 +168,11 @@ def enrich(merged_findings: list[dict], log_dir: Path, window: int) -> tuple[int
 
 
 def main():
-    ap = argparse.ArgumentParser(description="EMBA findings'e gercek dosya baglami (context) ekler.")
-    ap.add_argument("--merged", required=True, help="parse_emba_findings.py'nin urettigi merged_findings.json")
-    ap.add_argument("--log-dir", required=True, help="EMBA log dizini (firmware/ alt klasorunu icermeli)")
+    ap = argparse.ArgumentParser(description="Adds real file context to EMBA findings.")
+    ap.add_argument("--merged", required=True, help="merged_findings.json produced by parser.py")
+    ap.add_argument("--log-dir", required=True, help="EMBA log directory (must contain the firmware/ subfolder)")
     ap.add_argument("--out", default="enriched_findings.json")
-    ap.add_argument("--window", type=int, default=10, help="Eslesen satirin ustunden/altindan kac satir alinacak")
+    ap.add_argument("--window", type=int, default=10, help="Number of lines to take above/below the matched line")
     args = ap.parse_args()
 
     merged = json.loads(Path(args.merged).read_text(encoding="utf-8"))
@@ -183,10 +182,10 @@ def main():
 
     Path(args.out).write_text(json.dumps(merged, indent=2, ensure_ascii=False), encoding="utf-8")
 
-    print(f"[+] Context eklenen: {enriched}")
-    print(f"[+] Binary oldugu icin atlanan: {binary_skipped}")
-    print(f"[+] Gercek dosya bulunamadi: {not_found}")
-    print(f"[+] Cikti: {args.out}")
+    print(f"[+] Context added: {enriched}")
+    print(f"[+] Skipped as binary: {binary_skipped}")
+    print(f"[+] Real file not found: {not_found}")
+    print(f"[+] Output: {args.out}")
 
 
 if __name__ == "__main__":

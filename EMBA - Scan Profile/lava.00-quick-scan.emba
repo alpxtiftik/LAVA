@@ -1,13 +1,13 @@
 # EMBA - EMBEDDED LINUX ANALYZER
-# Custom profile: sadece hardcoded credential / secret arama (LAVA MVP - Madde 1)
+# Custom profile: hardcoded credential / secret search only (LAVA MVP - item 1)
 
 export FORMAT_LOG=1
 export THREADED=6
 export SHORT_PATH=1
 export HTML=1
 
-# Quick scan KAPALI: default quick scan S99/S109 gibi bizim istediğimiz
-# modülleri de blackliste alıyor, o yüzden kendi blacklist'imizi tam kontrol ediyoruz
+# Quick scan OFF: the default quick scan also blacklists modules we want (such as
+# S99/S109), so we keep full control of our own blacklist below
 export QUICK_SCAN=0
 export BINARY_EXTENDED=0
 export QEMULATION=0

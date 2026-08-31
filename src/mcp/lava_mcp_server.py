@@ -1,25 +1,25 @@
 #!/usr/bin/env python3
 """
-LAVA - MCP Server (agentic AI provider)
+LAVA - MCP server (agentic AI provider)
 ======================================
-Bu sunucu, LAVA'nin ucuncu AI provider modudur. Local (Ollama) ve Cloud
-(Gemini) modlarinda `classifier.py` LLM'e hazir bir prompt paketi verirken,
-MCP modunda LLM (Claude Code / Claude Desktop / Antigravity CLI) **aktif bir
-ajan** olarak baglanir: EMBA log dizinini kendi tool cagrilariyla kesfeder,
-gereken dosyalari kendi karariyla okur ve verdict'lerini yine tool cagrisiyla
-LAVA'ya geri yazar.
+This server is LAVA's third AI provider mode. In local (Ollama) and cloud
+(Gemini) modes `classifier.py` hands the LLM a ready-made prompt package; in MCP
+mode the LLM (Claude Code / Claude Desktop / Antigravity CLI) connects as an
+**active agent**: it explores the EMBA log directory via its own tool calls,
+reads the files it decides it needs, and writes its verdicts back to LAVA with
+another tool call.
 
-Cikti (`verdicts.json`) semasi local/Gemini modlariyla BIREBIR aynidir; bu
-sunucu semayi `src/core/parser.py`'nin urettigi merged-findings kaydindan
-turetir (parser degistirilmez, sadece kutuphane olarak import edilir).
+The output (`verdicts.json`) schema is IDENTICAL to local/Gemini mode; this
+server derives that schema from the merged-findings produced by
+`src/core/parser.py` (parser is not modified, only imported as a library).
 
-stdio transport ile calisir:
+Runs over stdio transport:
 
     python src/mcp/lava_mcp_server.py --log-dir /path/to/emba_log \\
         --fw-root /path/to/extracted_fw [--verdicts-out /path/to/verdicts.json]
 
-Tum dosya-okuma tool'lari path-sandbox'lidir: `--log-dir` / `--fw-root`
-disina cikan her istek reddedilir.
+All file-reading tools are path-sandboxed: any request that escapes
+`--log-dir` / `--fw-root` is rejected.
 """
 
 from __future__ import annotations
@@ -40,7 +40,7 @@ try:  # mcp < 2
 except ModuleNotFoundError:  # mcp >= 2 (FastMCP -> MCPServer)
     from mcp.server.mcpserver import MCPServer as FastMCP  # type: ignore
 
-# --- parser.py'yi (degistirmeden) kutuphane olarak yukle --------------------
+# --- load parser.py as a library (unmodified) ------------------------------
 _CORE_DIR = Path(__file__).resolve().parents[1] / "core"
 if str(_CORE_DIR) not in sys.path:
     sys.path.insert(0, str(_CORE_DIR))
@@ -48,7 +48,7 @@ import parser as emba_parser  # noqa: E402  (src/core/parser.py)
 
 
 # ---------------------------------------------------------------------------
-# Global yapilandirma (CLI argumanlariyla doldurulur)
+# Global configuration (filled from CLI arguments)
 # ---------------------------------------------------------------------------
 class ServerConfig:
     log_dir: Path = Path(".")
@@ -58,15 +58,15 @@ class ServerConfig:
 
 CFG = ServerConfig()
 
-# finding_id -> merged finding kaydi
+# finding_id -> merged finding record
 REGISTRY: dict[str, dict] = {}
 
-_TEXT_MAX_SCAN_BYTES = 2_000_000  # search/grep sirasinda tek dosyada taranacak ust sinir
+_TEXT_MAX_SCAN_BYTES = 2_000_000  # upper limit per file scanned during search/grep
 _SEARCH_RESULT_CAP = 300
 
 
 def log(msg: str) -> None:
-    """stdio transport stdout'u kullandigi icin TUM loglar stderr'e gider."""
+    """stdio transport uses stdout, so ALL logs go to stderr."""
     print(f"[lava-mcp] {msg}", file=sys.stderr, flush=True)
 
 
@@ -74,18 +74,18 @@ def log(msg: str) -> None:
 # Path sandbox
 # ---------------------------------------------------------------------------
 def _safe_resolve(root: Path, user_path: str) -> Path:
-    """user_path'i root altinda cozer. root disina cikan her sey ValueError.
+    """Resolves user_path under root. Anything escaping root raises ValueError.
 
-    `os.path.realpath` ile normalize edilir (symlink + '..' dahil)."""
+    Normalized with `os.path.realpath` (handles symlinks and '..')."""
     root_real = Path(os.path.realpath(root))
     raw = (user_path or "").strip().replace("\\", "/")
-    # Mutlak/surucu-koklu girdileri her zaman root'a goreli kabul et
+    # Always treat absolute / drive-rooted input as relative to root
     raw = raw.lstrip("/")
     raw = re.sub(r"^[A-Za-z]:/", "", raw)
     candidate = Path(os.path.realpath(root_real / raw))
     if candidate != root_real and root_real not in candidate.parents:
         raise ValueError(
-            f"Path '{user_path}' sandbox disinda ({root_real} altinda kalmali). Reddedildi."
+            f"Path '{user_path}' is outside the sandbox (must stay under {root_real}). Rejected."
         )
     return candidate
 
@@ -95,7 +95,7 @@ def _read_text_capped(path: Path, max_bytes: int) -> str:
     truncated = len(data) > max_bytes
     text = data[:max_bytes].decode("utf-8", errors="replace")
     if truncated:
-        text += f"\n\n... [TRUNCATED - dosyanin ilk {max_bytes} byte'i gosterildi, toplam {len(data)} byte]"
+        text += f"\n\n... [TRUNCATED - showing the first {max_bytes} bytes of the file, {len(data)} bytes total]"
     return text
 
 
@@ -108,7 +108,7 @@ def _looks_binary(path: Path, sniff: int = 1024) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Finding registry (verdicts.json semasinin kaynagi)
+# Finding registry (source of the verdicts.json schema)
 # ---------------------------------------------------------------------------
 def _finding_id(file_path: str, matched_content: str) -> str:
     h = hashlib.sha1(f"{file_path}|{matched_content}".encode("utf-8", "replace")).hexdigest()
@@ -116,9 +116,9 @@ def _finding_id(file_path: str, matched_content: str) -> str:
 
 
 def build_registry(log_dir: Path) -> dict[str, dict]:
-    """parser.py'nin merge_and_corroborate ciktisindan finding registry kurar.
-    Bu, MCP modunda uretilecek verdicts.json'un dosya-adi/tip semasini
-    local/Gemini moduyla birebir ayni tutar."""
+    """Builds the finding registry from parser.py's merge_and_corroborate output.
+    This keeps the file-name / type schema of the verdicts.json produced in MCP
+    mode identical to local/Gemini mode."""
     reg: dict[str, dict] = {}
     csv_dir = log_dir / "csv_logs"
     all_findings: list[dict] = []
@@ -130,8 +130,8 @@ def build_registry(log_dir: Path) -> dict[str, dict]:
         )
         all_findings += emba_parser.parse_s106(log_dir / "s106_deep_key_search")
         all_findings += emba_parser.parse_s99(log_dir / "s99_grepit")
-    except Exception as e:  # noqa: BLE001 - registry bos kalirsa tool'lar yine de aciklayici hata doner
-        log(f"UYARI: registry kurulurken hata: {e!r}")
+    except Exception as e:  # noqa: BLE001 - if the registry stays empty the tools still return an explanatory error
+        log(f"WARNING: error while building the registry: {e!r}")
         return reg
 
     merged = emba_parser.merge_and_corroborate(all_findings)
@@ -148,7 +148,7 @@ def build_registry(log_dir: Path) -> dict[str, dict]:
 
 
 # ---------------------------------------------------------------------------
-# verdicts.json yazimi  (classifier.py run-modu semasiyla birebir)
+# Writing verdicts.json  (identical to the classifier.py run-mode schema)
 # ---------------------------------------------------------------------------
 def _atomic_write_json(data: Any, path: Path) -> None:
     tmp = path.with_suffix(path.suffix + ".tmp")
@@ -158,10 +158,10 @@ def _atomic_write_json(data: Any, path: Path) -> None:
 
 
 def write_findings_snapshot() -> None:
-    """MCP modunda parser.py/enricher.py ayri adim olarak KOSMAZ. Dashboard'un
-    'toplam bulgu' sayaci enriched_findings.json'u okudugu icin, registry'yi
-    verdicts.json'in yanina bu isimle bir kez dokuyoruz (context alani MCP
-    modunda ajan tarafindan tool'larla toplandigi icin burada yer tutucudur)."""
+    """In MCP mode parser.py/enricher.py do NOT run as separate steps. Since the
+    dashboard's 'total findings' counter reads enriched_findings.json, we dump
+    the registry next to verdicts.json under that name once (the context field
+    is a placeholder here because in MCP mode the agent collects it via tools)."""
     if not REGISTRY:
         return
     snapshot = [
@@ -171,7 +171,7 @@ def write_findings_snapshot() -> None:
     try:
         _atomic_write_json(snapshot, CFG.verdicts_out.parent / "enriched_findings.json")
     except OSError as e:
-        log(f"UYARI: enriched_findings.json yazilamadi: {e}")
+        log(f"WARNING: could not write enriched_findings.json: {e}")
 
 
 def _load_existing_verdicts() -> list[dict]:
@@ -186,7 +186,7 @@ def _load_existing_verdicts() -> list[dict]:
 
 
 def _verdict_record(finding: dict, verdict: str, confidence: float, reasoning: str) -> dict:
-    """local/Gemini modundaki run_full_mode ile ALAN-ALAN ayni obje."""
+    """Field-for-field identical to the object produced by run_full_mode in local/Gemini mode."""
     return {
         "file_path": finding["file_path"],
         "matched_content": finding["matched_content"],
@@ -205,7 +205,7 @@ def _normalize_verdict(verdict: str) -> str:
         return "TP"
     if v in ("FP", "FALSE POSITIVE", "FALSE_POSITIVE"):
         return "FP"
-    raise ValueError(f"verdict 'TP' veya 'FP' olmali, alinan: {verdict!r}")
+    raise ValueError(f"verdict must be 'TP' or 'FP', got: {verdict!r}")
 
 
 def _clamp_conf(confidence: float) -> float:
@@ -213,14 +213,14 @@ def _clamp_conf(confidence: float) -> float:
         c = float(confidence)
     except (TypeError, ValueError):
         return 0.0
-    if c > 1.0:  # 80 -> 0.80 gibi
+    if c > 1.0:  # e.g. 80 -> 0.80
         c = c / 100.0
     return max(0.0, min(1.0, round(c, 4)))
 
 
 def _write_verdicts(new_records: dict[str, dict]) -> None:
-    """new_records: finding_id -> verdict_record. Registry sirasina gore yazar,
-    mevcut dosyadaki (registry disi) kayitlari korur."""
+    """new_records: finding_id -> verdict_record. Writes in registry order and
+    preserves records already in the file that are not in the registry."""
     existing = _load_existing_verdicts()
     by_key: dict[tuple, dict] = {
         (r.get("file_path"), r.get("matched_content")): r for r in existing
@@ -235,35 +235,35 @@ def _write_verdicts(new_records: dict[str, dict]) -> None:
         if key in by_key:
             ordered.append(by_key[key])
             seen.add(key)
-    for key, rec in by_key.items():  # registry disi artiklar
+    for key, rec in by_key.items():  # leftovers not in the registry
         if key not in seen:
             ordered.append(rec)
     _atomic_write_json(ordered, CFG.verdicts_out)
 
 
 # ---------------------------------------------------------------------------
-# MCP sunucusu ve tool'lar
+# MCP server and tools
 # ---------------------------------------------------------------------------
 mcp = FastMCP("lava")
 
 
 @mcp.tool()
 def list_findings() -> list[dict]:
-    """EMBA'nin bu firmware icin bildirdigi TUM hardcoded-credential bulgularini
-    (finding_id ile birlikte) doner. Kesfin baslangic noktasi: her finding_id
-    icin sonunda submit_verdict / submit_all_verdicts cagrilmalidir.
+    """Returns EVERY hardcoded-credential finding EMBA reported for this firmware
+    (with its finding_id). This is the starting point: every finding_id must
+    eventually receive a submit_verdict / submit_all_verdicts call.
 
-    Doner: [{finding_id, file_path, matched_content, found_by_modules,
-             corroboration_count}]"""
+    Returns: [{finding_id, file_path, matched_content, found_by_modules,
+               corroboration_count}]"""
     return list(REGISTRY.values())
 
 
 @mcp.tool()
 def get_hardcoded_keys_module_output() -> str:
-    """EMBA'nin hardcoded-credential modullerinin (S45 pass_file_check,
-    S106 deep_key_search, S107 deep_password_search, S108 stacs_password_search,
-    S99 grepit cryptocred) HAM cikti loglarini dogrudan doner. Kesfe buradan
-    baslayip gerekiyorsa diger tool'larla derinlesin."""
+    """Returns the RAW output logs of EMBA's hardcoded-credential modules
+    (S45 pass_file_check, S106 deep_key_search, S107 deep_password_search,
+    S108 stacs_password_search, S99 grepit cryptocred) directly. Start your
+    exploration here and drill in with the other tools if needed."""
     ld = CFG.log_dir
     chunks: list[str] = []
 
@@ -281,72 +281,71 @@ def get_hardcoded_keys_module_output() -> str:
                 _add(f"{label} {txt.name}", txt, 20000)
 
     if not chunks:
-        return (f"Bu log dizininde ({ld}) taninan hardcoded-credential modul ciktisi bulunamadi. "
-                "list_log_files ile dizin yapisini inceleyin.")
+        return (f"No recognized hardcoded-credential module output was found in this log directory ({ld}). "
+                "Inspect the directory structure with list_log_files.")
     return "\n\n".join(chunks)
 
 
 @mcp.tool()
 def list_log_files(subdir: str = "") -> list[str]:
-    """EMBA log dizinindeki (--log-dir) dosya ve klasorleri listeler. `subdir`
-    verilirse o alt dizinin icerigi listelenir. Klasorler sonuna '/' eklenir.
-    Sandbox: sadece --log-dir altinda kalir."""
+    """Lists files and folders in the EMBA log directory (--log-dir). If `subdir`
+    is given, that subdirectory's contents are listed. Directories get a
+    trailing '/'. Sandbox: stays under --log-dir only."""
     try:
         base = _safe_resolve(CFG.log_dir, subdir)
     except ValueError as e:
-        return [f"[hata] {e}"]
+        return [f"[error] {e}"]
     if not base.exists():
-        return [f"[hata] yol yok: {subdir}"]
+        return [f"[error] no such path: {subdir}"]
     if base.is_file():
         return [subdir]
     out: list[str] = []
     for p in sorted(base.iterdir()):
         rel = p.relative_to(Path(os.path.realpath(CFG.log_dir))).as_posix()
         out.append(rel + "/" if p.is_dir() else rel)
-    return out or ["[bos dizin]"]
+    return out or ["[empty directory]"]
 
 
 @mcp.tool()
 def read_log_file(path: str, max_bytes: int = 20000) -> str:
-    """--log-dir altindaki bir log dosyasini okur. Buyuk dosyalar kesilir ve
-    TRUNCATED uyarisi eklenir. Sandbox: sadece --log-dir altinda."""
+    """Reads a log file under --log-dir. Large files are truncated with a
+    TRUNCATED notice. Sandbox: under --log-dir only."""
     try:
         p = _safe_resolve(CFG.log_dir, path)
     except ValueError as e:
-        return f"[hata] {e}"
+        return f"[error] {e}"
     if not p.exists() or not p.is_file():
-        return f"[hata] dosya yok: {path}"
+        return f"[error] no such file: {path}"
     return _read_text_capped(p, max(1000, int(max_bytes)))
 
 
 @mcp.tool()
 def read_firmware_file(path: str, max_bytes: int = 20000) -> str:
-    """EMBA'nin extract ettigi firmware filesystem'inden (--fw-root) dosya okur.
-    Hardcoded credential'in gercekten kullanilip kullanilmadigini dogrulamak
-    icin kullanin (init script'leri, config dosyalari vb.). Sandbox: sadece
-    --fw-root altinda."""
+    """Reads a file from the firmware filesystem EMBA extracted (--fw-root). Use
+    this to verify whether a hardcoded credential is real and actually used
+    (init scripts, config files, etc.). Sandbox: under --fw-root only."""
     try:
         p = _safe_resolve(CFG.fw_root, path)
     except ValueError as e:
-        return f"[hata] {e}"
+        return f"[error] {e}"
     if not p.exists() or not p.is_file():
-        return f"[hata] dosya yok: {path} (--fw-root altinda aranir)"
+        return f"[error] no such file: {path} (searched under --fw-root)"
     if _looks_binary(p):
-        return f"[bilgi] '{path}' binary gorunuyor (null byte iceriyor); text context anlamsiz."
+        return f"[info] '{path}' looks binary (contains a null byte); text context is meaningless."
     return _read_text_capped(p, max(1000, int(max_bytes)))
 
 
 @mcp.tool()
 def search_log_content(pattern: str, subdir: str = "") -> list[dict]:
-    """--log-dir icinde grep benzeri arama. Once regex olarak derlenir; gecersiz
-    regex ise otomatik olarak re.escape ile literal aramaya duser. Doner:
-    [{file, line_no, line, regex}] (en fazla 300 sonuc). Sandbox: --log-dir."""
+    """grep-like search inside --log-dir. Compiled as a regex first; if the regex
+    is invalid it falls back to a literal search via re.escape. Returns:
+    [{file, line_no, line, regex}] (at most 300 results). Sandbox: --log-dir."""
     try:
         base = _safe_resolve(CFG.log_dir, subdir)
     except ValueError as e:
         return [{"error": str(e)}]
     if not base.exists():
-        return [{"error": f"yol yok: {subdir}"}]
+        return [{"error": f"no such path: {subdir}"}]
     try:
         rx = re.compile(pattern)
         used_regex = True
@@ -371,26 +370,26 @@ def search_log_content(pattern: str, subdir: str = "") -> list[dict]:
                             "regex": used_regex,
                         })
                         if len(results) >= _SEARCH_RESULT_CAP:
-                            results.append({"note": f"sonuclar {_SEARCH_RESULT_CAP} ile sinirlandi"})
+                            results.append({"note": f"results capped at {_SEARCH_RESULT_CAP}"})
                             return results
         except OSError:
             continue
-    return results or [{"note": "eslesme yok", "regex": used_regex}]
+    return results or [{"note": "no match", "regex": used_regex}]
 
 
 class VerdictIn(BaseModel):
-    finding_id: str = Field(description="list_findings'ten alinan finding_id")
-    verdict: str = Field(description="'TP' (True Positive) veya 'FP' (False Positive)")
-    confidence: float = Field(description="0.0 - 1.0 arasi guven skoru")
-    reasoning: str = Field(description="1-2 cumlelik KISA INGILIZCE gerekce")
+    finding_id: str = Field(description="finding_id from list_findings")
+    verdict: str = Field(description="'TP' (True Positive) or 'FP' (False Positive)")
+    confidence: float = Field(description="confidence score between 0.0 and 1.0")
+    reasoning: str = Field(description="1-2 sentence SHORT ENGLISH rationale")
 
 
 def _submit_one(v: VerdictIn, sink: dict[str, dict]) -> str:
     finding = REGISTRY.get(v.finding_id)
     if finding is None:
         valid = ", ".join(list(REGISTRY)[:8])
-        return (f"[hata] bilinmeyen finding_id: {v.finding_id!r}. "
-                f"list_findings ile gecerli id'leri alin (orn: {valid} ...)")
+        return (f"[error] unknown finding_id: {v.finding_id!r}. "
+                f"Get valid ids with list_findings (e.g. {valid} ...)")
     verdict = _normalize_verdict(v.verdict)
     rec = _verdict_record(finding, verdict, _clamp_conf(v.confidence), str(v.reasoning).strip())
     sink[v.finding_id] = rec
@@ -399,9 +398,9 @@ def _submit_one(v: VerdictIn, sink: dict[str, dict]) -> str:
 
 @mcp.tool()
 def submit_verdict(finding_id: str, verdict: str, confidence: float, reasoning: str) -> str:
-    """Tek bir bulgu icin verdict'i verdicts.json'a yazar (local/Gemini moduyla
-    ayni sema, ayni dosya, atomik). verdict='TP'|'FP', confidence=0.0-1.0,
-    reasoning=kisa Ingilizce gerekce."""
+    """Writes the verdict for a single finding to verdicts.json (same schema,
+    same file, atomic - as in local/Gemini mode). verdict='TP'|'FP',
+    confidence=0.0-1.0, reasoning=short English rationale."""
     sink: dict[str, dict] = {}
     msg = _submit_one(
         VerdictIn(finding_id=finding_id, verdict=verdict, confidence=confidence, reasoning=reasoning),
@@ -414,9 +413,9 @@ def submit_verdict(finding_id: str, verdict: str, confidence: float, reasoning: 
 
 @mcp.tool()
 def submit_all_verdicts(verdicts: list[VerdictIn]) -> str:
-    """Tum bulgular icin verdict'leri TEK seferde yazar (tercih edilen yontem).
-    Her ogesi {finding_id, verdict, confidence, reasoning}. verdicts.json
-    local/Gemini moduyla birebir ayni semada yazilir."""
+    """Writes the verdicts for ALL findings in ONE call (the preferred method).
+    Each item is {finding_id, verdict, confidence, reasoning}. verdicts.json is
+    written in the exact same schema as local/Gemini mode."""
     sink: dict[str, dict] = {}
     lines: list[str] = []
     for v in verdicts:
@@ -426,22 +425,22 @@ def submit_all_verdicts(verdicts: list[VerdictIn]) -> str:
 
     submitted = set(sink)
     missing = [fid for fid in REGISTRY if fid not in submitted]
-    summary = [f"[yazildi] {len(sink)} verdict -> {CFG.verdicts_out}"]
+    summary = [f"[written] {len(sink)} verdicts -> {CFG.verdicts_out}"]
     if missing:
-        summary.append(f"[uyari] verdict verilmeyen {len(missing)} finding_id: "
+        summary.append(f"[warning] {len(missing)} finding_id(s) without a verdict: "
                        + ", ".join(missing[:20]) + (" ..." if len(missing) > 20 else ""))
     else:
-        summary.append("[tamam] tum finding_id'ler icin verdict yazildi.")
+        summary.append("[done] a verdict was written for every finding_id.")
     return "\n".join(summary + lines)
 
 
 # ---------------------------------------------------------------------------
 def main() -> None:
-    ap = argparse.ArgumentParser(description="LAVA MCP sunucusu (agentic AI provider, stdio transport)")
-    ap.add_argument("--log-dir", required=True, help="EMBA log dizini")
-    ap.add_argument("--fw-root", required=True, help="EMBA'nin extract ettigi firmware filesystem koku")
+    ap = argparse.ArgumentParser(description="LAVA MCP server (agentic AI provider, stdio transport)")
+    ap.add_argument("--log-dir", required=True, help="EMBA log directory")
+    ap.add_argument("--fw-root", required=True, help="root of the firmware filesystem EMBA extracted")
     ap.add_argument("--verdicts-out", default=None,
-                    help="verdicts.json cikti yolu (varsayilan: <cwd>/verdicts.json)")
+                    help="verdicts.json output path (default: <cwd>/verdicts.json)")
     args = ap.parse_args()
 
     CFG.log_dir = Path(args.log_dir).expanduser().resolve()
@@ -450,17 +449,17 @@ def main() -> None:
                         else Path.cwd() / "verdicts.json")
 
     if not CFG.log_dir.is_dir():
-        log(f"UYARI: --log-dir mevcut degil: {CFG.log_dir}")
+        log(f"WARNING: --log-dir does not exist: {CFG.log_dir}")
     if not CFG.fw_root.exists():
-        log(f"UYARI: --fw-root mevcut degil: {CFG.fw_root}")
+        log(f"WARNING: --fw-root does not exist: {CFG.fw_root}")
 
     REGISTRY.clear()
     REGISTRY.update(build_registry(CFG.log_dir))
     write_findings_snapshot()
-    log(f"registry: {len(REGISTRY)} finding | log-dir={CFG.log_dir} | fw-root={CFG.fw_root} "
+    log(f"registry: {len(REGISTRY)} findings | log-dir={CFG.log_dir} | fw-root={CFG.fw_root} "
         f"| verdicts-out={CFG.verdicts_out}")
 
-    mcp.run()  # stdio transport (varsayilan)
+    mcp.run()  # stdio transport (default)
 
 
 if __name__ == "__main__":

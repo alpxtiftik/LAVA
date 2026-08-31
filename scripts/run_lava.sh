@@ -1,18 +1,18 @@
 #!/bin/bash
-# LAVA (Local AI Vulnerability Auditor) Pipeline Runner (Linux/macOS)
+# LAVA (Local AI Vulnerability Auditor) pipeline runner (Linux)
 
-# Argümanları al
+# Parse arguments
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         -LogDir|--log-dir) LOGDIR="$2"; shift ;;
         -OutDir|--out-dir) BASEOUTDIR="$2"; shift ;;
-        *) echo "Bilinmeyen parametre: $1"; exit 2 ;;
+        *) echo "Unknown parameter: $1"; exit 2 ;;
     esac
     shift
 done
 
 if [ -z "$LOGDIR" ]; then
-    echo "Hata: -LogDir parametresi zorunludur."
+    echo "Error: -LogDir is required."
     exit 2
 fi
 
@@ -20,9 +20,9 @@ if [ -z "$BASEOUTDIR" ]; then
     BASEOUTDIR="$LOGDIR/lava_out"
 fi
 
-# Zaten bir venv icinde degilsek ve repo kokunde .venv varsa otomatik etkinlestir.
-# (start_linux.sh bunu yapar; ama betik dogrudan ya da sudo -> yetki-dusurme
-# sonrasi cagrilinca VIRTUAL_ENV bos olur ve `mcp` gibi paketler bulunamaz.)
+# If we are not already inside a venv and the repo has a .venv, activate it.
+# (start_linux.sh does this; but when the script is called directly, or after a
+# sudo -> privilege drop, VIRTUAL_ENV is empty and packages like `mcp` are missing.)
 _LAVA_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 if [ -z "${VIRTUAL_ENV:-}" ] && [ -x "$_LAVA_ROOT/.venv/bin/python3" ]; then
     # shellcheck disable=SC1091
@@ -37,7 +37,7 @@ PID_FILE="$OUTDIR/lava.pid"
 if [ -f "$PID_FILE" ]; then
     OLD_PID=$(cat "$PID_FILE")
     if ps -p "$OLD_PID" > /dev/null 2>&1; then
-        echo "Uyari: Bu klasorde onceki bir tarama devam ediyor (PID: $OLD_PID). Kapatiliyor..."
+        echo "Warning: a previous scan is still running in this folder (PID: $OLD_PID). Stopping it..."
         kill -9 "$OLD_PID" 2>/dev/null
         sleep 1
     fi
@@ -51,15 +51,15 @@ ENRICHED_FILE="$OUTDIR/enriched_findings.json"
 VERDICTS_FILE="$OUTDIR/verdicts.json"
 REPORT_FILE="$OUTDIR/lava_report.html"
 
-# Config dosyasindan IP ve PORT al
+# Defaults; overridden from config/ai_config.env below
 AI_IP="127.0.0.1"
 AI_PORT="11434"
 AI_PROVIDER="local"
 AI_MODEL="qwen2.5-coder:7b"
 
-# ai_config.env'den bir anahtarin degerini oku. Sadece satir-basi "KEY=" ile
-# eslesir (yorum satirlarini - ornegin "# AI_PROVIDER secenekleri:" - atlar),
-# ilk eslesmeyi alir, tirnak ve bosluklari kirpar.
+# Read a key's value from ai_config.env. Only matches a line-leading "KEY="
+# (skips comment lines such as "# AI_PROVIDER options:"), takes the first
+# match, strips quotes and whitespace.
 read_env_val() {
     grep -E "^[[:space:]]*$1[[:space:]]*=" "$2" 2>/dev/null | head -n1 \
         | sed -E "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*[\"']?([^\"']*)[\"']?[[:space:]]*\$/\1/"
@@ -76,62 +76,62 @@ if [ -f "config/ai_config.env" ]; then
     [ -n "$mod_val" ] && AI_MODEL="$mod_val"
 fi
 
-# Ollama arka planda calismiyorsa baslat (Sadece Localhost icin ve provider local ise)
+# Start Ollama in the background if it is not running (localhost + local provider only)
 if [ "$AI_PROVIDER" != "gemini" ] && [[ "$AI_PROVIDER" != mcp* ]] && ! curl -s "http://$AI_IP:$AI_PORT/" > /dev/null; then
     if [ "$AI_IP" = "127.0.0.1" ] || [ "$AI_IP" = "localhost" ]; then
         if command -v ollama &> /dev/null; then
-            echo "[AI_INFO] Ollama servisi kapali, otomatik olarak arka planda baslatiliyor..."
+            echo "[AI_INFO] Ollama service is down, starting it in the background..."
             nohup ollama serve > /dev/null 2>&1 &
             sleep 3
-            echo "[AI_INFO] Ollama servisi basariyla tetiklendi!"
+            echo "[AI_INFO] Ollama service started."
         else
-            echo "HATA: Sisteminizde 'ollama' kurulu degil!"
-            echo "Linux (Kali) uzerinde LAVA'yi kullanabilmek icin Ollama gereklidir."
-            echo "Kurmak icin su komutu calistirin: curl -fsSL https://ollama.com/install.sh | sh"
-            echo "Alternatif olarak config/ai_config.env icerisinden uzak bir Ollama IP'si belirtebilirsiniz."
+            echo "ERROR: 'ollama' is not installed on this system."
+            echo "Ollama is required to run LAVA in local mode on Linux."
+            echo "Install it with: curl -fsSL https://ollama.com/install.sh | sh"
+            echo "Alternatively, point config/ai_config.env at a remote Ollama IP."
             exit 2
         fi
     else
-        echo "UYARI: Uzak Ollama sunucusuna ($AI_IP:$AI_PORT) ulasilamadi!"
-        echo "Lutfen uzak makinedeki Ollama'nin calistigindan ve ag baglantisina acik oldugundan (OLLAMA_HOST=0.0.0.0) emin olun."
+        echo "WARNING: could not reach the remote Ollama server ($AI_IP:$AI_PORT)."
+        echo "Make sure Ollama is running on the remote host and listening on the network (OLLAMA_HOST=0.0.0.0)."
     fi
 fi
 
 echo "========================================="
-echo "LAVA Pipeline Baslatiliyor..."
+echo "Starting the LAVA pipeline..."
 if [ "$AI_PROVIDER" = "gemini" ]; then
-    echo "[AI_INFO] Secilen Model: Gemini API (Cloud)"
+    echo "[AI_INFO] Selected model: Gemini API (Cloud)"
 elif [[ "$AI_PROVIDER" == mcp* ]]; then
-    echo "[AI_INFO] Secilen Model: MCP agent ($AI_PROVIDER)"
+    echo "[AI_INFO] Selected model: MCP agent ($AI_PROVIDER)"
 else
-    echo "[AI_INFO] Secilen Model: $AI_MODEL (Local AI)"
+    echo "[AI_INFO] Selected model: $AI_MODEL (Local AI)"
 fi
 echo "========================================="
 
 if [[ "$AI_PROVIDER" == mcp* ]]; then
-    echo "[1-2/3] MCP modu: parse/enrich adimlari atlaniyor (ajan ham loglari kendisi kesfeder)."
+    echo "[1-2/3] MCP mode: skipping the parse/enrich steps (the agent explores the raw logs itself)."
 else
-    echo "[1/3] EMBA loglari ayristiriliyor (parse)..."
+    echo "[1/3] Parsing EMBA logs..."
     python3 src/core/parser.py --log-dir "$LOGDIR" --out "$FINDINGS_FILE" --merged-out "$MERGED_FILE"
-    if [ $? -ne 0 ]; then echo "Hata: parser.py basarisiz oldu!"; exit 2; fi
-    echo "[OK] Ayristirma tamamlandi."
+    if [ $? -ne 0 ]; then echo "Error: parser.py failed!"; exit 2; fi
+    echo "[OK] Parsing complete."
 
-    echo -e "\n[2/3] Baglam olusturuluyor (enrich)..."
+    echo -e "\n[2/3] Building context (enrich)..."
     python3 src/core/enricher.py --merged "$MERGED_FILE" --log-dir "$LOGDIR" --out "$ENRICHED_FILE"
-    if [ $? -ne 0 ]; then echo "Hata: enricher.py basarisiz oldu!"; exit 2; fi
-    echo "[OK] Baglam dosyalari (context) basariyla eklendi."
+    if [ $? -ne 0 ]; then echo "Error: enricher.py failed!"; exit 2; fi
+    echo "[OK] Context added to findings."
 fi
 
-echo -e "\n[3/3] LLM Siniflandirma Basliyor (Bu adim uzun surebilir)..."
+echo -e "\n[3/3] Starting LLM classification (this step can take a while)..."
 python3 src/core/classifier.py --mode run --config config/ai_config.env --ground-truth ground_truth.json --enriched "$ENRICHED_FILE" --out "$VERDICTS_FILE" --log-dir "$LOGDIR"
-if [ $? -ne 0 ]; then echo "Hata: classifier.py basarisiz oldu!"; exit 2; fi
-echo "[OK] Siniflandirma tamamlandi! Sonuclar $VERDICTS_FILE dosyasina yazildi."
+if [ $? -ne 0 ]; then echo "Error: classifier.py failed!"; exit 2; fi
+echo "[OK] Classification complete. Results written to $VERDICTS_FILE"
 
-echo -e "\n[4/4] HTML Raporu olusturuluyor..."
+echo -e "\n[4/4] Generating the HTML report..."
 python3 src/reporting/html_report.py --verdicts "$VERDICTS_FILE" --out "$REPORT_FILE"
-if [ $? -ne 0 ]; then echo "Hata: html_report.py basarisiz oldu!"; exit 2; fi
-echo "[OK] Rapor tamamlandi! Cikti: $REPORT_FILE"
+if [ $? -ne 0 ]; then echo "Error: html_report.py failed!"; exit 2; fi
+echo "[OK] Report ready: $REPORT_FILE"
 
 echo -e "\n========================================="
-echo "LAVA Tamamlandi!"
+echo "LAVA complete."
 echo "========================================="

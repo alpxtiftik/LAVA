@@ -1,24 +1,23 @@
 #!/usr/bin/env python3
 """
-LAVA - LLM Classifier
-=======================
-enriched_findings.json (veya ground_truth.json'daki test_set) icindeki her
-hardcoded-credential bulgusunu, yerel bir LocalAI sunucusuna sorup TP/FP
-olarak siniflandirir.
+LAVA - LLM classifier
+=====================
+Classifies every hardcoded-credential finding in enriched_findings.json (or the
+test_set in ground_truth.json) as TP/FP by asking an AI provider.
 
-Iki mod:
-  test  -> ground_truth.json'daki test_set'i calistirir, gercek etiketlerle
-           karsilastirip accuracy/precision/recall raporlar.
-  run   -> enriched_findings.json'daki TUM bulgular icin verdict uretir,
-           karsilastirma yapmaz (gercek etiket yok).
+Two modes:
+  test  -> runs the test_set from ground_truth.json, compares against the real
+           labels and reports accuracy/precision/recall.
+  run   -> produces a verdict for ALL findings in enriched_findings.json, no
+           comparison (no ground-truth labels).
 
-Kullanim:
-    # Test modu - cevap anahtarina karsi olculur
-    python3 llm_classifier.py --mode test --config config/ai_config.env \\
+Usage:
+    # Test mode - measured against the answer key
+    python3 classifier.py --mode test --config config/ai_config.env \\
         --ground-truth ground_truth.json --out verdicts_test.json
 
-    # Run modu - gercek pipeline
-    python3 llm_classifier.py --mode run --config config/ai_config.env \\
+    # Run mode - the real pipeline
+    python3 classifier.py --mode run --config config/ai_config.env \\
         --enriched enriched_findings.json --out verdicts.json
 """
 
@@ -35,13 +34,13 @@ from pathlib import Path
 
 import requests
 
-# MCP (agentic) provider modu icin sabitler
+# Constants for the MCP (agentic) provider mode
 # --------------------------------------------------------------------------
-# Ajan (claude / agy) headless kosumunun ust sinir suresi. Asilirsa subprocess
-# sonlandirilip hata olarak raporlanir (sonsuz bekleme riski yok).
+# Upper time limit for the headless agent (claude / agy) run. On timeout the
+# subprocess is terminated and reported as an error (no risk of hanging forever).
 AGENT_TIMEOUT_SECONDS = int(os.environ.get("LAVA_AGENT_TIMEOUT_SECONDS", str(60 * 60)))
 MCP_SERVER_PATH = Path(__file__).resolve().parents[2] / "src" / "mcp" / "lava_mcp_server.py"
-# verdicts.json'da bulunmasi ZORUNLU alanlar (local/Gemini run-modu semasi)
+# Fields that MUST be present in verdicts.json (local/Gemini run-mode schema)
 _VERDICT_REQUIRED_FIELDS = {
     "file_path", "matched_content", "predicted_verdict", "confidence", "model_reasoning",
 }
@@ -53,9 +52,8 @@ def atomic_save(data: dict | list, file_path: str):
     os.replace(tmp_path, path)
 
 # ---------------------------------------------------------------------------
-# Modele hatirlatma amacli sabit bilgi notu - kucuk modellerin hash format
-# prefixlerini karistirmamasi icin. EMBA'nin S107/S108 ciktilarinda gordugumuz
-# tum formatlar burada.
+# A fixed reminder note for the model so small models do not confuse the hash
+# format prefixes. All formats seen in EMBA's S107/S108 output are here.
 # ---------------------------------------------------------------------------
 HASH_CHEATSHEET = """\
 Known crypt() hash format prefixes (these are REAL, working hashes, strong TP signal):
@@ -135,8 +133,8 @@ Respond only in the requested JSON format."""
 
 
 # ---------------------------------------------------------------------------
-# Config okuma - EMBA'nin config/ai_config.env formatiyla aynen uyumlu
-# (KEY="value" seklinde bash env satirlari)
+# Config reading - fully compatible with EMBA's config/ai_config.env format
+# (bash env lines of the form KEY="value")
 # ---------------------------------------------------------------------------
 def load_ai_config(config_path: Path) -> dict:
     config = {
@@ -161,12 +159,12 @@ def load_ai_config(config_path: Path) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Prompt insasi
+# Prompt construction
 # ---------------------------------------------------------------------------
 def format_context_block(context: dict | None, max_chars: int) -> str:
     if not context or context.get("status") != "ok":
-        status = (context or {}).get("status", "context_yok")
-        return f"Dosya baglami: mevcut degil ({status})\n"
+        status = (context or {}).get("status", "no_context")
+        return f"File context: not available ({status})\n"
     lines = context["context_lines"]
     idx = context.get("matched_line_index_in_context")
     exact = context.get("exact_match_located", idx is not None)
@@ -176,9 +174,9 @@ def format_context_block(context: dict | None, max_chars: int) -> str:
         rendered.append(f"{marker}{ln}")
     block = "\n".join(rendered)
     if len(block) > max_chars:
-        block = block[:max_chars] + "\n... (kirpildi)"
-    note = "" if exact else "\n[NOT: eslesen satir tam olarak bulunamadi, bu dosyanin BASINDAN bir ornek - '>>>' isareti YOK, kendi kararini icerige bakarak ver]"
-    return f"Dosya baglami{' (>>> = eslesen satir)' if exact else ''}:{note}\n{block}\n"
+        block = block[:max_chars] + "\n... (truncated)"
+    note = "" if exact else "\n[NOTE: the matched line could not be located exactly; this is a sample from the START of the file - there is NO '>>>' marker, decide based on the content yourself]"
+    return f"File context{' (>>> = matched line)' if exact else ''}:{note}\n{block}\n"
 
 
 def build_few_shot_block(few_shot_items: list[dict]) -> str:
@@ -215,8 +213,8 @@ def build_user_prompt(item: dict, max_chars: int) -> str:
 
 
 # ---------------------------------------------------------------------------
-# LocalAI cagrisi - Q03_localai_connector.sh'daki curl cagrisiyla ayni
-# endpoint/format (OpenAI-uyumlu /v1/chat/completions)
+# LocalAI call - same endpoint/format as the curl call in
+# Q03_localai_connector.sh (OpenAI-compatible /v1/chat/completions)
 # ---------------------------------------------------------------------------
 def call_localai(base_url: str, model: str, system_prompt: str, user_prompt: str, timeout: int = 600) -> str | None:
     payload = {
@@ -238,17 +236,17 @@ def call_localai(base_url: str, model: str, system_prompt: str, user_prompt: str
         data = resp.json()
         return data["choices"][0]["message"]["content"]
     except (requests.RequestException, KeyError, IndexError, ValueError) as e:
-        print(f"    [!] LocalAI cagri hatasi: {e}")
+        print(f"    [!] LocalAI call error: {e}")
         return None
 
 class RateLimitException(Exception):
     def __init__(self, delay):
         self.delay = delay
-        super().__init__(f"Rate limit asildi, {delay} saniye beklenmeli.")
+        super().__init__(f"Rate limit exceeded, must wait {delay} seconds.")
 
 def call_gemini(api_key: str, system_prompt: str, user_prompt: str, timeout: int = 60) -> str | None:
     if not api_key:
-        print("    [!] Gemini API anahtari (GEMINI_API_KEY) eksik!")
+        print("    [!] Gemini API key (GEMINI_API_KEY) is missing.")
         return None
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key={api_key}"
     payload = {
@@ -275,7 +273,7 @@ def call_gemini(api_key: str, system_prompt: str, user_prompt: str, timeout: int
             except Exception:
                 pass
             raise RateLimitException(delay)
-            
+
         resp.raise_for_status()
         data = resp.json()
         if "candidates" in data and len(data["candidates"]) > 0:
@@ -284,11 +282,11 @@ def call_gemini(api_key: str, system_prompt: str, user_prompt: str, timeout: int
     except requests.RequestException as e:
         error_msg = ""
         if hasattr(e, "response") and e.response is not None:
-            error_msg = f" API Yaniti: {e.response.text}"
-        print(f"    [!] Gemini ag hatasi: {e}{error_msg}")
+            error_msg = f" API response: {e.response.text}"
+        print(f"    [!] Gemini network error: {e}{error_msg}")
         return None
     except (KeyError, IndexError, ValueError) as e:
-        print(f"    [!] Gemini veri hatasi: {e}")
+        print(f"    [!] Gemini data error: {e}")
         return None
 
 _JSON_BLOCK_RE = re.compile(r"\{.*\}", re.DOTALL)
@@ -307,7 +305,7 @@ def parse_verdict_response(raw_text: str) -> dict | None:
     verdict = str(parsed.get("verdict", "")).strip().upper()
     if verdict not in ("TP", "FP"):
         return None
-        
+
     conf_raw = parsed.get("confidence")
     conf = 0.0
     if conf_raw is not None:
@@ -340,7 +338,7 @@ def classify_item(
     model = config.get("LOCAL_AI_MODEL", "")
     gemini_key = config.get("GEMINI_API_KEY", "")
 
-    # Ilk denemeden once hangi saglayicinin kullanildigini logla
+    # Log which provider is used before the first attempt
     if not hasattr(classify_item, "provider_logged"):
         print(f"\n[+] Using AI Provider: {provider.upper()}")
         classify_item.provider_logged = True
@@ -354,38 +352,38 @@ def classify_item(
                 raw = call_localai(base_url, model, system_prompt, user_prompt)
         except RateLimitException as e:
             last_error_details = str(e)
-            print(f"    [!] Deneme {attempt}/{max_retries} basarisiz ({provider.upper()}). Kota doldu. {e.delay} sn bekleniyor...")
+            print(f"    [!] Attempt {attempt}/{max_retries} failed ({provider.upper()}). Quota exceeded. Waiting {e.delay}s...")
             time.sleep(e.delay)
             continue
-        
+
         result = parse_verdict_response(raw) if raw else None
         if result is not None:
             result["attempts"] = attempt
             return result
-        
-        last_error_details = "Alinan Raw Cevap: None" if not raw else f"Alinan Raw Cevap: {raw.strip()[:200]}..."
-        print(f"    [!] Deneme {attempt}/{max_retries} basarisiz ({provider.upper()}). Hata detayi: {last_error_details}")
+
+        last_error_details = "Raw response: None" if not raw else f"Raw response: {raw.strip()[:200]}..."
+        print(f"    [!] Attempt {attempt}/{max_retries} failed ({provider.upper()}). Error detail: {last_error_details}")
         if attempt < max_retries:
-            print("        Tekrar deneniyor (2 sn)...")
+            print("        Retrying (2s)...")
             time.sleep(2)
-            
-    return {"verdict": "ERROR", "confidence": None, "reasoning": f"{provider.upper()} API'den gecerli cevap alinamadi. {last_error_details}", "attempts": max_retries}
+
+    return {"verdict": "ERROR", "confidence": None, "reasoning": f"No valid response from the {provider.upper()} API. {last_error_details}", "attempts": max_retries}
 
 
 
 # ---------------------------------------------------------------------------
-# MCP (agentic) provider modu
+# MCP (agentic) provider mode
 # ---------------------------------------------------------------------------
-# Local/Gemini modunda burasi requests.post(...) ile Ollama/Gemini'yi cagirir.
-# MCP modunda ayni islevin karsiligi: lava_mcp_server.py'yi bir MCP sunucusu
-# olarak taniml, secilen CLI'yi (claude / agy) headless modda tetikle, sürec
-# bitene kadar bekle. Ajan, MCP tool'lariyla kendi kesfini yapip verdict'leri
-# dogrudan verdicts.json'a yazar (sema local/Gemini ile birebir ayni).
+# In local/Gemini mode this is where requests.post(...) calls Ollama/Gemini.
+# In MCP mode the equivalent is: register lava_mcp_server.py as an MCP server,
+# launch the chosen CLI (claude / agy) headless, and wait for it to finish. The
+# agent explores on its own via the MCP tools and writes the verdicts straight
+# to verdicts.json (the schema is identical to local/Gemini).
 # ---------------------------------------------------------------------------
 
 def _build_agent_prompt(ground_truth_path: str | None) -> str:
-    """Ajana verilecek gorev promptu. Siniflandirma kurallari/few-shot'lari
-    local/Gemini moduyla AYNI kaynaktan (build_system_prompt) gelir."""
+    """The task prompt for the agent. The classification rules / few-shot come
+    from the SAME source as local/Gemini mode (build_system_prompt)."""
     few_shot: list[dict] = []
     if ground_truth_path and Path(ground_truth_path).exists():
         try:
@@ -443,15 +441,15 @@ _MCP_TOOL_NAMES = [
 
 
 def _resolve_cli(name: str) -> str:
-    """CLI'yi PATH'te, olmazsa yaygin kurulum konumlarinda arar (installer
-    PATH'e eklemeyi atlamis / shell yeniden baslatilmamis olabilir)."""
+    """Looks for the CLI on PATH, then in common install locations (the installer
+    may have skipped adding it to PATH / the shell was not restarted)."""
     found = shutil.which(name)
     if found:
         return found
 
-    # Aday HOME dizinleri. `sudo` altinda calisiyorsak (EMBA root ister ama
-    # claude/agy kullaniciya ozeldir) Path.home() genelde /root'tur; asil
-    # kullanicinin HOME'unu da tara.
+    # Candidate HOME directories. When running under `sudo` (EMBA needs root but
+    # claude/agy are per-user), Path.home() is usually /root; also scan the real
+    # user's HOME.
     homes: list[Path] = [Path.home()]
     sudo_user = os.environ.get("SUDO_USER")
     if sudo_user and sudo_user != "root":
@@ -476,7 +474,7 @@ def _resolve_cli(name: str) -> str:
         try:
             if c.is_file():
                 return str(c)
-        except OSError:  # okunamayan aday (orn. baska kullanicinin /root'u)
+        except OSError:  # unreadable candidate (e.g. another user's /root)
             continue
     return name
 
@@ -484,12 +482,12 @@ def _resolve_cli(name: str) -> str:
 def _build_agent_command(
     agent: str, prompt: str, mcp_config_path: str,
 ) -> tuple[list[str], str | None, list[list[str]], list[list[str]]]:
-    """Doner: (ana_komut, stdin_metni, on_hazirlik_komutlari, temizlik_komutlari).
+    """Returns: (main_command, stdin_text, pre_commands, cleanup_commands).
 
-    Prompt cok satirli oldugu icin, mumkun oldugunca argv yerine stdin ile verilir.
+    The prompt is multi-line, so it is passed via stdin rather than argv where possible.
     """
     if agent in ("claude", "mcp_claude"):
-        # --allowedTools degiskin (variadic); "mcp__lava" = sunucunun tum tool'lari.
+        # --allowedTools is variadic; "mcp__lava" = all tools of the server.
         allowed = ["mcp__lava", *(f"mcp__lava__{t}" for t in _MCP_TOOL_NAMES)]
         cmd = [
             _resolve_cli("claude"), "-p",
@@ -497,18 +495,18 @@ def _build_agent_command(
             "--permission-mode", "acceptEdits",
             "--strict-mcp-config",
             "--mcp-config", mcp_config_path,
-            "--allowedTools", *allowed,  # en sona: sonraki argumani yemesin
+            "--allowedTools", *allowed,  # keep last so it does not swallow the next arg
         ]
-        return cmd, prompt, [], []  # prompt stdin uzerinden
+        return cmd, prompt, [], []  # prompt via stdin
 
     if agent in ("antigravity", "mcp_antigravity", "agy", "gemini_cli"):
         agy = _resolve_cli("agy")
         cfg = json.loads(Path(mcp_config_path).read_text(encoding="utf-8"))
         srv = cfg["mcpServers"]["lava"]
-        # agy'de --mcp-config yok; kalici config'e ekle/guncelle, sonra kaldir.
+        # agy has no --mcp-config; add/update the persistent config, then remove it.
         pre = [[agy, "mcp", "add", "lava", "--", srv["command"], *srv["args"]]]
         post = [[agy, "mcp", "remove", "lava"]]
-        # agy'de -p bir sonraki argumani prompt olarak alir -> en sona koy.
+        # agy takes the next arg as the prompt for -p -> keep it last.
         cmd = [
             agy,
             "--dangerously-skip-permissions",
@@ -518,30 +516,30 @@ def _build_agent_command(
         ]
         return cmd, None, pre, post
 
-    raise ValueError(f"Bilinmeyen MCP ajani: {agent!r} (beklenen: 'claude' | 'antigravity')")
+    raise ValueError(f"Unknown MCP agent: {agent!r} (expected: 'claude' | 'antigravity')")
 
 
 def _validate_verdicts_schema(verdicts_path: str) -> int:
-    """verdicts.json'un local/Gemini moduyla ayni semada olup olmadigini dogrular.
-    Doner: verdict sayisi."""
+    """Validates that verdicts.json has the same schema as local/Gemini mode.
+    Returns: the number of verdicts."""
     p = Path(verdicts_path)
     if not p.exists():
-        raise RuntimeError(f"Ajan kosumu bitti ama verdicts.json yazilmadi: {verdicts_path}")
+        raise RuntimeError(f"The agent run finished but verdicts.json was not written: {verdicts_path}")
     try:
         data = json.loads(p.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError) as e:
-        raise RuntimeError(f"verdicts.json okunamadi/gecersiz JSON: {e}") from e
+        raise RuntimeError(f"verdicts.json could not be read / is invalid JSON: {e}") from e
     if not isinstance(data, list) or not data:
-        raise RuntimeError("verdicts.json bir liste degil veya bos (ajan hic verdict yazmadi).")
+        raise RuntimeError("verdicts.json is not a list or is empty (the agent wrote no verdicts).")
     for i, rec in enumerate(data):
         if not isinstance(rec, dict):
-            raise RuntimeError(f"verdicts.json[{i}] bir obje degil.")
+            raise RuntimeError(f"verdicts.json[{i}] is not an object.")
         missing = _VERDICT_REQUIRED_FIELDS - set(rec)
         if missing:
-            raise RuntimeError(f"verdicts.json[{i}] eksik alan(lar): {sorted(missing)}")
+            raise RuntimeError(f"verdicts.json[{i}] missing field(s): {sorted(missing)}")
         if str(rec["predicted_verdict"]).upper() not in ("TP", "FP", "ERROR"):
             raise RuntimeError(
-                f"verdicts.json[{i}] gecersiz predicted_verdict: {rec['predicted_verdict']!r}"
+                f"verdicts.json[{i}] invalid predicted_verdict: {rec['predicted_verdict']!r}"
             )
     return len(data)
 
@@ -554,12 +552,12 @@ def classify_via_mcp_agent(
     ground_truth_path: str | None = None,
     timeout_seconds: int | None = None,
 ) -> None:
-    """MCP sunucusunu bir CLI ajanina (claude / agy) taniml, ajani headless
-    modda tetikle, sürec bitene kadar bekle. classify_via_ollama /
-    classify_via_gemini ile ayni rolde: orchestrator hangi provider secilirse
-    ayni sekilde cagirir, cikti semasi degismez.
+    """Registers the MCP server with a CLI agent (claude / agy), launches the
+    agent headless and waits for it to finish. Same role as classify_via_ollama /
+    classify_via_gemini: the orchestrator calls it the same way regardless of the
+    provider, and the output schema does not change.
 
-        agent: "claude" (Claude Code) veya "antigravity" (Antigravity/agy CLI)
+        agent: "claude" (Claude Code) or "antigravity" (Antigravity/agy CLI)
     """
     log_dir = str(Path(log_dir).expanduser().resolve())
     fw_root = str(Path(fw_root).expanduser().resolve())
@@ -568,15 +566,16 @@ def classify_via_mcp_agent(
     timeout_seconds = int(timeout_seconds or AGENT_TIMEOUT_SECONDS)
 
     if not MCP_SERVER_PATH.exists():
-        raise RuntimeError(f"MCP sunucusu bulunamadi: {MCP_SERVER_PATH}")
+        raise RuntimeError(f"MCP server not found: {MCP_SERVER_PATH}")
 
     prompt = _build_agent_prompt(ground_truth_path)
 
     tmpdir = tempfile.mkdtemp(prefix="lava_mcp_")
-    post_cmds: list[list[str]] = []  # finally her kosulda erisebilsin
+    post_cmds: list[list[str]] = []  # so `finally` can always reach it
     try:
-        # Ajan, calisma dizinine ('workspace') gecici analiz dosyalari yazabiliyor;
-        # bunun LAVA repo kokunu kirletmemesi icin ajani bu izole klasorde calistiriyoruz.
+        # The agent can drop temporary analysis files into its working directory
+        # ('workspace'); we run it in this isolated folder so it does not litter
+        # the LAVA repo root.
         agent_cwd = os.path.join(tmpdir, "workspace")
         os.makedirs(agent_cwd, exist_ok=True)
         mcp_config_path = os.path.join(tmpdir, "mcp_config.json")
@@ -590,10 +589,10 @@ def classify_via_mcp_agent(
         cli_name = Path(exe).name
         if not ((os.path.isabs(exe) and os.path.isfile(exe)) or shutil.which(exe)):
             raise RuntimeError(
-                f"'{cli_name}' CLI bulunamadi (PATH'te veya yaygin kurulum konumlarinda). "
-                f"MCP modu icin once kurup bir kez login olun (bkz. README - 'MCP provider modu'). "
-                f"Not: EMBA root ister ama LAVA'nin AI analizi ROOT ILE CALISMAZ - "
-                f"claude/agy kurulumu ve login'i kullaniciya ozeldir."
+                f"'{cli_name}' CLI not found (on PATH or in common install locations). "
+                f"For MCP mode, install it and log in once (see the README - 'MCP Agent mode'). "
+                f"Note: EMBA needs root, but the LAVA AI analysis does NOT run as root - "
+                f"the claude/agy install and login are per-user."
             )
 
         print(f"\n[+] Using AI Provider: MCP agent ({agent})")
@@ -612,26 +611,26 @@ def classify_via_mcp_agent(
             )
         except subprocess.TimeoutExpired as e:
             raise RuntimeError(
-                f"Ajan {timeout_seconds}s icinde bitmedi, sonlandirildi "
-                f"(ai_config.env icinde AGENT_TIMEOUT_SECONDS veya "
-                f"LAVA_AGENT_TIMEOUT_SECONDS ile artirilabilir)."
+                f"The agent did not finish within {timeout_seconds}s and was terminated "
+                f"(raise it with AGENT_TIMEOUT_SECONDS in ai_config.env or the "
+                f"LAVA_AGENT_TIMEOUT_SECONDS env var)."
             ) from e
 
         if result.returncode != 0:
             tail = (result.stderr or result.stdout or "").strip()[-1500:]
-            raise RuntimeError(f"Ajan kosumu basarisiz (exit {result.returncode}):\n{tail}")
+            raise RuntimeError(f"The agent run failed (exit {result.returncode}):\n{tail}")
 
         try:
             count = _validate_verdicts_schema(out_path)
         except RuntimeError as e:
-            # Ajan exit 0 dondu ama verdict yazmadi - ne dedigini gorelim.
+            # The agent returned exit 0 but wrote no verdicts - show what it said.
             out_tail = (result.stdout or "").strip()[-2000:]
             err_tail = (result.stderr or "").strip()[-800:]
             raise RuntimeError(
-                f"{e}\n--- ajan ({agent}) stdout ---\n{out_tail}\n"
-                f"--- ajan stderr ---\n{err_tail}"
+                f"{e}\n--- agent ({agent}) stdout ---\n{out_tail}\n"
+                f"--- agent stderr ---\n{err_tail}"
             ) from e
-        print(f"[OK] MCP ajani {count} verdict yazdi -> {out_path}")
+        print(f"[OK] The MCP agent wrote {count} verdicts -> {out_path}")
     finally:
         for pc in post_cmds:
             subprocess.run(pc, capture_output=True, text=True, timeout=120, check=False)
@@ -639,10 +638,10 @@ def classify_via_mcp_agent(
 
 
 # ---------------------------------------------------------------------------
-# Degerlendirme (test modu icin)
+# Evaluation (for test mode)
 # ---------------------------------------------------------------------------
 def compute_metrics(results: list[dict]) -> dict:
-    """TP sinifini pozitif kabul ederek precision/recall/F1/accuracy hesaplar."""
+    """Computes precision/recall/F1/accuracy treating the TP class as positive."""
     tp = fp = tn = fn = errors = 0
     for r in results:
         pred, true = r["predicted_verdict"], r["true_verdict"]
@@ -687,7 +686,7 @@ def run_test_mode(args, config: dict):
 
     results = []
     for i, item in enumerate(test_set, start=1):
-        print(f"[{i}/{len(test_set)}] {item['finding_id']} ({item['file_path']}) degerlendiriliyor...")
+        print(f"[{i}/{len(test_set)}] evaluating {item['finding_id']} ({item['file_path']})...")
         pred = classify_item(item, config, system_prompt, max_chars)
         results.append({
             "finding_id": item["finding_id"],
@@ -699,10 +698,10 @@ def run_test_mode(args, config: dict):
             "human_reasoning": item.get("reasoning"),
             "attempts": pred.get("attempts"),
         })
-        match = "✓" if pred["verdict"] == item["verdict"] else "✗"
-        print(f"    gercek={item['verdict']}  model={pred['verdict']}  {match}")
+        match = "OK" if pred["verdict"] == item["verdict"] else "MISS"
+        print(f"    true={item['verdict']}  model={pred['verdict']}  {match}")
 
-        # Her dongu adiminda ara kayit (metrikler haric)
+        # Intermediate save on every iteration (metrics excluded)
         output = {"results": results, "metrics": {}}
         atomic_save(output, args.out)
 
@@ -710,17 +709,17 @@ def run_test_mode(args, config: dict):
     output = {"results": results, "metrics": metrics}
     atomic_save(output, args.out)
 
-    print("\n=== SONUCLAR ===")
+    print("\n=== RESULTS ===")
     for k, v in metrics.items():
         print(f"  {k}: {v}")
-    print(f"\n[+] Detayli sonuclar: {args.out}")
+    print(f"\n[+] Detailed results: {args.out}")
 
 
 def run_full_mode(args, config: dict):
     data = json.loads(Path(args.ground_truth).read_text(encoding="utf-8")) if args.ground_truth else None
     few_shot = data["few_shot"] if data else []
     if not few_shot:
-        print("[!] UYARI: few-shot ornekleri verilmedi (--ground-truth belirtilmedi), prompt daha zayif calisacak.")
+        print("[!] WARNING: no few-shot examples given (--ground-truth not set); the prompt will be weaker.")
 
     findings = json.loads(Path(args.enriched).read_text(encoding="utf-8"))
     system_prompt = build_system_prompt(few_shot)
@@ -730,7 +729,7 @@ def run_full_mode(args, config: dict):
     results = []
     for i, item in enumerate(findings, start=1):
         label = item.get("file_path", "?")
-        print(f"[{i}/{len(findings)}] {label} degerlendiriliyor...")
+        print(f"[{i}/{len(findings)}] evaluating {label}...")
         pred = classify_item(item, config, system_prompt, max_chars)
         results.append({
             "file_path": item.get("file_path"),
@@ -742,39 +741,39 @@ def run_full_mode(args, config: dict):
             "model_reasoning": pred.get("reasoning"),
             "attempts": pred.get("attempts"),
         })
-        
-        # Her adimda sonuclari kaydet (Ctrl+C kesintilerine karsi)
+
+        # Save results on every step (to survive Ctrl+C interruptions)
         atomic_save(results, args.out)
 
     from collections import Counter
     dist = Counter(r["predicted_verdict"] for r in results)
-    
-    # Her durumda (0 bulgu olsa bile) dosyayi olustur
+
+    # Always create the file (even with 0 findings)
     atomic_save(results, args.out)
-    
-    print("\n=== OZET ===")
+
+    print("\n=== SUMMARY ===")
     for k, v in dist.items():
         print(f"  {k}: {v}")
-    print(f"\n[+] Sonuclar: {args.out}")
+    print(f"\n[+] Results: {args.out}")
 
 
 def main():
-    ap = argparse.ArgumentParser(description="LAVA - EMBA bulgularini LocalAI ile TP/FP olarak siniflandirir.")
+    ap = argparse.ArgumentParser(description="LAVA - classifies EMBA findings as TP/FP with an AI provider.")
     ap.add_argument("--mode", choices=["test", "run"], required=True)
-    ap.add_argument("--config", required=True, help="config/ai_config.env dosyasi")
-    ap.add_argument("--ground-truth", help="test modunda zorunlu; run modunda opsiyonel (sadece few-shot icin)")
-    ap.add_argument("--enriched", help="run modunda zorunlu - enrich_context.py ciktisi")
+    ap.add_argument("--config", required=True, help="config/ai_config.env file")
+    ap.add_argument("--ground-truth", help="required in test mode; optional in run mode (few-shot only)")
+    ap.add_argument("--enriched", help="required in run mode - the enricher.py output")
     ap.add_argument("--out", required=True)
-    ap.add_argument("--log-dir", help="EMBA log dizini (sadece MCP provider modunda kullanilir)")
-    ap.add_argument("--fw-root", help="firmware extract koku (MCP modu; verilmezse --log-dir kullanilir)")
+    ap.add_argument("--log-dir", help="EMBA log directory (used only in MCP provider mode)")
+    ap.add_argument("--fw-root", help="firmware extraction root (MCP mode; defaults to --log-dir)")
     args = ap.parse_args()
 
     config = load_ai_config(Path(args.config))
     provider = (config.get("AI_PROVIDER") or "local").strip().lower()
 
-    # --- MCP (agentic) provider modu -------------------------------------
+    # --- MCP (agentic) provider mode -----------------------------------
     # AI_PROVIDER = mcp_claude | mcp_antigravity | mcp
-    # Local/Gemini dallarina hic dokunmadan, ucuncu bir provider dali.
+    # A third provider branch that never touches the local/Gemini branches.
     if provider.startswith("mcp"):
         agent = {
             "mcp_claude": "claude",
@@ -787,11 +786,11 @@ def main():
             # run_lava.sh: --out <LogDir>/lava_out/<ts>/verdicts.json
             log_dir = str(Path(args.out).resolve().parents[2])
         if not log_dir:
-            ap.error("MCP provider modu icin --log-dir zorunlu")
+            ap.error("--log-dir is required for MCP provider mode")
         fw_root = args.fw_root or log_dir
 
         if args.mode != "run":
-            ap.error("MCP provider modu sadece --mode run ile calisir")
+            ap.error("MCP provider mode only works with --mode run")
 
         try:
             _to = int(config.get("AGENT_TIMEOUT_SECONDS") or 0) or None
@@ -808,15 +807,15 @@ def main():
         return
 
     if not config["LOCAL_AI_MODEL"]:
-        print("[!] UYARI: LOCAL_AI_MODEL config'te bos - identify_ai_model mantigi burada yok, dogru modeli config'e yazdiginizdan emin olun.")
+        print("[!] WARNING: LOCAL_AI_MODEL is empty in the config - there is no identify_ai_model logic here, make sure you set the correct model in the config.")
 
     if args.mode == "test":
         if not args.ground_truth:
-            ap.error("--mode test icin --ground-truth zorunlu")
+            ap.error("--ground-truth is required for --mode test")
         run_test_mode(args, config)
     else:
         if not args.enriched:
-            ap.error("--mode run icin --enriched zorunlu")
+            ap.error("--enriched is required for --mode run")
         run_full_mode(args, config)
 
 

@@ -253,7 +253,7 @@ function setupEventListeners() {
                         const resizePty = () => {
                             fitAddon.fit();
                             
-                            // EMBA için sütun genişliğini minimum 160'ta tut, sığmazsa yatay scrollbar çıksın
+                            // Keep the column width at a minimum of 160 for EMBA; show a horizontal scrollbar if it does not fit
                             const cols = Math.max(term.cols, 160);
                             term.resize(cols, term.rows);
                             
