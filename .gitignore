@@ -8,3 +8,4 @@ venv/
 .venv/
 config/ai_config.env
 *.env
+config/scan_profiles/local/

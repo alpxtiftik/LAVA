@@ -1,0 +1,87 @@
+{
+  "name": "iot-testing",
+  "description": "Default profile. Cleartext credential / key patterns that EMBA's credential modules (S45/S99/S106/S107/S108) tend to miss on IoT firmware.",
+  "version": 1,
+  "target": "extracted_fs",
+  "text_files_only": true,
+  "max_file_size_kb": 768,
+  "max_hits_per_rule": 200,
+  "max_total_hits": 1000,
+  "include_paths": ["**"],
+  "exclude_paths": [
+    "**/*.so", "**/*.so.*", "**/*.ko", "**/*.a", "**/*.o",
+    "**/lib/modules/**", "usr/share/locale/**", "**/*.min.js", "**/*.map",
+    "**/*.png", "**/*.jpg", "**/*.jpeg", "**/*.gif", "**/*.ico", "**/*.bmp",
+    "**/*.woff", "**/*.woff2", "**/*.ttf", "**/*.eot",
+    "**/*.gz", "**/*.bz2", "**/*.xz", "**/*.lzma", "**/*.zip", "**/*.tar", "**/*.7z"
+  ],
+  "rules": [
+    {
+      "id": "cleartext_credential_assign",
+      "description": "A credential assigned to a literal value with = or : . Covers key names EMBA's grepit does not treat as narrow (psk, auth_pass, http_passwd, admin_pass, secret, token, ...).",
+      "pattern": "(?i)\\b([a-z0-9_]*(?:pass(?:word|wd|phrase)?|pwd|psk|passkey|api[_-]?key|auth[_-]?token|secret|credential)s?)\\b\\s*[:=]\\s*[\"']?(?P<value>[^\\s\"';#,)}]{3,80})",
+      "value_group": "value",
+      "min_value_len": 4,
+      "min_value_entropy": 1.6,
+      "reject_values": [
+        "^[xX*]+$",
+        "^\\$\\{.*\\}$",
+        "^%[sd]$",
+        "^<[^>]*>$",
+        "(?i)^(password|passwd|pass|changeme|change_me|admin|root|none|null|nil|true|false|yes|no|example|test|sample|dummy|xxx+|todo|fixme|default|n/a|na|0+|1234|12345|123456|password123)$",
+        "^[-_. ]+$"
+      ]
+    },
+    {
+      "id": "private_key_block",
+      "description": "Any PEM private key header anywhere in the filesystem (S106 only greps two patterns over a narrow scope).",
+      "pattern": "-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP |ENCRYPTED )?PRIVATE KEY-----",
+      "multiline": false
+    },
+    {
+      "id": "ssh_authorized_key",
+      "description": "An OpenSSH public key line (authorized_keys / dropbear). EMBA's S106 only matches the PEM '-----BEGIN-----' form.",
+      "pattern": "(?P<value>(?:ssh-(?:rsa|ed25519|dss)|ecdsa-sha2-[a-z0-9-]+)\\s+AAAA[0-9A-Za-z+/]{60,}={0,3})",
+      "value_group": "value"
+    },
+    {
+      "id": "http_basic_auth",
+      "description": "An HTTP Authorization: Basic header with a base64 user:pass. EMBA never decodes these.",
+      "pattern": "(?i)authorization\\s*:\\s*basic\\s+(?P<value>[A-Za-z0-9+/]{12,}={0,2})",
+      "value_group": "value"
+    },
+    {
+      "id": "url_embedded_credential",
+      "description": "A credential embedded in a URL (scheme://user:pass@host).",
+      "pattern": "(?i)[a-z][a-z0-9+.-]*://[^\\s/:@\"']+:(?P<value>[^\\s/@\"'<>]{3,})@",
+      "value_group": "value",
+      "reject_values": ["^\\$\\{.*\\}$", "^%[sd]$", "(?i)^(user|username|pass|password)$"]
+    },
+    {
+      "id": "api_key_prefixed",
+      "description": "A vendor API key / token identified by its prefix (AWS, GCP, Stripe, Slack, GitHub).",
+      "pattern": "(?P<value>AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{35}|sk_live_[0-9A-Za-z]{20,}|xox[baprs]-[0-9A-Za-z-]{10,}|gh[pousr]_[0-9A-Za-z]{36,})",
+      "value_group": "value"
+    },
+    {
+      "id": "snmp_community",
+      "description": "An SNMP community string (a read/write community string is effectively a credential).",
+      "pattern": "(?i)\\b(?:ro|rw)?community\\b\\s+(?P<value>[^\\s#\"']{2,40})",
+      "value_group": "value",
+      "reject_values": ["^\\$\\{.*\\}$"]
+    },
+    {
+      "id": "uci_secret_option",
+      "description": "An OpenWrt/LEDE UCI config option holding a secret with a literal value (space-delimited, unlike a normal key=value).",
+      "pattern": "option\\s+(?P<optname>key|[a-z0-9_]*(?:pass(?:word|wd|phrase)?|pwd|psk|secret|community|auth_key))\\s+'(?P<value>[^']{3,})'",
+      "value_group": "value",
+      "reject_values": ["^[xX*]+$", "(?i)^(psk2?|wpa2?|none|open)$"]
+    },
+    {
+      "id": "htpasswd_entry",
+      "description": "An .htpasswd-style user:hash line (Apache MD5, SHA, bcrypt, crypt).",
+      "pattern": "^(?P<value>[A-Za-z0-9._-]{1,40}:(?:\\$apr1\\$|\\{SHA\\}|\\$2[aby]\\$|\\$1\\$|\\$5\\$|\\$6\\$)[^\\s:]{6,})\\s*$",
+      "value_group": "value"
+    }
+  ]
+}

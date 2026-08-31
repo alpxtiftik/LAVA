@@ -50,12 +50,15 @@ MERGED_FILE="$OUTDIR/merged_findings.json"
 ENRICHED_FILE="$OUTDIR/enriched_findings.json"
 VERDICTS_FILE="$OUTDIR/verdicts.json"
 REPORT_FILE="$OUTDIR/lava_report.html"
+CUSTOM_FINDINGS_FILE="$OUTDIR/custom_findings.json"
 
 # Defaults; overridden from config/ai_config.env below
 AI_IP="127.0.0.1"
 AI_PORT="11434"
 AI_PROVIDER="local"
 AI_MODEL="qwen2.5-coder:7b"
+CUSTOM_GREP_ENABLED="0"
+SCAN_PROFILE="iot-testing"
 
 # Read a key's value from ai_config.env. Only matches a line-leading "KEY="
 # (skips comment lines such as "# AI_PROVIDER options:"), takes the first
@@ -70,11 +73,19 @@ if [ -f "config/ai_config.env" ]; then
     port_val=$(read_env_val LOCAL_AI_PORT config/ai_config.env)
     prov_val=$(read_env_val AI_PROVIDER config/ai_config.env)
     mod_val=$(read_env_val LOCAL_AI_MODEL config/ai_config.env)
+    grep_val=$(read_env_val CUSTOM_GREP_ENABLED config/ai_config.env)
+    profile_val=$(read_env_val SCAN_PROFILE config/ai_config.env)
     [ -n "$ip_val" ] && AI_IP="$ip_val"
     [ -n "$port_val" ] && AI_PORT="$port_val"
     [ -n "$prov_val" ] && AI_PROVIDER="$prov_val"
     [ -n "$mod_val" ] && AI_MODEL="$mod_val"
+    [ -n "$grep_val" ] && CUSTOM_GREP_ENABLED="$grep_val"
+    [ -n "$profile_val" ] && SCAN_PROFILE="$profile_val"
 fi
+
+# --extra-findings / --custom-findings args, populated by the custom grep step
+PARSER_EXTRA_ARGS=()
+CLASSIFIER_CUSTOM_ARGS=()
 
 # Start Ollama in the background if it is not running (localhost + local provider only)
 if [ "$AI_PROVIDER" != "gemini" ] && [[ "$AI_PROVIDER" != mcp* ]] && ! curl -s "http://$AI_IP:$AI_PORT/" > /dev/null; then
@@ -106,28 +117,43 @@ elif [[ "$AI_PROVIDER" == mcp* ]]; then
 else
     echo "[AI_INFO] Selected model: $AI_MODEL (Local AI)"
 fi
+if [ "$CUSTOM_GREP_ENABLED" = "1" ]; then
+    echo "[AI_INFO] Custom grep: ON (profile: $SCAN_PROFILE)"
+fi
 echo "========================================="
 
-if [[ "$AI_PROVIDER" == mcp* ]]; then
-    echo "[1-2/3] MCP mode: skipping the parse/enrich steps (the agent explores the raw logs itself)."
+# [1/4] Custom credential grep over the extracted firmware (optional).
+if [ "$CUSTOM_GREP_ENABLED" = "1" ]; then
+    echo "[1/4] Running the custom credential grep (profile: $SCAN_PROFILE)..."
+    python3 src/core/custom_scan.py --log-dir "$LOGDIR" --profile "$SCAN_PROFILE" --out "$CUSTOM_FINDINGS_FILE"
+    if [ $? -ne 0 ]; then echo "Error: custom_scan.py failed!"; exit 2; fi
+    PARSER_EXTRA_ARGS=(--extra-findings "$CUSTOM_FINDINGS_FILE")
+    CLASSIFIER_CUSTOM_ARGS=(--custom-findings "$CUSTOM_FINDINGS_FILE")
+    echo "[OK] Custom grep complete."
 else
-    echo "[1/3] Parsing EMBA logs..."
-    python3 src/core/parser.py --log-dir "$LOGDIR" --out "$FINDINGS_FILE" --merged-out "$MERGED_FILE"
+    echo "[1/4] Custom grep: disabled (set CUSTOM_GREP_ENABLED=\"1\" in config/ai_config.env to enable)."
+fi
+
+if [[ "$AI_PROVIDER" == mcp* ]]; then
+    echo "[2-3/4] MCP mode: skipping the parse/enrich steps (the agent explores the raw logs itself)."
+else
+    echo -e "\n[2/4] Parsing EMBA logs..."
+    python3 src/core/parser.py --log-dir "$LOGDIR" --out "$FINDINGS_FILE" --merged-out "$MERGED_FILE" "${PARSER_EXTRA_ARGS[@]}"
     if [ $? -ne 0 ]; then echo "Error: parser.py failed!"; exit 2; fi
     echo "[OK] Parsing complete."
 
-    echo -e "\n[2/3] Building context (enrich)..."
+    echo -e "\n[3/4] Building context (enrich)..."
     python3 src/core/enricher.py --merged "$MERGED_FILE" --log-dir "$LOGDIR" --out "$ENRICHED_FILE"
     if [ $? -ne 0 ]; then echo "Error: enricher.py failed!"; exit 2; fi
     echo "[OK] Context added to findings."
 fi
 
-echo -e "\n[3/3] Starting LLM classification (this step can take a while)..."
-python3 src/core/classifier.py --mode run --config config/ai_config.env --ground-truth ground_truth.json --enriched "$ENRICHED_FILE" --out "$VERDICTS_FILE" --log-dir "$LOGDIR"
+echo -e "\n[4/4] Starting LLM classification (this step can take a while)..."
+python3 src/core/classifier.py --mode run --config config/ai_config.env --ground-truth ground_truth.json --enriched "$ENRICHED_FILE" --out "$VERDICTS_FILE" --log-dir "$LOGDIR" "${CLASSIFIER_CUSTOM_ARGS[@]}"
 if [ $? -ne 0 ]; then echo "Error: classifier.py failed!"; exit 2; fi
 echo "[OK] Classification complete. Results written to $VERDICTS_FILE"
 
-echo -e "\n[4/4] Generating the HTML report..."
+echo -e "\nGenerating the HTML report..."
 python3 src/reporting/html_report.py --verdicts "$VERDICTS_FILE" --out "$REPORT_FILE"
 if [ $? -ne 0 ]; then echo "Error: html_report.py failed!"; exit 2; fi
 echo "[OK] Report ready: $REPORT_FILE"

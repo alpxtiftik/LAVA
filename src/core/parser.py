@@ -17,6 +17,8 @@ import re
 import sys
 from pathlib import Path
 
+from fw_paths import normalize_path
+
 # ---------------------------------------------------------------------------
 # Only the genuinely credential-focused S99_grepit categories (MVP whitelist).
 # "crypto usage detection" categories such as ciphers_*, ssl_usage_*,
@@ -64,17 +66,6 @@ def content_is_mostly_printable(text: str, min_ratio: float = 0.85) -> bool:
     printable = sum(1 for c in text if c.isprintable() or c in "\t\n")
     return (printable / len(text)) >= min_ratio
 
-# Common prefixes of EMBA extraction directories - we take everything after this
-# marker to shorten paths and make them readable.
-EXTRACT_MARKERS = [
-    "squashfs_v4_le_extract/",
-    "fat_extract/",
-    "unblob_extracted/firmware_extract/",
-    "squashfs-root/",  # binwalk's classic cpio/squashfs extraction directory
-    "cpio-root/",
-    "jffs2-root/",
-]
-
 _fid_counter = 0
 
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
@@ -94,14 +85,6 @@ def looks_like_valid_path(path: str) -> bool:
     if any(ord(c) < 32 for c in path if c != "\t"):
         return False
     return True
-
-
-def normalize_path(raw_path: str) -> str:
-    """Reduces EMBA's long extraction path to a firmware-relative path."""
-    for marker in EXTRACT_MARKERS:
-        if marker in raw_path:
-            return raw_path.split(marker, 1)[1]
-    return raw_path
 
 
 def new_finding(module: str, file_path: str, content: str, extra: dict | None = None) -> dict:
@@ -250,25 +233,85 @@ def parse_s99(s99_dir: Path) -> list[dict]:
     return out
 
 
+def _finding_line_no(f: dict):
+    """Returns the int line number of a finding, or None. Only S99_grepit and
+    the custom grep layer provide one."""
+    ln = f.get("extra", {}).get("line_no")
+    try:
+        return int(ln) if ln is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _derive_source(modules: list[str]) -> str:
+    """'custom' if every module is a CUSTOM: rule, 'emba' if none is, else 'both'."""
+    custom = [m for m in modules if m.startswith("CUSTOM:")]
+    if not custom:
+        return "emba"
+    if len(custom) == len(modules):
+        return "custom"
+    return "both"
+
+
 # ---------------------------------------------------------------------------
-# Corroboration: if the same (file_path, matched_content) appears in more than
-# one module, that is a strong TP signal - we pass it to the model as a feature.
+# Corroboration: two findings are the same leak if they share
+# (file_path, matched_content) OR (file_path, line_no). When more than one
+# module (EMBA module or CUSTOM: rule) lands on the same leak, that is a strong
+# TP signal and it also drives the EMBA / Grep / overlap split in the UI.
 # ---------------------------------------------------------------------------
 def merge_and_corroborate(findings: list[dict]) -> list[dict]:
-    grouped: dict[tuple, list[dict]] = {}
-    for f in findings:
-        key = (f["file_path"], f["matched_content"])
-        grouped.setdefault(key, []).append(f)
+    n = len(findings)
+    parent = list(range(n))
+
+    def find(x: int) -> int:
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def union(a: int, b: int) -> None:
+        parent[find(a)] = find(b)
+
+    by_content: dict[tuple, int] = {}
+    by_line: dict[tuple, int] = {}
+    for i, f in enumerate(findings):
+        fp = f["file_path"]
+        ck = (fp, f["matched_content"])
+        if ck in by_content:
+            union(i, by_content[ck])
+        else:
+            by_content[ck] = i
+        ln = _finding_line_no(f)
+        if ln is not None:
+            lk = (fp, ln)
+            if lk in by_line:
+                union(i, by_line[lk])
+            else:
+                by_line[lk] = i
+
+    groups: dict[int, list[dict]] = {}
+    for i, f in enumerate(findings):
+        groups.setdefault(find(i), []).append(f)
 
     merged = []
-    for (file_path, matched_content), group in grouped.items():
+    for group in groups.values():
         modules = sorted({g["module"] for g in group})
+        # Representative content: prefer the longest matched_content (more context).
+        rep = max(group, key=lambda g: len(g.get("matched_content", "")))
+        line_nos = sorted({ln for g in group if (ln := _finding_line_no(g)) is not None})
+        merged_extra: dict = {}
+        for g in group:
+            for k, v in g.get("extra", {}).items():
+                merged_extra.setdefault(k, v)
         merged.append(
             {
-                "file_path": file_path,
-                "matched_content": matched_content,
+                "file_path": rep["file_path"],
+                "matched_content": rep["matched_content"],
                 "found_by_modules": modules,
                 "corroboration_count": len(modules),
+                "source": _derive_source(modules),
+                "line_no": line_nos[0] if line_nos else None,
+                "extra": merged_extra,
                 "source_findings": group,
             }
         )
@@ -282,6 +325,9 @@ def main():
     ap.add_argument("--log-dir", required=True, help="EMBA log directory (e.g. emba_iotgoat_log)")
     ap.add_argument("--out", default="findings.json", help="Raw (unmerged) findings output")
     ap.add_argument("--merged-out", default="merged_findings.json", help="Merged output with corroboration")
+    ap.add_argument("--extra-findings", action="append", default=[],
+                    help="Extra findings JSON (same schema as --out) to fold into the merge, "
+                         "e.g. custom_scan.py output. May be given more than once.")
     args = ap.parse_args()
 
     log_dir = Path(args.log_dir)
@@ -299,13 +345,29 @@ def main():
     all_findings += parse_s108(log_dir / "s108_stacs_password_search" / "stacs_pw_hashes.json")
     all_findings += parse_s106(log_dir / "s106_deep_key_search")
     all_findings += parse_s99(log_dir / "s99_grepit")
+    emba_count = len(all_findings)
+
+    extra_count = 0
+    for extra_path in args.extra_findings:
+        p = Path(extra_path)
+        if not p.exists():
+            print(f"[!] WARNING: --extra-findings not found, skipping: {extra_path}")
+            continue
+        try:
+            extra = json.loads(p.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError) as e:
+            print(f"[!] WARNING: could not read {extra_path}: {e}")
+            continue
+        if isinstance(extra, list):
+            all_findings += extra
+            extra_count += len(extra)
 
     Path(args.out).write_text(json.dumps(all_findings, indent=2, ensure_ascii=False), encoding="utf-8")
 
     merged = merge_and_corroborate(all_findings)
     Path(args.merged_out).write_text(json.dumps(merged, indent=2, ensure_ascii=False), encoding="utf-8")
 
-    print(f"[+] Total raw findings: {len(all_findings)}")
+    print(f"[+] Total raw findings: {len(all_findings)} (EMBA: {emba_count}, custom: {extra_count})")
     print("[+] Per-module breakdown:")
     per_module: dict[str, int] = {}
     for f in all_findings:
@@ -313,6 +375,12 @@ def main():
     for mod, cnt in sorted(per_module.items()):
         print(f"      {mod}: {cnt}")
     print(f"[+] Unique findings after merge: {len(merged)}")
+    by_source: dict[str, int] = {}
+    for m in merged:
+        by_source[m["source"]] = by_source.get(m["source"], 0) + 1
+    if extra_count or by_source.get("custom") or by_source.get("both"):
+        print(f"      by source: emba={by_source.get('emba', 0)}, "
+              f"custom={by_source.get('custom', 0)}, overlap={by_source.get('both', 0)}")
     multi = [m for m in merged if m["corroboration_count"] > 1]
     print(f"[+] Confirmed by more than one module: {len(multi)}")
     print(f"[+] Blocks skipped as binary noise in S99_grepit: {_skipped_binary_noise}")

@@ -115,10 +115,12 @@ def _finding_id(file_path: str, matched_content: str) -> str:
     return f"lava_{h[:12]}"
 
 
-def build_registry(log_dir: Path) -> dict[str, dict]:
+def build_registry(log_dir: Path, custom_findings_path: Path | None = None) -> dict[str, dict]:
     """Builds the finding registry from parser.py's merge_and_corroborate output.
     This keeps the file-name / type schema of the verdicts.json produced in MCP
-    mode identical to local/Gemini mode."""
+    mode identical to local/Gemini mode. If custom_findings_path is given, the
+    custom grep findings are folded into the same merge (so the agent verdicts
+    EMBA and custom findings together, and each carries a `source` tag)."""
     reg: dict[str, dict] = {}
     csv_dir = log_dir / "csv_logs"
     all_findings: list[dict] = []
@@ -134,6 +136,15 @@ def build_registry(log_dir: Path) -> dict[str, dict]:
         log(f"WARNING: error while building the registry: {e!r}")
         return reg
 
+    if custom_findings_path and Path(custom_findings_path).exists():
+        try:
+            extra = json.loads(Path(custom_findings_path).read_text(encoding="utf-8"))
+            if isinstance(extra, list):
+                all_findings += extra
+                log(f"loaded {len(extra)} custom grep findings from {custom_findings_path}")
+        except (json.JSONDecodeError, OSError) as e:
+            log(f"WARNING: could not read custom findings: {e}")
+
     merged = emba_parser.merge_and_corroborate(all_findings)
     for m in merged:
         fid = _finding_id(m["file_path"], m["matched_content"])
@@ -143,6 +154,9 @@ def build_registry(log_dir: Path) -> dict[str, dict]:
             "matched_content": m["matched_content"],
             "found_by_modules": m["found_by_modules"],
             "corroboration_count": m["corroboration_count"],
+            "source": m.get("source", "emba"),
+            "line_no": m.get("line_no"),
+            "candidate_value": (m.get("extra") or {}).get("value"),
         }
     return reg
 
@@ -192,6 +206,8 @@ def _verdict_record(finding: dict, verdict: str, confidence: float, reasoning: s
         "matched_content": finding["matched_content"],
         "found_by_modules": finding["found_by_modules"],
         "corroboration_count": finding["corroboration_count"],
+        "source": finding.get("source", "emba"),
+        "line_no": finding.get("line_no"),
         "predicted_verdict": verdict,
         "confidence": confidence,
         "model_reasoning": reasoning,
@@ -249,12 +265,14 @@ mcp = FastMCP("lava")
 
 @mcp.tool()
 def list_findings() -> list[dict]:
-    """Returns EVERY hardcoded-credential finding EMBA reported for this firmware
-    (with its finding_id). This is the starting point: every finding_id must
-    eventually receive a submit_verdict / submit_all_verdicts call.
+    """Returns EVERY hardcoded-credential finding for this firmware (with its
+    finding_id). This is the starting point: every finding_id must eventually
+    receive a submit_verdict / submit_all_verdicts call.
 
-    Returns: [{finding_id, file_path, matched_content, found_by_modules,
-               corroboration_count}]"""
+    Fields: finding_id, file_path, matched_content, found_by_modules,
+    corroboration_count, line_no, source ("emba" = EMBA modules only,
+    "custom" = LAVA's own grep rules only, "both" = confirmed by both),
+    candidate_value (the exact secret a CUSTOM: rule captured, if any)."""
     return list(REGISTRY.values())
 
 
@@ -441,12 +459,16 @@ def main() -> None:
     ap.add_argument("--fw-root", required=True, help="root of the firmware filesystem EMBA extracted")
     ap.add_argument("--verdicts-out", default=None,
                     help="verdicts.json output path (default: <cwd>/verdicts.json)")
+    ap.add_argument("--custom-findings", default=None,
+                    help="custom_scan.py output (custom_findings.json) to fold into the registry")
     args = ap.parse_args()
 
     CFG.log_dir = Path(args.log_dir).expanduser().resolve()
     CFG.fw_root = Path(args.fw_root).expanduser().resolve()
     CFG.verdicts_out = (Path(args.verdicts_out).expanduser().resolve() if args.verdicts_out
                         else Path.cwd() / "verdicts.json")
+    custom_findings = (Path(args.custom_findings).expanduser().resolve()
+                       if args.custom_findings else None)
 
     if not CFG.log_dir.is_dir():
         log(f"WARNING: --log-dir does not exist: {CFG.log_dir}")
@@ -454,7 +476,7 @@ def main() -> None:
         log(f"WARNING: --fw-root does not exist: {CFG.fw_root}")
 
     REGISTRY.clear()
-    REGISTRY.update(build_registry(CFG.log_dir))
+    REGISTRY.update(build_registry(CFG.log_dir, custom_findings))
     write_findings_snapshot()
     log(f"registry: {len(REGISTRY)} findings | log-dir={CFG.log_dir} | fw-root={CFG.fw_root} "
         f"| verdicts-out={CFG.verdicts_out}")

@@ -34,6 +34,8 @@ from pathlib import Path
 
 import requests
 
+from parser import _derive_source  # 'emba' | 'custom' | 'both' from a module list
+
 # Constants for the MCP (agentic) provider mode
 # --------------------------------------------------------------------------
 # Upper time limit for the headless agent (claude / agy) run. On timeout the
@@ -105,6 +107,16 @@ CRITICAL RULES:
    the "-----BEGIN ... PRIVATE KEY-----" format alone can NEVER be used as FP justification).
    When in doubt, say TP.
 
+A NOTE ON THE MODULE FIELD:
+- Modules named "S45", "S99", "S106", "S107", "S108" are EMBA's own modules.
+- Modules named "CUSTOM:<rule>" are LAVA's own regex rules, aimed at cleartext
+  credentials EMBA tends to miss. For a CUSTOM finding, an "extracted candidate
+  value" is usually provided - that is the exact secret the rule captured;
+  evaluate whether that value is a real, usable credential (not a placeholder,
+  variable reference, example, or empty string).
+- If a finding was confirmed by BOTH an EMBA module and a CUSTOM rule, that is a
+  strong TP signal.
+
 Below are examples. Learn from them, then evaluate the NEW finding given to you.
 
 {few_shot_block}
@@ -128,7 +140,7 @@ File: {file_path}
 Module: {module}
 Number of modules that confirmed this (corroboration_count): {corroboration_count}
 Matched content: {matched_content}
-{context_block}
+{value_line}{context_block}
 Respond only in the requested JSON format."""
 
 
@@ -203,11 +215,15 @@ def build_system_prompt(few_shot_items: list[dict]) -> str:
 
 
 def build_user_prompt(item: dict, max_chars: int) -> str:
+    module = item.get("module") or ", ".join(item.get("found_by_modules", []) or []) or "?"
+    value = (item.get("extra") or {}).get("value")
+    value_line = f"Extracted candidate value: {str(value)[:max_chars]}\n" if value else ""
     return USER_PROMPT_TEMPLATE.format(
         file_path=item["file_path"],
-        module=item.get("module", "?"),
+        module=module,
         corroboration_count=item.get("corroboration_count", "?"),
         matched_content=item["matched_content"][:max_chars],
+        value_line=value_line,
         context_block=format_context_block(item.get("context"), max_chars),
     )
 
@@ -417,20 +433,17 @@ When all verdicts are written, stop.
 """
 
 
-def _mcp_config_dict(log_dir: str, fw_root: str, verdicts_out: str) -> dict:
-    return {
-        "mcpServers": {
-            "lava": {
-                "command": sys.executable,
-                "args": [
-                    str(MCP_SERVER_PATH),
-                    "--log-dir", log_dir,
-                    "--fw-root", fw_root,
-                    "--verdicts-out", verdicts_out,
-                ],
-            }
-        }
-    }
+def _mcp_config_dict(log_dir: str, fw_root: str, verdicts_out: str,
+                     custom_findings: str | None = None) -> dict:
+    args = [
+        str(MCP_SERVER_PATH),
+        "--log-dir", log_dir,
+        "--fw-root", fw_root,
+        "--verdicts-out", verdicts_out,
+    ]
+    if custom_findings:
+        args += ["--custom-findings", custom_findings]
+    return {"mcpServers": {"lava": {"command": sys.executable, "args": args}}}
 
 
 _MCP_TOOL_NAMES = [
@@ -551,6 +564,7 @@ def classify_via_mcp_agent(
     agent: str = "claude",
     ground_truth_path: str | None = None,
     timeout_seconds: int | None = None,
+    custom_findings: str | None = None,
 ) -> None:
     """Registers the MCP server with a CLI agent (claude / agy), launches the
     agent headless and waits for it to finish. Same role as classify_via_ollama /
@@ -562,6 +576,9 @@ def classify_via_mcp_agent(
     log_dir = str(Path(log_dir).expanduser().resolve())
     fw_root = str(Path(fw_root).expanduser().resolve())
     out_path = str(Path(out_path).expanduser().resolve())
+    if custom_findings:
+        cf = Path(custom_findings).expanduser().resolve()
+        custom_findings = str(cf) if cf.exists() else None
     Path(out_path).parent.mkdir(parents=True, exist_ok=True)
     timeout_seconds = int(timeout_seconds or AGENT_TIMEOUT_SECONDS)
 
@@ -580,7 +597,8 @@ def classify_via_mcp_agent(
         os.makedirs(agent_cwd, exist_ok=True)
         mcp_config_path = os.path.join(tmpdir, "mcp_config.json")
         Path(mcp_config_path).write_text(
-            json.dumps(_mcp_config_dict(log_dir, fw_root, out_path), indent=2), encoding="utf-8"
+            json.dumps(_mcp_config_dict(log_dir, fw_root, out_path, custom_findings), indent=2),
+            encoding="utf-8",
         )
 
         cmd, stdin_text, pre_cmds, _post = _build_agent_command(agent, prompt, mcp_config_path)
@@ -731,11 +749,14 @@ def run_full_mode(args, config: dict):
         label = item.get("file_path", "?")
         print(f"[{i}/{len(findings)}] evaluating {label}...")
         pred = classify_item(item, config, system_prompt, max_chars)
+        modules = item.get("found_by_modules") or ([item["module"]] if item.get("module") else [])
         results.append({
             "file_path": item.get("file_path"),
             "matched_content": item.get("matched_content"),
-            "found_by_modules": item.get("found_by_modules"),
+            "found_by_modules": modules,
             "corroboration_count": item.get("corroboration_count"),
+            "source": item.get("source") or _derive_source(modules),
+            "line_no": item.get("line_no") or (item.get("extra") or {}).get("line_no"),
             "predicted_verdict": pred["verdict"],
             "confidence": pred.get("confidence"),
             "model_reasoning": pred.get("reasoning"),
@@ -766,6 +787,7 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--log-dir", help="EMBA log directory (used only in MCP provider mode)")
     ap.add_argument("--fw-root", help="firmware extraction root (MCP mode; defaults to --log-dir)")
+    ap.add_argument("--custom-findings", help="custom_scan.py output; in MCP mode the agent verdicts these too")
     args = ap.parse_args()
 
     config = load_ai_config(Path(args.config))
@@ -803,6 +825,7 @@ def main():
             agent=agent,
             ground_truth_path=args.ground_truth,
             timeout_seconds=_to,
+            custom_findings=args.custom_findings,
         )
         return
 
