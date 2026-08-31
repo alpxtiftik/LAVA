@@ -47,52 +47,68 @@ class Api:
             print(f"Dialog error: {e}")
         return ""
 
+    _CONFIG_KEYS = ("AI_PROVIDER", "GEMINI_API_KEY", "CUSTOM_GREP_ENABLED", "SCAN_PROFILE")
+    _CONFIG_DEFAULTS = {
+        "AI_PROVIDER": "local", "GEMINI_API_KEY": "",
+        "CUSTOM_GREP_ENABLED": "0", "SCAN_PROFILE": "iot-testing",
+    }
+
+    def _config_path(self):
+        return os.path.join(APP_DIR, "config", "ai_config.env")
+
     def get_ai_config(self):
-        config_path = os.path.join(APP_DIR, "config", "ai_config.env")
-        config = {"AI_PROVIDER": "local", "GEMINI_API_KEY": ""}
-        if os.path.exists(config_path):
-            with open(config_path, "r", encoding="utf-8") as f:
+        config = dict(self._CONFIG_DEFAULTS)
+        path = self._config_path()
+        if os.path.exists(path):
+            with open(path, "r", encoding="utf-8") as f:
                 for line in f:
                     line = line.strip()
-                    if line.startswith("AI_PROVIDER="):
-                        config["AI_PROVIDER"] = line.split("=", 1)[1].strip('"\' ')
-                    elif line.startswith("GEMINI_API_KEY="):
-                        config["GEMINI_API_KEY"] = line.split("=", 1)[1].strip('"\' ')
+                    if line.startswith("#") or "=" not in line:
+                        continue
+                    key, _, val = line.partition("=")
+                    key = key.strip()
+                    if key in self._CONFIG_KEYS:
+                        config[key] = val.strip().strip('"\'')
         return config
 
     def save_ai_config(self, new_config):
-        config_path = os.path.join(APP_DIR, "config", "ai_config.env")
+        path = self._config_path()
         lines = []
-        if os.path.exists(config_path):
-            with open(config_path, "r", encoding="utf-8") as f:
+        if os.path.exists(path):
+            with open(path, "r", encoding="utf-8") as f:
                 lines = f.readlines()
 
-        provider = new_config.get("AI_PROVIDER", "local")
-        gemini_key = new_config.get("GEMINI_API_KEY", "")
-
-        provider_found = False
-        gemini_found = False
-
+        # Only touch keys the UI actually sent
+        to_set = {k: str(new_config[k]) for k in self._CONFIG_KEYS if k in new_config}
+        found = {k: False for k in to_set}
         for i, line in enumerate(lines):
-            if line.strip().startswith("AI_PROVIDER="):
-                lines[i] = f'AI_PROVIDER="{provider}"\n'
-                provider_found = True
-            elif line.strip().startswith("GEMINI_API_KEY="):
-                lines[i] = f'GEMINI_API_KEY="{gemini_key}"\n'
-                gemini_found = True
+            stripped = line.strip()
+            for k, v in to_set.items():
+                if stripped.startswith(k + "="):
+                    lines[i] = f'{k}="{v}"\n'
+                    found[k] = True
 
-        # Add a trailing newline if the last line lacks one
         if lines and not lines[-1].endswith('\n'):
             lines[-1] = lines[-1] + '\n'
+        for k, v in to_set.items():
+            if not found[k]:
+                lines.append(f'{k}="{v}"\n')
 
-        if not provider_found:
-            lines.append(f'AI_PROVIDER="{provider}"\n')
-        if not gemini_found:
-            lines.append(f'GEMINI_API_KEY="{gemini_key}"\n')
-
-        with open(config_path, "w", encoding="utf-8") as f:
+        with open(path, "w", encoding="utf-8") as f:
             f.writelines(lines)
         return {"status": "success"}
+
+    def list_scan_profiles(self):
+        """Names of the JSON profiles in config/scan_profiles/ (and local/)."""
+        base = os.path.join(APP_DIR, "config", "scan_profiles")
+        names = []
+        for root in (base, os.path.join(base, "local")):
+            if not os.path.isdir(root):
+                continue
+            for fn in sorted(os.listdir(root)):
+                if fn.endswith(".json"):
+                    names.append(fn[:-5])
+        return names or ["iot-testing"]
 
     def start_scan(self, input_path, mode="log"):
         global scan_process

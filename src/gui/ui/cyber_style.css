@@ -578,3 +578,106 @@ pre {
 /* Force horizontal scroll on terminal */
 #terminalContent .xterm-viewport { overflow-x: auto !important; overflow-y: auto !important; }
 #terminalContent .xterm-screen { min-width: 100%; }
+
+/* ------------------------------------------------------------------ */
+/* Settings modal (left nav + panels)                                  */
+/* ------------------------------------------------------------------ */
+.settings-overlay {
+    position: fixed; inset: 0; z-index: 1000;
+    background: rgba(0, 0, 0, 0.75);
+    display: flex; align-items: center; justify-content: center;
+    backdrop-filter: blur(4px);
+}
+.settings-overlay.hidden { display: none !important; }
+.settings-dialog {
+    width: 720px; max-width: 92vw; max-height: 82vh;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 0 24px rgba(0, 255, 204, 0.08);
+    display: grid;
+    grid-template-columns: 190px 1fr;
+    grid-template-rows: 1fr auto;
+    overflow: hidden;
+}
+.settings-nav {
+    grid-row: 1 / 3;
+    background: var(--bg-secondary);
+    border-right: 1px solid var(--border-color);
+    padding: 18px 0;
+}
+.settings-nav h2 {
+    margin: 0 0 14px 0; padding: 0 18px;
+    color: var(--text-primary); font-size: 16px; letter-spacing: 1px;
+}
+.settings-nav-item {
+    display: block; width: 100%; text-align: left;
+    padding: 10px 18px; border: 0; background: transparent;
+    color: var(--text-secondary); cursor: pointer; font-size: 13px;
+    border-left: 2px solid transparent;
+}
+.settings-nav-item:hover { color: var(--text-primary); }
+.settings-nav-item.active {
+    color: var(--accent);
+    border-left-color: var(--accent);
+    background: rgba(0, 255, 204, 0.06);
+}
+.settings-body { padding: 22px 24px; overflow-y: auto; }
+.settings-panel { display: none; }
+.settings-panel.active { display: block; }
+.settings-panel h3 { margin: 0 0 16px 0; color: var(--text-primary); font-size: 15px; }
+.settings-label {
+    display: block; margin-bottom: 6px;
+    color: var(--text-secondary); font-size: 12px; text-transform: uppercase; letter-spacing: 1px;
+}
+.settings-input {
+    width: 100%; padding: 9px 10px; box-sizing: border-box;
+    background: var(--bg-primary); color: var(--text-primary);
+    border: 1px solid var(--border-color); border-radius: 0;
+}
+.settings-input:focus { outline: none; border-color: var(--accent); }
+.settings-checkbox {
+    display: flex; align-items: center; gap: 8px;
+    color: var(--text-primary); cursor: pointer; font-size: 13px;
+}
+.settings-note {
+    margin-top: 8px; color: var(--text-secondary); font-size: 12px; line-height: 1.5;
+}
+.settings-note a { color: var(--accent); }
+.settings-note code {
+    background: var(--bg-primary); padding: 1px 4px; color: var(--accent); font-size: 11px;
+}
+.settings-footer {
+    grid-column: 2 / 3;
+    display: flex; justify-content: flex-end; gap: 10px;
+    padding: 14px 24px; border-top: 1px solid var(--border-color);
+}
+
+/* ------------------------------------------------------------------ */
+/* Source tabs (EMBA / Grep / overlap)                                 */
+/* ------------------------------------------------------------------ */
+.source-tabs {
+    display: flex; gap: 4px; margin-bottom: 14px;
+    border-bottom: 1px solid var(--border-color);
+}
+.source-tabs.hidden { display: none !important; }
+.source-tab {
+    padding: 8px 16px; border: 0; background: transparent;
+    color: var(--text-secondary); cursor: pointer; font-size: 13px;
+    border-bottom: 2px solid transparent;
+}
+.source-tab:hover { color: var(--text-primary); }
+.source-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+.source-count {
+    display: inline-block; margin-left: 6px; padding: 0 6px;
+    background: var(--bg-tertiary); border: 1px solid var(--border-color);
+    border-radius: 10px; font-size: 11px; color: var(--text-secondary);
+}
+.source-tab.active .source-count { color: var(--accent); border-color: var(--accent); }
+
+/* Per-card / modal source chip */
+.source-chip {
+    font-size: 10px; letter-spacing: 1px; padding: 2px 6px;
+    border: 1px solid #333; color: var(--text-secondary); text-transform: uppercase;
+}
+.source-custom { color: var(--accent); border-color: var(--accent); }
+.source-both { color: #ffb000; border-color: #ffb000; }

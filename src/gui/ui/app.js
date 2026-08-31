@@ -2,6 +2,16 @@ let allFindings = [];
 let totalFindings = 0;
 let term = null;
 let currentLogDir = "";
+let sourceFilter = "all";   // all | emba | custom | both
+
+function deriveSource(finding) {
+    if (finding.source) return finding.source;
+    const mods = finding.found_by_modules || (finding.module ? [finding.module] : []);
+    const custom = mods.filter(m => String(m).startsWith("CUSTOM:"));
+    if (custom.length === 0) return "emba";
+    if (custom.length === mods.length) return "custom";
+    return "both";
+}
 
 window.addEventListener('pywebviewready', async () => {
     fetchData();
@@ -41,8 +51,9 @@ async function fetchData() {
         }
         
         populateModuleFilter();
+        updateSourceTabs();
         updateStats();
-        
+
         // Re-apply current filters instead of rendering all findings
         const activeFilterBtn = document.querySelector('.filter-btn.active');
         const verdictFilter = activeFilterBtn ? activeFilterBtn.dataset.filter : 'all';
@@ -86,24 +97,44 @@ function updateStats() {
 function populateModuleFilter() {
     const filter = document.getElementById('moduleFilter');
     if (!filter) return;
-    
+
     filter.innerHTML = '<option value="all">All Modules</option>';
-    
+
     const modules = new Set();
     allFindings.forEach(f => {
-        if (f.found_by_modules && Array.isArray(f.found_by_modules)) {
-            f.found_by_modules.forEach(m => modules.add(m));
-        } else if (f.module) {
-            modules.add(f.module);
-        }
+        const mods = (f.found_by_modules && Array.isArray(f.found_by_modules))
+            ? f.found_by_modules : (f.module ? [f.module] : []);
+        // The module sub-filter only makes sense for EMBA modules
+        mods.filter(m => !String(m).startsWith("CUSTOM:")).forEach(m => modules.add(m));
     });
-    
+
     Array.from(modules).sort().forEach(m => {
         const opt = document.createElement('option');
         opt.value = m;
         opt.textContent = m;
         filter.appendChild(opt);
     });
+}
+
+function updateSourceTabs() {
+    const counts = { all: allFindings.length, emba: 0, custom: 0, both: 0 };
+    allFindings.forEach(f => { counts[deriveSource(f)] = (counts[deriveSource(f)] || 0) + 1; });
+
+    const tabs = document.getElementById('sourceTabs');
+    const hasCustom = counts.custom > 0 || counts.both > 0;
+    if (tabs) tabs.classList.toggle('hidden', !hasCustom);
+    if (!hasCustom && sourceFilter !== 'all') sourceFilter = 'all';
+
+    ['all', 'emba', 'custom', 'both'].forEach(s => {
+        const el = document.getElementById('src-count-' + s);
+        if (el) el.textContent = counts[s] || 0;
+    });
+    document.querySelectorAll('.source-tab').forEach(b => {
+        b.classList.toggle('active', b.dataset.source === sourceFilter);
+    });
+    // Module sub-filter is only relevant for the EMBA view
+    const modFilter = document.getElementById('moduleFilter');
+    if (modFilter) modFilter.style.display = (sourceFilter === 'emba' || !hasCustom) ? '' : 'none';
 }
 
 function renderFindings(findings) {
@@ -116,11 +147,17 @@ function renderFindings(findings) {
         
         const card = document.createElement('div');
         card.className = `finding-card verdict-${finding.predicted_verdict.toLowerCase()}`;
-        
+
+        const src = deriveSource(finding);
+        const srcLabel = { emba: 'EMBA', custom: 'GREP', both: 'BOTH' }[src] || src;
+
         card.innerHTML = `
             <div class="card-header">
-                <span class="file-path">${escapeHtml(finding.file_path)}</span>
-                <span class="verdict-badge badge-${finding.predicted_verdict.toLowerCase()}">${finding.predicted_verdict}</span>
+                <span class="file-path">${escapeHtml(finding.file_path)}${finding.line_no ? ':' + finding.line_no : ''}</span>
+                <span style="display:flex; gap:6px; align-items:center;">
+                    <span class="source-chip source-${src}">${srcLabel}</span>
+                    <span class="verdict-badge badge-${finding.predicted_verdict.toLowerCase()}">${finding.predicted_verdict}</span>
+                </span>
             </div>
             <div class="snippet">${escapeHtml(finding.matched_content || '')}</div>
             <div class="card-footer">
@@ -159,43 +196,75 @@ function setupEventListeners() {
     
 
 
-    // AI Settings Modal
-    const aiSettingsBtn = document.getElementById('aiSettingsBtn');
-    const aiSettingsModal = document.getElementById('aiSettingsModal');
+    // Settings Modal (left nav + panels)
+    const settingsBtn = document.getElementById('settingsBtn');
+    const settingsModal = document.getElementById('settingsModal');
     const cancelSettingsBtn = document.getElementById('cancelSettingsBtn');
     const saveSettingsBtn = document.getElementById('saveSettingsBtn');
     const aiProviderSelect = document.getElementById('aiProviderSelect');
     const geminiKeyContainer = document.getElementById('geminiKeyContainer');
     const geminiKeyInput = document.getElementById('geminiKeyInput');
-
-    if (aiSettingsBtn) {
-        aiSettingsBtn.addEventListener('click', async () => {
-            if (window.pywebview && window.pywebview.api.get_ai_config) {
-                const config = await window.pywebview.api.get_ai_config();
-                aiProviderSelect.value = config.AI_PROVIDER || 'local';
-                geminiKeyInput.value = config.GEMINI_API_KEY || '';
-                updateProviderVisibility(aiProviderSelect.value);
-            }
-            aiSettingsModal.classList.remove('hidden');
-        });
-    }
-
-    if (cancelSettingsBtn) {
-        cancelSettingsBtn.addEventListener('click', () => {
-            aiSettingsModal.classList.add('hidden');
-        });
-    }
+    const customGrepEnabled = document.getElementById('customGrepEnabled');
+    const scanProfileSelect = document.getElementById('scanProfileSelect');
+    const grepProfileContainer = document.getElementById('grepProfileContainer');
 
     function updateProviderVisibility(value) {
         if (geminiKeyContainer) geminiKeyContainer.style.display = value === 'gemini' ? 'block' : 'none';
         const mcpInfo = document.getElementById('mcpInfo');
         if (mcpInfo) mcpInfo.style.display = (value && value.indexOf('mcp') === 0) ? 'block' : 'none';
     }
+    function updateGrepVisibility() {
+        if (grepProfileContainer)
+            grepProfileContainer.style.opacity = customGrepEnabled && customGrepEnabled.checked ? '1' : '0.45';
+    }
 
-    if (aiProviderSelect) {
-        aiProviderSelect.addEventListener('change', (e) => {
-            updateProviderVisibility(e.target.value);
+    if (settingsBtn) {
+        settingsBtn.addEventListener('click', async () => {
+            if (window.pywebview && window.pywebview.api.get_ai_config) {
+                const config = await window.pywebview.api.get_ai_config();
+                aiProviderSelect.value = config.AI_PROVIDER || 'local';
+                geminiKeyInput.value = config.GEMINI_API_KEY || '';
+                if (customGrepEnabled) customGrepEnabled.checked = String(config.CUSTOM_GREP_ENABLED) === '1';
+                if (scanProfileSelect && window.pywebview.api.list_scan_profiles) {
+                    const profiles = await window.pywebview.api.list_scan_profiles();
+                    scanProfileSelect.innerHTML = '';
+                    (profiles || ['iot-testing']).forEach(p => {
+                        const o = document.createElement('option');
+                        o.value = p; o.textContent = p;
+                        scanProfileSelect.appendChild(o);
+                    });
+                    scanProfileSelect.value = config.SCAN_PROFILE || 'iot-testing';
+                }
+                updateProviderVisibility(aiProviderSelect.value);
+                updateGrepVisibility();
+            }
+            settingsModal.classList.remove('hidden');
         });
+    }
+
+    document.querySelectorAll('.settings-nav-item').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.settings-nav-item').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.settings-panel').forEach(p => p.classList.remove('active'));
+            btn.classList.add('active');
+            const panel = document.getElementById('panel-' + btn.dataset.panel);
+            if (panel) panel.classList.add('active');
+        });
+    });
+
+    if (cancelSettingsBtn) {
+        cancelSettingsBtn.addEventListener('click', () => settingsModal.classList.add('hidden'));
+    }
+    if (settingsModal) {
+        settingsModal.addEventListener('click', (e) => {
+            if (e.target.id === 'settingsModal') settingsModal.classList.add('hidden');
+        });
+    }
+    if (aiProviderSelect) {
+        aiProviderSelect.addEventListener('change', (e) => updateProviderVisibility(e.target.value));
+    }
+    if (customGrepEnabled) {
+        customGrepEnabled.addEventListener('change', updateGrepVisibility);
     }
 
     if (saveSettingsBtn) {
@@ -203,12 +272,27 @@ function setupEventListeners() {
             if (window.pywebview && window.pywebview.api.save_ai_config) {
                 await window.pywebview.api.save_ai_config({
                     "AI_PROVIDER": aiProviderSelect.value,
-                    "GEMINI_API_KEY": geminiKeyInput.value
+                    "GEMINI_API_KEY": geminiKeyInput.value,
+                    "CUSTOM_GREP_ENABLED": (customGrepEnabled && customGrepEnabled.checked) ? "1" : "0",
+                    "SCAN_PROFILE": scanProfileSelect ? scanProfileSelect.value : "iot-testing"
                 });
             }
-            aiSettingsModal.classList.add('hidden');
+            settingsModal.classList.add('hidden');
         });
     }
+
+    // Source tabs (EMBA / Grep / overlap)
+    document.querySelectorAll('.source-tab').forEach(btn => {
+        btn.addEventListener('click', () => {
+            sourceFilter = btn.dataset.source;
+            document.querySelectorAll('.source-tab').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            const modFilter = document.getElementById('moduleFilter');
+            if (modFilter) modFilter.style.display = sourceFilter === 'emba' ? '' : 'none';
+            const verdictFilter = document.querySelector('.filter-btn.active').dataset.filter;
+            filterData(document.getElementById('searchInput').value, verdictFilter);
+        });
+    });
 
     let logInterval = null;
 
@@ -402,14 +486,17 @@ function filterData(searchTerm, verdictFilter) {
     }
     
     const filtered = allFindings.filter(f => {
-        const matchesSearch = (f.file_path || '').toLowerCase().includes(term) || 
+        const matchesSearch = (f.file_path || '').toLowerCase().includes(term) ||
                               (f.matched_content || '').toLowerCase().includes(term);
         const matchesVerdict = verdictFilter === 'all' || f.predicted_verdict === verdictFilter;
-        
-        const mods = f.found_by_modules || [f.module];
+
+        const mods = f.found_by_modules || (f.module ? [f.module] : []);
         const matchesModule = modFilterVal === 'all' || mods.includes(modFilterVal);
-        
-        return matchesSearch && matchesVerdict && matchesModule;
+
+        const src = deriveSource(f);
+        const matchesSource = sourceFilter === 'all' || src === sourceFilter;
+
+        return matchesSearch && matchesVerdict && matchesModule && matchesSource;
     });
 
     renderFindings(filtered);
@@ -419,11 +506,14 @@ function openModal(finding) {
     document.getElementById('modalTitle').textContent = finding.file_path;
     
     const isTP = finding.predicted_verdict === 'TP';
+    const src = deriveSource(finding);
+    const srcLabel = { emba: 'Source: EMBA', custom: 'Source: Custom grep', both: 'Source: EMBA + Custom grep' }[src] || src;
     const badgesHtml = `
         <span class="verdict-badge badge-${finding.predicted_verdict.toLowerCase()}">${finding.predicted_verdict}</span>
+        <span class="source-chip source-${src}">${srcLabel}</span>
         <span class="verdict-badge" style="border: 1px solid var(--glass-border); color: var(--text-secondary)">Corroboration: ${finding.corroboration_count}</span>
     `;
-    
+
     document.getElementById('modalBadges').innerHTML = badgesHtml;
     document.getElementById('modalContent').textContent = finding.matched_content || 'No content available';
     document.getElementById('modalReasoning').textContent = finding.model_reasoning || 'No reasoning provided by AI.';
@@ -550,7 +640,9 @@ async function startScan() {
             // Clear findings when new scan starts
             allFindings = [];
             if (typeof totalFindings !== 'undefined') totalFindings = 0;
+            sourceFilter = "all";
             renderFindings([]);
+            updateSourceTabs();
             updateStats();
             const grid = document.getElementById('findingsGrid');
             if (grid) {

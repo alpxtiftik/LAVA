@@ -16,7 +16,7 @@
                 <h1>LAVA</h1>
                 <span class="subtitle">Local AI Vulnerability Auditor</span>
             </div>
-            
+
             <div class="stats-container">
                 <div class="stat-card" id="stat-total">
                     <span class="stat-value">0 / 0</span>
@@ -44,44 +44,70 @@
                         <input type="radio" name="scanMode" value="firmware"> Full Pipeline (Scan Firmware)
                     </label>
                 </div>
-                <button id="aiSettingsBtn" class="btn-secondary" style="display: flex; align-items: center; gap: 0.5rem;">⚙️ AI Settings</button>
+                <button id="settingsBtn" class="btn-secondary" style="display: flex; align-items: center; gap: 0.5rem;">&#9881; Settings</button>
             </div>
 
             <div class="scan-panel">
                 <input type="text" id="logDirInput" placeholder="Enter EMBA Log Directory (e.g. emba_firmware_log)">
-                <button id="browseBtn" class="btn-secondary" title="Browse">📁 Select</button>
-                <button id="startScanBtn" class="btn-primary">▶ Start Scan</button>
-                <button id="stopScanBtn" class="btn-danger" disabled>⏹ Stop Scan</button>
-                <button id="showTerminalBtn" class="btn-secondary" style="margin-left: 10px;">💻 Terminal</button>
+                <button id="browseBtn" class="btn-secondary" title="Browse">&#128193; Select</button>
+                <button id="startScanBtn" class="btn-primary">&#9654; Start Scan</button>
+                <button id="stopScanBtn" class="btn-danger" disabled>&#9209; Stop Scan</button>
+                <button id="showTerminalBtn" class="btn-secondary" style="margin-left: 10px;">&#128187; Terminal</button>
                 <span id="scanStatusIndicator" class="status-indicator status-idle">IDLE</span>
             </div>
 
-            <!-- AI Settings Modal -->
-            <div id="aiSettingsModal" class="hidden" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(5px);">
-                <div style="background: var(--bg-tertiary); padding: 25px; border-radius: 0px; border: 1px solid var(--border-color); width: 400px; box-shadow: 0 0 20px rgba(0, 255, 204, 0.1);">
-                    <h2 style="margin-top: 0; color: var(--text-primary);">AI Settings</h2>
-                    <div style="margin-bottom: 15px;">
-                        <label style="color: var(--text-secondary); display: block; margin-bottom: 8px;">AI Provider</label>
-                        <select id="aiProviderSelect" style="width: 100%; padding: 10px; background: var(--bg-primary); border: 1px solid var(--glass-border); color: var(--text-primary); border-radius: 0px;">
-                            <option value="local">Local AI (Ollama)</option>
-                            <option value="gemini">Gemini API (Cloud)</option>
-                            <option value="mcp_claude">MCP Agent - Claude Code</option>
-                            <option value="mcp_antigravity">MCP Agent - Antigravity CLI</option>
-                        </select>
+            <!-- Settings Modal (left nav + panels) -->
+            <div id="settingsModal" class="hidden settings-overlay">
+                <div class="settings-dialog">
+                    <div class="settings-nav">
+                        <h2>Settings</h2>
+                        <button class="settings-nav-item active" data-panel="ai">AI Provider</button>
+                        <button class="settings-nav-item" data-panel="grep">Custom Grep</button>
                     </div>
-                    <div id="mcpInfo" style="margin-bottom: 20px; display: none;">
-                        <small style="color: var(--text-secondary); display: block;">
-                            The selected CLI agent explores the raw EMBA logs on its own and writes the verdicts.
-                            One-time setup: run <code>claude</code> or <code>agy</code> once in a terminal to log in.
-                            No API key needed (uses your existing subscription).
-                        </small>
+                    <div class="settings-body">
+                        <div class="settings-panel active" id="panel-ai">
+                            <h3>AI Provider</h3>
+                            <label class="settings-label">Provider</label>
+                            <select id="aiProviderSelect" class="settings-input">
+                                <option value="local">Local AI (Ollama)</option>
+                                <option value="gemini">Gemini API (Cloud)</option>
+                                <option value="mcp_claude">MCP Agent - Claude Code</option>
+                                <option value="mcp_antigravity">MCP Agent - Antigravity CLI</option>
+                            </select>
+                            <div id="mcpInfo" class="settings-note" style="display: none;">
+                                The selected CLI agent explores the raw EMBA logs on its own and writes the verdicts.
+                                One-time setup: run <code>claude</code> or <code>agy</code> once in a terminal to log in.
+                                No API key needed (uses your existing subscription).
+                            </div>
+                            <div id="geminiKeyContainer" style="display: none; margin-top: 16px;">
+                                <label class="settings-label">Gemini API Key</label>
+                                <input type="password" id="geminiKeyInput" placeholder="AIzaSy..." class="settings-input">
+                                <div class="settings-note">Get your free key from <a href="https://aistudio.google.com/app/apikey" target="_blank">Google AI Studio</a>.</div>
+                            </div>
+                        </div>
+
+                        <div class="settings-panel" id="panel-grep">
+                            <h3>Custom Grep</h3>
+                            <label class="settings-checkbox">
+                                <input type="checkbox" id="customGrepEnabled">
+                                Enable the custom credential grep layer
+                            </label>
+                            <div class="settings-note">
+                                When enabled, LAVA runs its own regex rules over the extracted firmware
+                                before the AI step and shows those hits in a separate <b>Grep</b> view
+                                next to the EMBA results. When disabled, LAVA behaves exactly as before.
+                            </div>
+                            <div id="grepProfileContainer" style="margin-top: 16px;">
+                                <label class="settings-label">Grep profile</label>
+                                <select id="scanProfileSelect" class="settings-input"></select>
+                                <div class="settings-note">
+                                    Profiles are JSON files in <code>config/scan_profiles/</code>.
+                                    Put your own in <code>config/scan_profiles/local/</code>.
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div id="geminiKeyContainer" style="margin-bottom: 20px; display: none;">
-                        <label style="color: var(--text-secondary); display: block; margin-bottom: 8px;">Gemini API Key</label>
-                        <input type="password" id="geminiKeyInput" placeholder="AIzaSy..." style="width: 100%; padding: 10px; background: var(--bg-primary); border: 1px solid var(--glass-border); color: var(--text-primary); border-radius: 0px; box-sizing: border-box;">
-                        <small style="color: var(--text-secondary); display: block; margin-top: 5px;">Get your free key from <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color: var(--primary);">Google AI Studio</a>.</small>
-                    </div>
-                    <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                    <div class="settings-footer">
                         <button id="cancelSettingsBtn" class="btn-secondary">Cancel</button>
                         <button id="saveSettingsBtn" class="btn-primary">Save Changes</button>
                     </div>
@@ -92,7 +118,6 @@
             <div id="terminalView" class="hidden" style="background: var(--bg-tertiary); padding: 15px; border-radius: 0px; border: 1px solid var(--border-color); margin-bottom: 20px; display: flex; flex-direction: column; height: 500px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                     <h3 style="margin: 0; color: var(--text-primary); font-size: 14px;">Live Log Viewer</h3>
-
                 </div>
                 <div id="terminalContent" style="background: #000; border-radius: 0px; flex: 1; overflow: hidden;"></div>
             </div>
@@ -103,7 +128,7 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
                 </div>
                 <div class="filters">
-                    <select id="moduleFilter" class="filter-select">
+                    <select id="moduleFilter" class="filter-select" style="display: none;">
                         <option value="all">All Modules</option>
                     </select>
                     <button class="filter-btn active" data-filter="all">All</button>
@@ -111,13 +136,20 @@
                     <button class="filter-btn" data-filter="FP">False Positives</button>
                 </div>
                 <div class="view-toggle">
-                    <button id="exportHtmlBtn" class="btn-primary" style="margin-right: 10px;">📄 Export HTML</button>
+                    <button id="exportHtmlBtn" class="btn-primary" style="margin-right: 10px;">&#128196; Export HTML</button>
                     <button id="toggleViewBtn" class="btn-secondary">{} View Raw JSON</button>
                 </div>
             </div>
 
+            <!-- Source tabs (EMBA / Grep / overlap) - only shown when the custom grep produced results -->
+            <div class="source-tabs hidden" id="sourceTabs">
+                <button class="source-tab active" data-source="all">All <span class="source-count" id="src-count-all">0</span></button>
+                <button class="source-tab" data-source="emba">EMBA <span class="source-count" id="src-count-emba">0</span></button>
+                <button class="source-tab" data-source="custom">Grep <span class="source-count" id="src-count-custom">0</span></button>
+                <button class="source-tab" data-source="both">Overlap <span class="source-count" id="src-count-both">0</span></button>
+            </div>
+
             <div class="findings-grid" id="findingsGrid">
-                <!-- Cards will be injected here by JS -->
                 <div class="loading-state">
                     <div class="spinner"></div>
                     <p>Loading verdicts.json...</p>
@@ -143,7 +175,7 @@
             </div>
             <div class="modal-content">
                 <div class="badge-group" id="modalBadges"></div>
-                
+
                 <h3>Matched Content</h3>
                 <pre><code id="modalContent"></code></pre>
 
