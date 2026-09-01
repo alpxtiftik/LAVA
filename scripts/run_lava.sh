@@ -20,10 +20,25 @@ if [ -z "$BASEOUTDIR" ]; then
     BASEOUTDIR="$LOGDIR/lava_out"
 fi
 
+_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
+_LAVA_ROOT="$(dirname "$(dirname "$_SCRIPT")")"
+
+# The LAVA pipeline does NOT need root, and in MCP mode the agent CLI (claude /
+# agy) plus its login live in the invoking user's home - as root they are not
+# found / not logged in ("Authentication required"). So if we were started as
+# root via sudo, hand the log dir back to $SUDO_USER and re-run as them.
+if [ "$EUID" -eq 0 ] && [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ] && [ -z "${LAVA_DROPPED:-}" ]; then
+    echo "[*] Running the LAVA pipeline as user '$SUDO_USER' (not root)."
+    chown -R "$SUDO_USER" "$LOGDIR" 2>/dev/null
+    [ -d "$BASEOUTDIR" ] && chown -R "$SUDO_USER" "$BASEOUTDIR" 2>/dev/null
+    exec sudo -u "$SUDO_USER" -H env LAVA_DROPPED=1 \
+        bash -lc 'cd "$1" && exec bash "$2" -LogDir "$3" -OutDir "$4"' \
+        lava "$_LAVA_ROOT" "$_SCRIPT" "$LOGDIR" "$BASEOUTDIR"
+fi
+
 # If we are not already inside a venv and the repo has a .venv, activate it.
 # (start_linux.sh does this; but when the script is called directly, or after a
 # sudo -> privilege drop, VIRTUAL_ENV is empty and packages like `mcp` are missing.)
-_LAVA_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 if [ -z "${VIRTUAL_ENV:-}" ] && [ -x "$_LAVA_ROOT/.venv/bin/python3" ]; then
     # shellcheck disable=SC1091
     source "$_LAVA_ROOT/.venv/bin/activate"

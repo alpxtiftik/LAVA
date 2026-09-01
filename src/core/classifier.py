@@ -493,6 +493,45 @@ def _resolve_cli(name: str) -> str:
     return name
 
 
+_AUTH_HINTS = (
+    "authentication required", "authentication timed out", "please visit the url to log in",
+    "oauth access token is invalid", "oauth token", "not logged in",
+    "please log in", "please login", "run `claude`", "run `agy`", "you are not authenticated",
+)
+
+
+def _raise_if_auth_error(text: str, cli_name: str) -> None:
+    low = (text or "").lower()
+    if any(h in low for h in _AUTH_HINTS):
+        raise RuntimeError(
+            f"'{cli_name}' is not authenticated (its OAuth token likely expired). "
+            f"MCP mode cannot log in headlessly. Fix: open a terminal, run `{cli_name}`, "
+            f"log in, then re-run the scan. (If you started LAVA with sudo, log in as "
+            f"your normal user - the login is per-user, not root.)"
+        )
+
+
+def _auth_preflight(agent: str, exe: str, cli_name: str, cwd: str) -> None:
+    """Cheap check that the agent CLI is logged in, so a stale token fails here
+    (seconds) instead of after the full agent run (minutes)."""
+    if agent in ("antigravity", "mcp_antigravity", "agy", "gemini_cli"):
+        probe = [exe, "--output-format", "json", "-p", "reply with the single word OK"]
+        stdin = None
+    else:
+        probe = [exe, "-p", "--output-format", "json"]
+        stdin = "reply with the single word OK"
+    try:
+        r = subprocess.run(probe, input=stdin, cwd=cwd,
+                           capture_output=True, text=True, timeout=90)
+    except subprocess.TimeoutExpired:
+        raise RuntimeError(
+            f"'{cli_name}' did not respond within 90s on a trivial prompt - it is most "
+            f"likely waiting for an interactive login. Run `{cli_name}` in a terminal, "
+            f"log in, then re-run the scan."
+        )
+    _raise_if_auth_error((r.stderr or "") + (r.stdout or ""), cli_name)
+
+
 def _build_agent_command(
     agent: str, prompt: str, mcp_config_path: str,
 ) -> tuple[list[str], str | None, list[list[str]], list[list[str]]]:
@@ -632,6 +671,8 @@ def classify_via_mcp_agent(
         print(f"    fw-root    : {fw_root}")
         print(f"    verdicts   : {out_path}")
 
+        _auth_preflight(agent, exe, cli_name, agent_cwd)
+
         for pc in pre_cmds:
             subprocess.run(pc, cwd=agent_cwd, capture_output=True, text=True,
                            timeout=120, check=False)
@@ -648,6 +689,8 @@ def classify_via_mcp_agent(
             ) from e
 
         if result.returncode != 0:
+            blob = (result.stderr or "") + (result.stdout or "")
+            _raise_if_auth_error(blob, cli_name)
             tail = (result.stderr or result.stdout or "").strip()[-1500:]
             raise RuntimeError(f"The agent run failed (exit {result.returncode}):\n{tail}")
 
