@@ -52,7 +52,7 @@ class Api:
     _CONFIG_DEFAULTS = {
         "AI_PROVIDER": "local", "GEMINI_API_KEY": "",
         "CUSTOM_GREP_ENABLED": "0", "SCAN_PROFILE": "iot-testing",
-        "S99_SCAN": "narrow", "MCP_BATCH_SIZE": "40",
+        "S99_SCAN": "raw", "MCP_BATCH_SIZE": "40",
     }
 
     def _config_path(self):

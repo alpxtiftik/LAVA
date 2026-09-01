@@ -121,7 +121,7 @@ AI_PROVIDER="local"
 AI_MODEL="qwen2.5-coder:7b"
 CUSTOM_GREP_ENABLED="0"
 SCAN_PROFILE="iot-testing"
-S99_SCAN="narrow"
+S99_SCAN="raw"
 MCP_BATCH_SIZE="40"
 
 # Read a key's value from ai_config.env. Only matches a line-leading "KEY="
@@ -151,7 +151,8 @@ if [ -f "config/ai_config.env" ]; then
     [ -n "$batch_val" ] && MCP_BATCH_SIZE="$batch_val"
 fi
 
-# S99_grepit coverage (parser.py reads LAVA_S99_SCAN): narrow | broad | off
+# S99_grepit coverage (parser.py reads LAVA_S99_SCAN):
+#   raw (default) | light | gated | strict | off
 export LAVA_S99_SCAN="$S99_SCAN"
 
 # MCP batching (classifier.py): MCP_BATCH_SIZE=0 -> one giant turn, else batch size
@@ -198,7 +199,14 @@ fi
 if [ "$CUSTOM_GREP_ENABLED" = "1" ]; then
     echo "[AI_INFO] Custom grep: ON (profile: $SCAN_PROFILE)"
 fi
-echo "[AI_INFO] S99_grepit coverage: $S99_SCAN"
+case "$S99_SCAN" in
+    raw)    echo "[AI_INFO] S99_grepit coverage: raw (all cryptocred matches; only unreadable binary bytes removed)" ;;
+    light)  echo "[AI_INFO] S99_grepit coverage: light (raw minus binary string tables + static web assets)" ;;
+    gated)  echo "[AI_INFO] S99_grepit coverage: gated (light + must look like a real key=value assignment)" ;;
+    strict) echo "[AI_INFO] S99_grepit coverage: strict (only /etc/shadow hashes + PEM private keys)" ;;
+    off)    echo "[AI_INFO] S99_grepit coverage: off" ;;
+    *)      echo "[AI_INFO] S99_grepit coverage: $S99_SCAN" ;;
+esac
 if [[ "$AI_PROVIDER" == mcp* ]]; then
     if [ "$MCP_BATCH_SIZE" = "0" ]; then
         echo "[AI_INFO] MCP batching: OFF (single agent turn)"

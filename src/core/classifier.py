@@ -687,6 +687,10 @@ def classify_via_mcp_agent(
         windows = [(off, batch_size) for off in offs[:-1]] + [(offs[-1], 0)]
         print(f"[+] MCP batching: ~{n_findings} findings -> {len(windows)} batches of "
               f"<= {batch_size} (LAVA_MCP_BATCH_SIZE to resize, LAVA_MCP_NO_BATCH=1 to disable).")
+        if len(windows) >= 12:
+            print(f"[!] {len(windows)} agent runs back-to-back - expect this to take a "
+                  f"long time. If that is too slow, lower the S99 coverage "
+                  f"(S99_SCAN=light / gated / strict) or use AI_PROVIDER=local / gemini.")
 
     prompt = _build_agent_prompt(ground_truth_path)
 

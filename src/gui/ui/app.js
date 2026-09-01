@@ -237,7 +237,10 @@ function setupEventListeners() {
                     });
                     scanProfileSelect.value = config.SCAN_PROFILE || 'iot-testing';
                 }
-                if (s99ScanSelect) s99ScanSelect.value = config.S99_SCAN || 'narrow';
+                if (s99ScanSelect) {
+                    const aliases = { narrow: 'strict', broad: 'gated' };
+                    s99ScanSelect.value = aliases[config.S99_SCAN] || config.S99_SCAN || 'raw';
+                }
                 if (mcpBatchSizeInput) mcpBatchSizeInput.value = (config.MCP_BATCH_SIZE ?? '40');
                 updateProviderVisibility(aiProviderSelect.value);
                 updateGrepVisibility();
@@ -279,7 +282,7 @@ function setupEventListeners() {
                     "GEMINI_API_KEY": geminiKeyInput.value,
                     "CUSTOM_GREP_ENABLED": (customGrepEnabled && customGrepEnabled.checked) ? "1" : "0",
                     "SCAN_PROFILE": scanProfileSelect ? scanProfileSelect.value : "iot-testing",
-                    "S99_SCAN": s99ScanSelect ? s99ScanSelect.value : "narrow",
+                    "S99_SCAN": s99ScanSelect ? s99ScanSelect.value : "raw",
                     "MCP_BATCH_SIZE": mcpBatchSizeInput ? String(parseInt(mcpBatchSizeInput.value, 10) || 0) : "40"
                 });
             }

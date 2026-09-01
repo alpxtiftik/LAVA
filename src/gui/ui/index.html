@@ -113,19 +113,39 @@
 
                             <label class="settings-label">EMBA S99 grepit coverage</label>
                             <select id="s99ScanSelect" class="settings-input">
-                                <option value="narrow">narrow &ndash; /etc/shadow hashes + PEM private keys only (default)</option>
-                                <option value="broad">broad &ndash; also password/secret word-matches, filtered (noisier)</option>
+                                <option value="raw">raw &ndash; everything grepit found (default)</option>
+                                <option value="light">light &ndash; drop binary string tables + web assets</option>
+                                <option value="gated">gated &ndash; only real key=value assignments</option>
+                                <option value="strict">strict &ndash; only shadow hashes + private keys</option>
                                 <option value="off">off &ndash; skip S99 entirely</option>
                             </select>
                             <div class="settings-note">
-                                EMBA's grepit is a source-audit tool &ndash; most of its "cryptocred"
-                                categories just match the word <code>password</code> / <code>secret</code>
-                                anywhere and are almost all false positives on real firmware.
-                                <b>narrow</b> keeps only the unambiguous hits (shadow-file hashes,
-                                <code>-----BEGIN PRIVATE KEY-----</code>). Other <code>KEY=value</code>
-                                leaks are covered by EMBA S107 and by the Custom Grep layer.
-                                <b>broad</b> adds the word-match categories behind a heuristic filter &ndash;
-                                still noisy; use with Local AI / Gemini only, never MCP Agent mode.
+                                EMBA's grepit is a source-audit tool: most of its "cryptocred" categories
+                                match the word <code>password</code>/<code>secret</code> anywhere and can't
+                                tell a hardcoded value from ordinary code. LAVA leaves that call to the AI,
+                                so the levels only differ in how much obvious noise is pre-removed:
+                                <ul style="margin:8px 0 0 0; padding-left:18px;">
+                                  <li><b>raw</b> &ndash; every match. The <i>only</i> thing removed is a
+                                      line that is unreadable binary garbage or not a real file path.
+                                      Highest recall, most noise. On a full router firmware this can be
+                                      2000&ndash;3000 S99 findings (MCP Agent mode: dozens of batches, slow).</li>
+                                  <li><b>light</b> &ndash; raw, minus two things that structurally can't be a
+                                      config credential: matches inside a compiled binary's string table
+                                      (<code>*.so</code>, ELF), and static web assets (minified JS libraries,
+                                      images, <code>.html</code>, locale bundles).</li>
+                                  <li><b>gated</b> &ndash; light, and the line must look like an actual
+                                      assignment (<code>key = "value"</code> / <code>key: value</code> with a
+                                      concrete literal). Drops <code>x="";</code>, <code>if (x=="")</code>,
+                                      <code>pw=$pass</code>, <code>{</code>, <code>%s</code>.</li>
+                                  <li><b>strict</b> &ndash; only the two unambiguous categories:
+                                      <code>/etc/shadow</code> hashes and
+                                      <code>-----BEGIN&nbsp;&hellip;&nbsp;PRIVATE&nbsp;KEY-----</code> blocks,
+                                      each verified. Other <code>key=value</code> leaks are still covered by
+                                      EMBA S107 and the Custom Grep layer.</li>
+                                  <li><b>off</b> &ndash; no S99 at all.</li>
+                                </ul>
+                                Duplicate hits (same file grepped by two extractors) are collapsed at
+                                every level.
                             </div>
 
                             <div style="margin-top: 16px;">
