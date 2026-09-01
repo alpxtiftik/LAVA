@@ -199,12 +199,39 @@
                 <button class="source-tab" data-source="emba">EMBA <span class="source-count" id="src-count-emba">0</span></button>
                 <button class="source-tab" data-source="custom">Grep <span class="source-count" id="src-count-custom">0</span></button>
                 <button class="source-tab" data-source="both">Overlap <span class="source-count" id="src-count-both">0</span></button>
+                <button class="split-toggle" id="splitToggle" title="Show EMBA and Grep results side by side">&#8863; Split</button>
             </div>
 
             <div class="findings-grid" id="findingsGrid">
                 <div class="loading-state">
                     <div class="spinner"></div>
                     <p>Loading verdicts.json...</p>
+                </div>
+            </div>
+
+            <!-- Split view: EMBA findings and Grep findings side by side, each with its own TP/FP filter -->
+            <div class="split-view hidden" id="splitView">
+                <div class="split-col" id="splitColEmba">
+                    <div class="split-col-head">
+                        <span class="split-col-title">EMBA <span class="source-count" id="split-count-emba">0</span></span>
+                        <div class="split-mini-filters" data-col="emba">
+                            <button class="mini-filter active" data-filter="all">All</button>
+                            <button class="mini-filter" data-filter="TP">TP</button>
+                            <button class="mini-filter" data-filter="FP">FP</button>
+                        </div>
+                    </div>
+                    <div class="split-col-body" id="splitBodyEmba"></div>
+                </div>
+                <div class="split-col" id="splitColGrep">
+                    <div class="split-col-head">
+                        <span class="split-col-title">Grep <span class="source-count" id="split-count-grep">0</span></span>
+                        <div class="split-mini-filters" data-col="grep">
+                            <button class="mini-filter active" data-filter="all">All</button>
+                            <button class="mini-filter" data-filter="TP">TP</button>
+                            <button class="mini-filter" data-filter="FP">FP</button>
+                        </div>
+                    </div>
+                    <div class="split-col-body" id="splitBodyGrep"></div>
                 </div>
             </div>
 

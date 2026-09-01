@@ -3,6 +3,8 @@ let totalFindings = 0;
 let term = null;
 let currentLogDir = "";
 let sourceFilter = "all";   // all | emba | custom | both
+let splitView = false;      // EMBA vs Grep side-by-side
+const splitVerdict = { emba: 'all', grep: 'all' };  // per-column TP/FP filter
 
 function deriveSource(finding) {
     if (finding.source) return finding.source;
@@ -125,6 +127,12 @@ function updateSourceTabs() {
     if (tabs) tabs.classList.toggle('hidden', !hasCustom);
     if (!hasCustom && sourceFilter !== 'all') sourceFilter = 'all';
 
+    // Split view only makes sense when there are two sources
+    const splitToggle = document.getElementById('splitToggle');
+    if (splitToggle) splitToggle.style.display = hasCustom ? '' : 'none';
+    if (!hasCustom && splitView) { splitView = false; if (splitToggle) splitToggle.classList.remove('active'); }
+    updateResultsVisibility();
+
     ['all', 'emba', 'custom', 'both'].forEach(s => {
         const el = document.getElementById('src-count-' + s);
         if (el) el.textContent = counts[s] || 0;
@@ -137,47 +145,71 @@ function updateSourceTabs() {
     if (modFilter) modFilter.style.display = (sourceFilter === 'emba' || !hasCustom) ? '' : 'none';
 }
 
+function buildFindingCard(finding) {
+    const isTP = finding.predicted_verdict === 'TP';
+    const confPct = Math.round((finding.confidence || 0) * 100);
+
+    const card = document.createElement('div');
+    card.className = `finding-card verdict-${finding.predicted_verdict.toLowerCase()}`;
+
+    const src = deriveSource(finding);
+    const srcLabel = { emba: 'EMBA', custom: 'GREP', both: 'BOTH' }[src] || src;
+
+    card.innerHTML = `
+        <div class="card-header">
+            <span class="file-path">${escapeHtml(finding.file_path)}${finding.line_no ? ':' + finding.line_no : ''}</span>
+            <span style="display:flex; gap:6px; align-items:center;">
+                <span class="source-chip source-${src}">${srcLabel}</span>
+                <span class="verdict-badge badge-${finding.predicted_verdict.toLowerCase()}">${finding.predicted_verdict}</span>
+            </span>
+        </div>
+        <div class="snippet">${escapeHtml(finding.matched_content || '')}</div>
+        <div class="card-footer">
+            <span>Modules: ${(finding.found_by_modules || [finding.module || 'Unknown']).join(', ')}</span>
+            <div class="confidence">
+                <span>Conf: ${confPct}%</span>
+                <div class="confidence-bar">
+                    <div class="confidence-fill" style="width: ${confPct}%; background: ${isTP ? 'var(--danger)' : 'var(--success)'}"></div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    card.addEventListener('click', () => openModal(finding));
+    return card;
+}
+
 function renderFindings(findings) {
     const grid = document.getElementById('findingsGrid');
     grid.innerHTML = '';
-
-    findings.forEach(finding => {
-        const isTP = finding.predicted_verdict === 'TP';
-        const confPct = Math.round((finding.confidence || 0) * 100);
-        
-        const card = document.createElement('div');
-        card.className = `finding-card verdict-${finding.predicted_verdict.toLowerCase()}`;
-
-        const src = deriveSource(finding);
-        const srcLabel = { emba: 'EMBA', custom: 'GREP', both: 'BOTH' }[src] || src;
-
-        card.innerHTML = `
-            <div class="card-header">
-                <span class="file-path">${escapeHtml(finding.file_path)}${finding.line_no ? ':' + finding.line_no : ''}</span>
-                <span style="display:flex; gap:6px; align-items:center;">
-                    <span class="source-chip source-${src}">${srcLabel}</span>
-                    <span class="verdict-badge badge-${finding.predicted_verdict.toLowerCase()}">${finding.predicted_verdict}</span>
-                </span>
-            </div>
-            <div class="snippet">${escapeHtml(finding.matched_content || '')}</div>
-            <div class="card-footer">
-                <span>Modules: ${(finding.found_by_modules || [finding.module || 'Unknown']).join(', ')}</span>
-                <div class="confidence">
-                    <span>Conf: ${confPct}%</span>
-                    <div class="confidence-bar">
-                        <div class="confidence-fill" style="width: ${confPct}%; background: ${isTP ? 'var(--danger)' : 'var(--success)'}"></div>
-                    </div>
-                </div>
-            </div>
-        `;
-
-        card.addEventListener('click', () => openModal(finding));
-        grid.appendChild(card);
-    });
-
+    findings.forEach(finding => grid.appendChild(buildFindingCard(finding)));
     if (findings.length === 0) {
         grid.innerHTML = '<div class="loading-state"><p>No findings match your criteria.</p></div>';
     }
+}
+
+// Split view: EMBA findings (emba + both) on the left, Grep findings (custom +
+// both) on the right; global search applies, each column has its own TP/FP filter.
+function renderSplitColumn(colKey, findings) {
+    const body = document.getElementById(colKey === 'emba' ? 'splitBodyEmba' : 'splitBodyGrep');
+    const countEl = document.getElementById(colKey === 'emba' ? 'split-count-emba' : 'split-count-grep');
+    const want = colKey === 'emba' ? ['emba', 'both'] : ['custom', 'both'];
+    const vf = splitVerdict[colKey];
+
+    const rows = findings.filter(f => want.includes(deriveSource(f)))
+                         .filter(f => vf === 'all' || f.predicted_verdict === vf);
+    if (countEl) countEl.textContent = rows.length;
+
+    body.innerHTML = '';
+    rows.forEach(f => body.appendChild(buildFindingCard(f)));
+    if (rows.length === 0) {
+        body.innerHTML = '<div class="split-empty">No findings match.</div>';
+    }
+}
+
+function renderSplit(searchFiltered) {
+    renderSplitColumn('emba', searchFiltered);
+    renderSplitColumn('grep', searchFiltered);
 }
 
 function setupEventListeners() {
@@ -298,8 +330,24 @@ function setupEventListeners() {
             btn.classList.add('active');
             const modFilter = document.getElementById('moduleFilter');
             if (modFilter) modFilter.style.display = sourceFilter === 'emba' ? '' : 'none';
-            const verdictFilter = document.querySelector('.filter-btn.active').dataset.filter;
-            filterData(document.getElementById('searchInput').value, verdictFilter);
+            reapplyFilters();
+        });
+    });
+
+    // Split view toggle
+    const splitToggle = document.getElementById('splitToggle');
+    if (splitToggle) splitToggle.addEventListener('click', () => setSplitView(!splitView));
+
+    // Per-column TP/FP filters inside the split view
+    document.querySelectorAll('.split-mini-filters').forEach(group => {
+        const col = group.dataset.col; // 'emba' | 'grep'
+        group.querySelectorAll('.mini-filter').forEach(btn => {
+            btn.addEventListener('click', () => {
+                group.querySelectorAll('.mini-filter').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                splitVerdict[col] = btn.dataset.filter;
+                reapplyFilters();
+            });
         });
     });
 
@@ -460,21 +508,12 @@ function setupEventListeners() {
     const toggleBtn = document.getElementById('toggleViewBtn');
     if (toggleBtn) {
         toggleBtn.addEventListener('click', () => {
-            const gridView = document.getElementById('findingsGrid');
             const rawView = document.getElementById('rawJsonView');
-            
-            if (gridView.classList.contains('hidden')) {
-                // Switch to Grid View
-                gridView.classList.remove('hidden');
-                rawView.classList.add('hidden');
-                toggleBtn.textContent = '{} View Raw JSON';
-            } else {
-                // Switch to Raw View
-                gridView.classList.add('hidden');
-                rawView.classList.remove('hidden');
-                toggleBtn.textContent = '⊞ View Cards';
-                updateRawJsonView();
-            }
+            const showRaw = rawView.classList.contains('hidden');
+            rawView.classList.toggle('hidden', !showRaw);
+            toggleBtn.textContent = showRaw ? '⊞ View Cards' : '{} View Raw JSON';
+            if (showRaw) updateRawJsonView();
+            updateResultsVisibility();
         });
     }
 }
@@ -487,16 +526,24 @@ function updateRawJsonView() {
 }
 
 function filterData(searchTerm, verdictFilter) {
-    const term = searchTerm.toLowerCase();
+    const term = (searchTerm || '').toLowerCase();
+    const matchesSearch = f => (f.file_path || '').toLowerCase().includes(term) ||
+                               (f.matched_content || '').toLowerCase().includes(term);
+
+    if (splitView) {
+        // Split mode: only the global search applies here; each column owns its
+        // own TP/FP filter, and source/module filters are hidden.
+        renderSplit(allFindings.filter(matchesSearch));
+        return;
+    }
+
     let modFilterVal = 'all';
     const modFilter = document.getElementById('moduleFilter');
     if (modFilter) {
         modFilterVal = modFilter.value;
     }
-    
+
     const filtered = allFindings.filter(f => {
-        const matchesSearch = (f.file_path || '').toLowerCase().includes(term) ||
-                              (f.matched_content || '').toLowerCase().includes(term);
         const matchesVerdict = verdictFilter === 'all' || f.predicted_verdict === verdictFilter;
 
         const mods = f.found_by_modules || (f.module ? [f.module] : []);
@@ -505,10 +552,44 @@ function filterData(searchTerm, verdictFilter) {
         const src = deriveSource(f);
         const matchesSource = sourceFilter === 'all' || src === sourceFilter;
 
-        return matchesSearch && matchesVerdict && matchesModule && matchesSource;
+        return matchesSearch(f) && matchesVerdict && matchesModule && matchesSource;
     });
 
     renderFindings(filtered);
+}
+
+function currentVerdictFilter() {
+    const b = document.querySelector('.filter-btn.active');
+    return b ? b.dataset.filter : 'all';
+}
+
+function reapplyFilters() {
+    const s = document.getElementById('searchInput');
+    filterData(s ? s.value : '', currentVerdictFilter());
+}
+
+// Show grid / split / raw depending on state. Raw JSON view wins when open.
+function updateResultsVisibility() {
+    const grid = document.getElementById('findingsGrid');
+    const split = document.getElementById('splitView');
+    const raw = document.getElementById('rawJsonView');
+    const rawOpen = raw && !raw.classList.contains('hidden');
+
+    if (grid) grid.classList.toggle('hidden', rawOpen || splitView);
+    if (split) split.classList.toggle('hidden', rawOpen || !splitView);
+
+    const tabs = document.getElementById('sourceTabs');
+    const controls = document.querySelector('.controls');
+    if (tabs) tabs.classList.toggle('split-mode', splitView);
+    if (controls) controls.classList.toggle('split-mode', splitView);
+}
+
+function setSplitView(on) {
+    splitView = on;
+    const btn = document.getElementById('splitToggle');
+    if (btn) btn.classList.toggle('active', on);
+    updateResultsVisibility();
+    reapplyFilters();
 }
 
 function openModal(finding) {

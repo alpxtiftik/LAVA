@@ -681,3 +681,58 @@ pre {
 }
 .source-custom { color: var(--accent); border-color: var(--accent); }
 .source-both { color: #ffb000; border-color: #ffb000; }
+
+/* ------------------------------------------------------------------ */
+/* Split view (EMBA vs Grep, side by side)                             */
+/* ------------------------------------------------------------------ */
+.split-toggle {
+    margin-left: auto; align-self: center;
+    padding: 6px 14px; border: 1px solid var(--border-color);
+    background: var(--bg-tertiary); color: var(--text-secondary);
+    cursor: pointer; font-family: inherit; font-size: 12px;
+    transition: all 0.2s;
+}
+.split-toggle:hover { color: var(--text-primary); border-color: var(--border-highlight); }
+.split-toggle.active {
+    background: var(--text-primary); color: var(--bg-primary); border-color: var(--text-primary);
+}
+/* In split mode the source tabs + global verdict filters are replaced by the per-column ones */
+.source-tabs.split-mode .source-tab { display: none; }
+.controls.split-mode .filters .filter-btn,
+.controls.split-mode #moduleFilter { display: none !important; }
+
+.split-view { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.split-view.hidden { display: none !important; }
+.split-col {
+    border: 1px solid var(--border-color);
+    display: flex; flex-direction: column; min-width: 0;
+    max-height: 72vh;
+}
+.split-col-head {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 8px; padding: 10px 12px;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-tertiary);
+}
+.split-col-title { font-size: 13px; color: var(--text-primary); letter-spacing: 1px; }
+.split-mini-filters { display: flex; gap: 4px; }
+.mini-filter {
+    padding: 3px 10px; border: 1px solid var(--border-color);
+    background: var(--bg-secondary); color: var(--text-secondary);
+    cursor: pointer; font-family: inherit; font-size: 11px; transition: all 0.15s;
+}
+.mini-filter:hover { color: var(--text-primary); }
+.mini-filter.active { background: var(--text-primary); color: var(--bg-primary); border-color: var(--text-primary); }
+.split-col-body {
+    overflow-y: auto; overflow-x: hidden;
+    padding: 12px; display: flex; flex-direction: column; gap: 12px;
+    flex: 1;
+}
+.split-col-body .finding-card { padding: 1rem; }
+.split-col-body .finding-card .file-path { word-break: break-all; }
+.split-empty { color: var(--text-secondary); font-size: 13px; padding: 20px; text-align: center; }
+
+@media (max-width: 1100px) {
+    .split-view { grid-template-columns: 1fr; }
+    .split-col { max-height: none; }
+}
