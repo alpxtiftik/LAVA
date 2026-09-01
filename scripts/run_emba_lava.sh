@@ -20,12 +20,50 @@ if [ -z "$FirmwarePath" ]; then
     exit 2
 fi
 
+# EMBA's check_path_input() only accepts [a-zA-Z0-9./_~-] in the -f and -l
+# paths and aborts with "Invalid input detected - paths aka ~/abc/def123/ASDF
+# only" on anything else (spaces, [], (), +, ...). TP-Link/vendor firmware file
+# names routinely contain '[...]'. Sanitize both paths before handing them to EMBA.
+_path_ok() { case "$1" in *[!a-zA-Z0-9./_~-]*) return 1 ;; *) return 0 ;; esac; }
+_sanitize() { printf '%s' "$1" | sed 's/[^a-zA-Z0-9._-]/_/g'; }
+
+CLEANUP_FW=""
+_cleanup() {
+    [ -n "${WATCHDOG_PID:-}" ] && kill "$WATCHDOG_PID" 2>/dev/null
+    [ -n "$CLEANUP_FW" ] && [ -f "$CLEANUP_FW" ] && rm -f "$CLEANUP_FW"
+}
+trap _cleanup EXIT
+
+FIRMWARE_DIR=$(dirname "$FirmwarePath")
+FIRMWARE_BASENAME=$(basename "$FirmwarePath")
+TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+
+# --- firmware path: hand EMBA a copy at a clean path if needed ---------------
+EMBA_FW="$FirmwarePath"
+if ! _path_ok "$FirmwarePath"; then
+    if _path_ok "$FIRMWARE_DIR"; then _safe_dir="$FIRMWARE_DIR"; else _safe_dir="${TMPDIR:-/tmp}"; fi
+    EMBA_FW="${_safe_dir}/lava_fw_${TIMESTAMP}_$(_sanitize "$FIRMWARE_BASENAME")"
+    echo "[*] Firmware path has characters EMBA rejects; using a clean copy:"
+    echo "    $EMBA_FW"
+    ln -f "$FirmwarePath" "$EMBA_FW" 2>/dev/null || cp -f "$FirmwarePath" "$EMBA_FW" || {
+        echo "Error: could not create a sanitized copy of the firmware."; exit 2; }
+    CLEANUP_FW="$EMBA_FW"
+fi
+
+# --- log dir: keep the user's location, sanitize the leaf name --------------
 if [ -z "$LogDir" ]; then
-    FIRMWARE_DIR=$(dirname "$FirmwarePath")
-    FIRMWARE_BASENAME=$(basename "$FirmwarePath")
-    TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-    LogDir="${FIRMWARE_DIR}/lava_scan_${FIRMWARE_BASENAME}_${TIMESTAMP}"
+    LogDir="${FIRMWARE_DIR}/lava_scan_$(_sanitize "$FIRMWARE_BASENAME")_${TIMESTAMP}"
     echo "[*] -LogDir not given, using: $LogDir"
+fi
+if ! _path_ok "$LogDir"; then
+    _ld_parent=$(dirname "$LogDir"); _ld_leaf=$(basename "$LogDir")
+    if _path_ok "$_ld_parent"; then
+        LogDir="${_ld_parent}/$(_sanitize "$_ld_leaf")"
+    else
+        LogDir="${HOME}/.cache/lava/$(_sanitize "$_ld_leaf")"
+        mkdir -p "$(dirname "$LogDir")"
+    fi
+    echo "[*] Log directory had characters EMBA rejects; using: $LogDir"
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
@@ -113,6 +151,7 @@ fi
 
 echo "[1/2] Running EMBA..."
 echo "Firmware: $FirmwarePath"
+[ "$EMBA_FW" != "$FirmwarePath" ] && echo "         (passed to EMBA as: $EMBA_FW)"
 echo "Parent directory (LAVA & EMBA): $LogDir"
 echo "EMBA directory: $EMBA_PATH"
 
@@ -170,11 +209,10 @@ _entropy_watchdog() {
 
 _entropy_watchdog &
 WATCHDOG_PID=$!
-trap '[ -n "${WATCHDOG_PID:-}" ] && kill "$WATCHDOG_PID" 2>/dev/null' EXIT
 
 # Run EMBA directly. Python's PTY will handle the terminal dimensions and UTF-8 base64 encoding.
 cd "$emba_dir"
-sudo LC_ALL="en_US.UTF-8" LANG="en_US.UTF-8" ./emba -f "$FirmwarePath" -l "$EMBA_DIR" $PROFILE_ARG
+sudo LC_ALL="en_US.UTF-8" LANG="en_US.UTF-8" ./emba -f "$EMBA_FW" -l "$EMBA_DIR" $PROFILE_ARG
 EMBA_RC=$?
 
 kill "$WATCHDOG_PID" 2>/dev/null; WATCHDOG_PID=""

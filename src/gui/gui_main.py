@@ -123,9 +123,16 @@ class Api:
             log_dir = None
             if mode == "firmware":
                 sh_path = os.path.join(APP_DIR, "scripts", "run_emba_lava.sh")
-                base_log_dir = os.path.join(os.path.dirname(input_path), "lava_scan_" + os.path.basename(input_path))
                 timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-                log_dir = f"{base_log_dir}_{timestamp}"
+                # Mirror run_emba_lava.sh: EMBA rejects anything outside
+                # [a-zA-Z0-9./_~-] in its -l path, so the leaf name is sanitized;
+                # if the parent dir itself is not EMBA-safe, relocate to ~/.cache/lava.
+                parent = os.path.dirname(input_path)
+                leaf = "lava_scan_" + re.sub(r"[^A-Za-z0-9._-]", "_", os.path.basename(input_path)) + "_" + timestamp
+                if re.search(r"[^A-Za-z0-9./_~-]", parent):
+                    log_dir = os.path.join(os.path.expanduser("~/.cache/lava"), leaf)
+                else:
+                    log_dir = os.path.join(parent, leaf)
                 cmd = ["bash", sh_path, "-FirmwarePath", input_path, "-LogDir", log_dir]
             else:
                 sh_path = os.path.join(APP_DIR, "scripts", "run_lava.sh")
