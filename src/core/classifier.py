@@ -420,7 +420,9 @@ You are connected to the LAVA MCP server. Its tools are prefixed `mcp__lava__`
 (a.k.a. the "lava" server). Work fully autonomously - do NOT ask questions.
 
 Steps:
-1. Call `list_findings` to get every finding and its `finding_id`.
+1. Call `list_findings` to get the findings you must classify, each with its
+   `finding_id`. For large firmware this is a WINDOW of the full set (e.g.
+   "findings 41-80 of 350") - classify exactly what it returns, no more, no less.
 2. Call `get_hardcoded_keys_module_output` ONCE to read the raw EMBA module output.
 3. Decide TP or FP for EVERY finding using the rules above. For most findings you
    already have enough: file_path, matched_content, candidate_value, source and
@@ -439,7 +441,8 @@ When all verdicts are written, stop.
 
 
 def _mcp_config_dict(log_dir: str, fw_root: str, verdicts_out: str,
-                     custom_findings: str | None = None) -> dict:
+                     custom_findings: str | None = None,
+                     findings_offset: int = 0, findings_limit: int = 0) -> dict:
     args = [
         str(MCP_SERVER_PATH),
         "--log-dir", log_dir,
@@ -448,6 +451,9 @@ def _mcp_config_dict(log_dir: str, fw_root: str, verdicts_out: str,
     ]
     if custom_findings:
         args += ["--custom-findings", custom_findings]
+    if findings_offset > 0 or (findings_limit and findings_limit > 0):
+        args += ["--findings-offset", str(max(0, findings_offset)),
+                 "--findings-limit", str(findings_limit if findings_limit and findings_limit > 0 else 0)]
     return {"mcpServers": {"lava": {"command": sys.executable, "args": args}}}
 
 
@@ -651,40 +657,57 @@ def classify_via_mcp_agent(
     if not MCP_SERVER_PATH.exists():
         raise RuntimeError(f"MCP server not found: {MCP_SERVER_PATH}")
 
-    # The MCP agent gets EVERY finding in one context. On real firmware EMBA's
-    # S99_grepit alone can produce 1000+ findings and the agent CLI times out.
+    # The MCP agent gets its findings in ONE context per run. On real firmware
+    # EMBA can produce hundreds/1000+ findings and a single agent turn times out.
+    # Fix: split the findings into windows and run the agent once per window
+    # (each server instance exposes only findings[offset:offset+limit] and every
+    # run appends to the same verdicts.json). This mirrors how local/gemini walk
+    # the findings one at a time, just in chunks.
     n_findings = _estimate_finding_count(Path(log_dir), custom_findings)
-    if n_findings > MCP_MAX_FINDINGS and os.environ.get("LAVA_MCP_FORCE") != "1":
-        raise RuntimeError(
-            f"This scan has ~{n_findings} findings (mostly from EMBA's S99_grepit). "
-            f"MCP agent mode ({agent}) sends them all to the agent in one turn and "
-            f"reliably times out above ~{MCP_MAX_FINDINGS}. Use AI_PROVIDER=local or "
-            f"gemini for this firmware (they classify one finding at a time), or set "
-            f"LAVA_MCP_FORCE=1 to try anyway."
-        )
-    if n_findings > 60:
-        print(f"[!] NOTE: ~{n_findings} findings - the MCP agent run may be slow or flaky. "
-              "local / gemini are steadier at this size.")
+    batch_size = max(1, int(os.environ.get("LAVA_MCP_BATCH_SIZE", "40")))
+    batching_disabled = os.environ.get("LAVA_MCP_NO_BATCH") == "1"
+    use_batching = (not batching_disabled) and n_findings > batch_size
+
+    if not use_batching:
+        if n_findings > MCP_MAX_FINDINGS and os.environ.get("LAVA_MCP_FORCE") != "1":
+            raise RuntimeError(
+                f"This scan has ~{n_findings} findings and MCP batching is disabled "
+                f"(LAVA_MCP_NO_BATCH=1). One agent turn reliably times out above "
+                f"~{MCP_MAX_FINDINGS}. Remove LAVA_MCP_NO_BATCH to batch it, use "
+                f"AI_PROVIDER=local / gemini, or set LAVA_MCP_FORCE=1 to try anyway."
+            )
+        if n_findings > 60:
+            print(f"[!] NOTE: ~{n_findings} findings in a single agent turn - may be slow "
+                  "or flaky. Unset LAVA_MCP_NO_BATCH to process them in batches.")
+        windows = [(0, 0)]  # (offset, limit); limit 0 = whole set
+    else:
+        offs = list(range(0, n_findings, batch_size))
+        # last window uses limit 0 (= "to the end") so a small drift between the
+        # estimate and the server's real registry size can't drop findings.
+        windows = [(off, batch_size) for off in offs[:-1]] + [(offs[-1], 0)]
+        print(f"[+] MCP batching: ~{n_findings} findings -> {len(windows)} batches of "
+              f"<= {batch_size} (LAVA_MCP_BATCH_SIZE to resize, LAVA_MCP_NO_BATCH=1 to disable).")
 
     prompt = _build_agent_prompt(ground_truth_path)
 
     tmpdir = tempfile.mkdtemp(prefix="lava_mcp_")
     post_cmds: list[list[str]] = []  # so `finally` can always reach it
+    result = None
     try:
         # The agent can drop temporary analysis files into its working directory
         # ('workspace'); we run it in this isolated folder so it does not litter
         # the LAVA repo root.
         agent_cwd = os.path.join(tmpdir, "workspace")
         os.makedirs(agent_cwd, exist_ok=True)
-        mcp_config_path = os.path.join(tmpdir, "mcp_config.json")
-        Path(mcp_config_path).write_text(
+
+        # Resolve the CLI and run the (slow) auth preflight ONCE, up front.
+        probe_config = os.path.join(tmpdir, "probe_config.json")
+        Path(probe_config).write_text(
             json.dumps(_mcp_config_dict(log_dir, fw_root, out_path, custom_findings), indent=2),
             encoding="utf-8",
         )
-
-        cmd, stdin_text, pre_cmds, _post = _build_agent_command(agent, prompt, mcp_config_path)
-        post_cmds = _post
-        exe = cmd[0]
+        probe_cmd, _, _, _ = _build_agent_command(agent, prompt, probe_config)
+        exe = probe_cmd[0]
         cli_name = Path(exe).name
         if not ((os.path.isabs(exe) and os.path.isfile(exe)) or shutil.which(exe)):
             raise RuntimeError(
@@ -702,37 +725,62 @@ def classify_via_mcp_agent(
 
         _auth_preflight(agent, exe, cli_name, agent_cwd)
 
-        for pc in pre_cmds:
-            subprocess.run(pc, cwd=agent_cwd, capture_output=True, text=True,
-                           timeout=120, check=False)
-        try:
-            result = subprocess.run(
-                cmd, cwd=agent_cwd, input=stdin_text, capture_output=True, text=True,
-                timeout=timeout_seconds,
-            )
-        except subprocess.TimeoutExpired as e:
-            raise RuntimeError(
-                f"The agent did not finish within {timeout_seconds}s and was terminated "
-                f"(raise it with AGENT_TIMEOUT_SECONDS in ai_config.env or the "
-                f"LAVA_AGENT_TIMEOUT_SECONDS env var)."
-            ) from e
+        for i, (w_off, w_lim) in enumerate(windows, start=1):
+            if use_batching:
+                hi = (w_off + w_lim) if w_lim else n_findings
+                print(f"\n[+] MCP batch {i}/{len(windows)} - findings "
+                      f"{w_off + 1}-{hi} of ~{n_findings}")
 
-        if result.returncode != 0:
-            blob = (result.stderr or "") + (result.stdout or "")
-            _raise_if_auth_error(blob, cli_name)
-            tail = (result.stderr or result.stdout or "").strip()[-1500:]
-            raise RuntimeError(f"The agent run failed (exit {result.returncode}):\n{tail}")
+            mcp_config_path = os.path.join(tmpdir, f"mcp_config_{i}.json")
+            Path(mcp_config_path).write_text(
+                json.dumps(_mcp_config_dict(log_dir, fw_root, out_path, custom_findings,
+                                            findings_offset=w_off, findings_limit=w_lim),
+                           indent=2),
+                encoding="utf-8",
+            )
+            cmd, stdin_text, pre_cmds, post = _build_agent_command(agent, prompt, mcp_config_path)
+            post_cmds = post
+
+            for pc in pre_cmds:
+                subprocess.run(pc, cwd=agent_cwd, capture_output=True, text=True,
+                               timeout=120, check=False)
+            try:
+                result = subprocess.run(
+                    cmd, cwd=agent_cwd, input=stdin_text, capture_output=True, text=True,
+                    timeout=timeout_seconds,
+                )
+            except subprocess.TimeoutExpired as e:
+                where = f" on batch {i}/{len(windows)}" if use_batching else ""
+                hint = ("lower LAVA_MCP_BATCH_SIZE, or " if use_batching else "")
+                raise RuntimeError(
+                    f"The agent did not finish{where} within {timeout_seconds}s and was "
+                    f"terminated ({hint}raise AGENT_TIMEOUT_SECONDS in ai_config.env / the "
+                    f"LAVA_AGENT_TIMEOUT_SECONDS env var)."
+                ) from e
+            finally:
+                for pc in post:
+                    subprocess.run(pc, capture_output=True, text=True, timeout=120, check=False)
+
+            if result.returncode != 0:
+                blob = (result.stderr or "") + (result.stdout or "")
+                _raise_if_auth_error(blob, cli_name)
+                where = f" on batch {i}/{len(windows)}" if use_batching else ""
+                tail = (result.stderr or result.stdout or "").strip()[-1500:]
+                raise RuntimeError(f"The agent run failed{where} (exit {result.returncode}):\n{tail}")
 
         try:
             count = _validate_verdicts_schema(out_path)
         except RuntimeError as e:
             # The agent returned exit 0 but wrote no verdicts - show what it said.
-            out_tail = (result.stdout or "").strip()[-2000:]
-            err_tail = (result.stderr or "").strip()[-800:]
+            out_tail = (result.stdout or "").strip()[-2000:] if result else ""
+            err_tail = (result.stderr or "").strip()[-800:] if result else ""
             raise RuntimeError(
                 f"{e}\n--- agent ({agent}) stdout ---\n{out_tail}\n"
                 f"--- agent stderr ---\n{err_tail}"
             ) from e
+        if use_batching and count < n_findings:
+            print(f"[!] NOTE: {count} verdicts for ~{n_findings} findings - some batches "
+                  "may have left findings unclassified.")
         print(f"[OK] The MCP agent wrote {count} verdicts -> {out_path}")
     finally:
         for pc in post_cmds:

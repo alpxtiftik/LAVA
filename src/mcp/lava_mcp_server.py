@@ -54,6 +54,12 @@ class ServerConfig:
     log_dir: Path = Path(".")
     fw_root: Path = Path(".")
     verdicts_out: Path = Path("verdicts.json")
+    # Windowing: when the classifier batches a large firmware it starts one
+    # server per chunk. total_findings/window_start/window_end describe the slice
+    # this server instance is responsible for (0/N/N = the whole set).
+    total_findings: int = 0
+    window_start: int = 0
+    window_end: int = 0
 
 
 CFG = ServerConfig()
@@ -265,9 +271,13 @@ mcp = FastMCP("lava")
 
 @mcp.tool()
 def list_findings() -> list[dict]:
-    """Returns EVERY hardcoded-credential finding for this firmware (with its
-    finding_id). This is the starting point: every finding_id must eventually
-    receive a submit_verdict / submit_all_verdicts call.
+    """Returns the hardcoded-credential findings you must classify (each with its
+    finding_id). This is the starting point: every finding_id it returns must
+    eventually receive a submit_verdict / submit_all_verdicts call.
+
+    For large firmware LAVA processes the findings in batches, so this may return
+    a WINDOW of the full set (e.g. "findings 41-80 of 350"). Classify exactly
+    what is returned - the remaining findings are handled by other batches.
 
     Fields: finding_id, file_path, matched_content, found_by_modules,
     corroboration_count, line_no, source ("emba" = EMBA modules only,
@@ -461,6 +471,10 @@ def main() -> None:
                     help="verdicts.json output path (default: <cwd>/verdicts.json)")
     ap.add_argument("--custom-findings", default=None,
                     help="custom_scan.py output (custom_findings.json) to fold into the registry")
+    ap.add_argument("--findings-offset", type=int, default=0,
+                    help="expose only findings[offset:offset+limit] (large-firmware batching)")
+    ap.add_argument("--findings-limit", type=int, default=0,
+                    help="batch size for --findings-offset (0 = no limit)")
     args = ap.parse_args()
 
     CFG.log_dir = Path(args.log_dir).expanduser().resolve()
@@ -475,11 +489,26 @@ def main() -> None:
     if not CFG.fw_root.exists():
         log(f"WARNING: --fw-root does not exist: {CFG.fw_root}")
 
+    full_registry = build_registry(CFG.log_dir, custom_findings)
+    CFG.total_findings = len(full_registry)
+
     REGISTRY.clear()
-    REGISTRY.update(build_registry(CFG.log_dir, custom_findings))
-    write_findings_snapshot()
-    log(f"registry: {len(REGISTRY)} findings | log-dir={CFG.log_dir} | fw-root={CFG.fw_root} "
-        f"| verdicts-out={CFG.verdicts_out}")
+    REGISTRY.update(full_registry)
+    write_findings_snapshot()  # enriched_findings.json always holds the FULL set
+
+    off = max(0, args.findings_offset)
+    lim = args.findings_limit if args.findings_limit and args.findings_limit > 0 else CFG.total_findings
+    CFG.window_start = min(off, CFG.total_findings)
+    CFG.window_end = min(off + lim, CFG.total_findings)
+    if (CFG.window_start, CFG.window_end) != (0, CFG.total_findings):
+        window_ids = list(full_registry)[CFG.window_start:CFG.window_end]
+        REGISTRY.clear()
+        REGISTRY.update({fid: full_registry[fid] for fid in window_ids})
+        log(f"registry WINDOW: findings {CFG.window_start + 1}-{CFG.window_end} "
+            f"of {CFG.total_findings} | log-dir={CFG.log_dir} | verdicts-out={CFG.verdicts_out}")
+    else:
+        log(f"registry: {len(REGISTRY)} findings | log-dir={CFG.log_dir} | fw-root={CFG.fw_root} "
+            f"| verdicts-out={CFG.verdicts_out}")
 
     mcp.run()  # stdio transport (default)
 

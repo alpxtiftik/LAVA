@@ -47,10 +47,12 @@ class Api:
             print(f"Dialog error: {e}")
         return ""
 
-    _CONFIG_KEYS = ("AI_PROVIDER", "GEMINI_API_KEY", "CUSTOM_GREP_ENABLED", "SCAN_PROFILE")
+    _CONFIG_KEYS = ("AI_PROVIDER", "GEMINI_API_KEY", "CUSTOM_GREP_ENABLED",
+                    "SCAN_PROFILE", "S99_SCAN", "MCP_BATCH_SIZE")
     _CONFIG_DEFAULTS = {
         "AI_PROVIDER": "local", "GEMINI_API_KEY": "",
         "CUSTOM_GREP_ENABLED": "0", "SCAN_PROFILE": "iot-testing",
+        "S99_SCAN": "narrow", "MCP_BATCH_SIZE": "40",
     }
 
     def _config_path(self):

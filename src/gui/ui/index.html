@@ -63,6 +63,7 @@
                         <h2>Settings</h2>
                         <button class="settings-nav-item active" data-panel="ai">AI Provider</button>
                         <button class="settings-nav-item" data-panel="grep">Custom Grep</button>
+                        <button class="settings-nav-item" data-panel="advanced">Advanced</button>
                     </div>
                     <div class="settings-body">
                         <div class="settings-panel active" id="panel-ai">
@@ -103,6 +104,35 @@
                                 <div class="settings-note">
                                     Profiles are JSON files in <code>config/scan_profiles/</code>.
                                     Put your own in <code>config/scan_profiles/local/</code>.
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="settings-panel" id="panel-advanced">
+                            <h3>Advanced</h3>
+
+                            <label class="settings-label">EMBA S99 grepit coverage</label>
+                            <select id="s99ScanSelect" class="settings-input">
+                                <option value="narrow">narrow &ndash; real KEY=value / private keys only (default)</option>
+                                <option value="broad">broad &ndash; also wide word-matches (higher recall, noisier)</option>
+                                <option value="off">off &ndash; skip S99 entirely</option>
+                            </select>
+                            <div class="settings-note">
+                                <b>narrow</b> keeps only lines where EMBA's regex bank matched an actual
+                                assignment (<code>password=</code>, <code>secret:</code>, PEM private keys).
+                                <b>broad</b> adds the bare word-matches (<code>Authentication</code>,
+                                <code>pass.?wo?r?d</code>, <code>encrypt&hellip;key</code>, <code>BEGIN CERTIFICATE</code>) &ndash;
+                                hundreds of extra hits on real firmware, almost all noise. Use <b>broad</b>
+                                only with Local AI / Gemini, never with MCP Agent mode.
+                            </div>
+
+                            <div style="margin-top: 16px;">
+                                <label class="settings-label">MCP Agent batch size</label>
+                                <input type="number" id="mcpBatchSizeInput" min="0" max="500" step="10" class="settings-input">
+                                <div class="settings-note">
+                                    In MCP Agent mode the findings are sent to the agent in batches of this
+                                    size (one agent run per batch), which prevents the single-turn timeout on
+                                    large firmware. <code>0</code> disables batching (one giant turn).
                                 </div>
                             </div>
                         </div>

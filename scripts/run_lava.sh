@@ -74,6 +74,8 @@ AI_PROVIDER="local"
 AI_MODEL="qwen2.5-coder:7b"
 CUSTOM_GREP_ENABLED="0"
 SCAN_PROFILE="iot-testing"
+S99_SCAN="narrow"
+MCP_BATCH_SIZE="40"
 
 # Read a key's value from ai_config.env. Only matches a line-leading "KEY="
 # (skips comment lines such as "# AI_PROVIDER options:"), takes the first
@@ -90,12 +92,26 @@ if [ -f "config/ai_config.env" ]; then
     mod_val=$(read_env_val LOCAL_AI_MODEL config/ai_config.env)
     grep_val=$(read_env_val CUSTOM_GREP_ENABLED config/ai_config.env)
     profile_val=$(read_env_val SCAN_PROFILE config/ai_config.env)
+    s99_val=$(read_env_val S99_SCAN config/ai_config.env)
+    batch_val=$(read_env_val MCP_BATCH_SIZE config/ai_config.env)
     [ -n "$ip_val" ] && AI_IP="$ip_val"
     [ -n "$port_val" ] && AI_PORT="$port_val"
     [ -n "$prov_val" ] && AI_PROVIDER="$prov_val"
     [ -n "$mod_val" ] && AI_MODEL="$mod_val"
     [ -n "$grep_val" ] && CUSTOM_GREP_ENABLED="$grep_val"
     [ -n "$profile_val" ] && SCAN_PROFILE="$profile_val"
+    [ -n "$s99_val" ] && S99_SCAN="$s99_val"
+    [ -n "$batch_val" ] && MCP_BATCH_SIZE="$batch_val"
+fi
+
+# S99_grepit coverage (parser.py reads LAVA_S99_SCAN): narrow | broad | off
+export LAVA_S99_SCAN="$S99_SCAN"
+
+# MCP batching (classifier.py): MCP_BATCH_SIZE=0 -> one giant turn, else batch size
+if [ "$MCP_BATCH_SIZE" = "0" ]; then
+    export LAVA_MCP_NO_BATCH=1
+else
+    export LAVA_MCP_BATCH_SIZE="$MCP_BATCH_SIZE"
 fi
 
 # --extra-findings / --custom-findings args, populated by the custom grep step
@@ -134,6 +150,14 @@ else
 fi
 if [ "$CUSTOM_GREP_ENABLED" = "1" ]; then
     echo "[AI_INFO] Custom grep: ON (profile: $SCAN_PROFILE)"
+fi
+echo "[AI_INFO] S99_grepit coverage: $S99_SCAN"
+if [[ "$AI_PROVIDER" == mcp* ]]; then
+    if [ "$MCP_BATCH_SIZE" = "0" ]; then
+        echo "[AI_INFO] MCP batching: OFF (single agent turn)"
+    else
+        echo "[AI_INFO] MCP batching: $MCP_BATCH_SIZE findings/batch"
+    fi
 fi
 echo "========================================="
 

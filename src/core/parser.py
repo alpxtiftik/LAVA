@@ -13,6 +13,7 @@ Usage:
 import argparse
 import csv
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -20,14 +21,30 @@ from pathlib import Path
 from fw_paths import normalize_path
 
 # ---------------------------------------------------------------------------
-# Only the genuinely credential-focused S99_grepit categories.
+# S99_grepit (crass "cryptocred" regex bank) category selection.
 #
-# The "wide" (5_*, 4_*password/passphrase) categories and the certificate /
-# public-key categories are deliberately OUT: on real firmware they match the
-# words "password" / "secret" / "authentication" anywhere (JS, HTML, comments)
-# and every "-----BEGIN CERTIFICATE-----" in the CA bundle - hundreds of
-# findings, almost all noise, and certs/public keys are not secrets. We keep the
-# "narrow" (KEY=value style) categories and anything about a PRIVATE key.
+# EMBA's grepit emits ~30 "cryptocred_*" category files. They fall in two groups:
+#
+#   NARROW  -  the match is an actual "KEY = value" / "KEY: value" assignment or
+#              a PEM private-key block. The line carries a candidate secret.
+#              e.g. 2_cryptocred_password_colon_narrow  (`password:` ...)
+#                   2_cryptocred_password_equals_narrow (`password=` ...)
+#                   2_cryptocred_secret_narrow          (`secret=` ...)
+#                   1_cryptocred_certificates_and_keys_narrow_private-key
+#
+#   WIDE    -  a bare word-match anywhere in the line: `pass.?wo?r?d`,
+#              literal `Authentication`, `encrypt.{0,N}key`, `sign.{0,N}key`,
+#              every `-----BEGIN CERTIFICATE-----`, every SSH *public* key.
+#              No value is captured; on real firmware these hit JS/HTML/comments
+#              and the CA bundle - hundreds of findings, ~all noise, and certs /
+#              public keys are not secrets.
+#
+# LAVA_S99_SCAN selects the group:
+#   narrow (default)  - NARROW categories only. Safe for every AI provider,
+#                       required for MCP agent mode (finding budget).
+#   broad             - NARROW + every other cryptocred_* category. Higher
+#                       recall, much noisier; use with AI_PROVIDER=local/gemini.
+#   off               - skip S99 entirely (S45/S106/S107/S108 + custom grep only).
 # ---------------------------------------------------------------------------
 S99_CATEGORY_WHITELIST = {
     "1_cryptocred_passwd_or_shadow_files",
@@ -41,6 +58,20 @@ S99_CATEGORY_WHITELIST = {
     "5_cryptocred_pw_capitalcase",
     "5_cryptocred_pwd_capitalcase",
 }
+
+
+def _s99_scan_mode() -> str:
+    mode = os.environ.get("LAVA_S99_SCAN", "narrow").strip().lower()
+    return mode if mode in ("narrow", "broad", "off") else "narrow"
+
+
+def _s99_category_allowed(category: str, mode: str) -> bool:
+    if mode == "off":
+        return False
+    if category in S99_CATEGORY_WHITELIST:
+        return True
+    # broad: also accept any remaining crass "cryptocred" category
+    return mode == "broad" and "cryptocred" in category
 
 
 def content_is_mostly_printable(text: str, min_ratio: float = 0.85) -> bool:
@@ -194,11 +225,12 @@ _skipped_binary_noise = 0
 def parse_s99(s99_dir: Path) -> list[dict]:
     global _skipped_binary_noise
     out = []
-    if not s99_dir.exists():
+    mode = _s99_scan_mode()
+    if mode == "off" or not s99_dir.exists():
         return out
     for txt_path in s99_dir.glob("*.txt"):
         category = txt_path.stem
-        if category not in S99_CATEGORY_WHITELIST:
+        if not _s99_category_allowed(category, mode):
             continue
         text = strip_ansi(txt_path.read_text(encoding="utf-8", errors="replace"))
         for block in text.split("\n--\n"):
