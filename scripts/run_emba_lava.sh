@@ -136,10 +136,50 @@ PARENT_DIR="$LogDir"
 EMBA_DIR="$PARENT_DIR/emba_logs"
 LAVA_OUT_DIR="$PARENT_DIR/lava_out"
 
+# --- Entropy-graph watchdog --------------------------------------------------
+# EMBA's P02 draws a firmware entropy graph with `binwalk --entropy --png`, which
+# shells out to Plotly Kaleido (headless Chromium). On some hosts Chromium
+# deadlocks inside the EMBA container and, because P02 waits for binwalk
+# synchronously, the whole scan hangs there forever. The graph is cosmetic, so
+# if that binwalk has been running longer than ENTROPY_WATCHDOG_TIMEOUT seconds
+# we kill it (and any Kaleido child); EMBA then logs a warning and moves on.
+ENTROPY_WATCHDOG_TIMEOUT="${ENTROPY_WATCHDOG_TIMEOUT:-90}"
+
+_wd_kill() { kill -9 "$@" 2>/dev/null || sudo -n kill -9 "$@" 2>/dev/null; }
+
+_entropy_watchdog() {
+    while sleep 15; do
+        # Match EMBA's exact P02 invocation ("binwalk --entropy --png ...").
+        # The [b] class keeps this pgrep from matching its own command line.
+        for _pid in $(pgrep -f '[b]inwalk --entropy --png' 2>/dev/null); do
+            [ "$_pid" = "$$" ] && continue                       # never our own process
+            _comm=$(ps -o comm= -p "$_pid" 2>/dev/null)
+            case "$_comm" in bash|sh|dash|python3|pgrep|"") continue ;; esac  # only real binwalk
+            _secs=$(ps -o etimes= -p "$_pid" 2>/dev/null | tr -d ' ')
+            [ -n "$_secs" ] || continue
+            if [ "$_secs" -gt "$ENTROPY_WATCHDOG_TIMEOUT" ]; then
+                echo ""
+                echo "[watchdog] EMBA entropy step stuck for ${_secs}s (binwalk pid $_pid)."
+                echo "[watchdog] Killing it - Plotly/Kaleido/Chromium deadlock. The scan will continue."
+                _wd_kill "$_pid"
+                for _k in $(pgrep -f 'kaleido' 2>/dev/null); do _wd_kill "$_k"; done
+            fi
+        done
+    done
+}
+
+_entropy_watchdog &
+WATCHDOG_PID=$!
+trap '[ -n "${WATCHDOG_PID:-}" ] && kill "$WATCHDOG_PID" 2>/dev/null' EXIT
+
 # Run EMBA directly. Python's PTY will handle the terminal dimensions and UTF-8 base64 encoding.
 cd "$emba_dir"
 sudo LC_ALL="en_US.UTF-8" LANG="en_US.UTF-8" ./emba -f "$FirmwarePath" -l "$EMBA_DIR" $PROFILE_ARG
-if [ $? -ne 0 ]; then
+EMBA_RC=$?
+
+kill "$WATCHDOG_PID" 2>/dev/null; WATCHDOG_PID=""
+
+if [ "$EMBA_RC" -ne 0 ]; then
     echo "Error: the EMBA scan failed, or EMBA was not found."
     exit 2
 fi
