@@ -66,7 +66,7 @@ def _shannon_entropy(s: str) -> float:
 
 
 class Rule:
-    def __init__(self, spec: dict):
+    def __init__(self, spec: dict, global_reject: list | None = None):
         self.id = spec["id"]
         self.description = spec.get("description", "")
         self.pattern = spec["pattern"]
@@ -74,7 +74,7 @@ class Rule:
         self.value_group = spec.get("value_group")
         self.min_value_len = int(spec.get("min_value_len", 0))
         self.min_value_entropy = float(spec.get("min_value_entropy", 0.0))
-        self.reject = [re.compile(r) for r in spec.get("reject_values", [])]
+        self.reject = list(global_reject or []) + [re.compile(r) for r in spec.get("reject_values", [])]
 
     def match(self, line: str) -> tuple[str, str | None] | None:
         """Returns (matched_text, value) if the rule fires and passes its
@@ -127,12 +127,65 @@ def _glob_re(pattern: str) -> re.Pattern:
 # ---------------------------------------------------------------------------
 # Filesystem roots
 # ---------------------------------------------------------------------------
+_ROOTFS_HINTS = ("etc", "bin", "sbin", "usr", "lib", "www", "var", "root", "opt", "mnt")
+# EMBA's own output dirs (reports, extractor bookkeeping, tmp) can look rootfs-ish
+_EXCLUDE_ROOT_PARTS = (
+    "/html-report/", "/csv_logs/", "/json_logs/", "/tmp/",
+    "_binwalk_extractor", "/SoftwareComponents/", "/p55_", "/p07_", "/p35_",
+)
+
+
 def fs_roots(log_dir: Path) -> list[Path]:
-    """Extraction directories that actually look like a root filesystem
-    (contain etc/, bin/, ...). Falls back to every *extract* dir."""
-    roots = find_extraction_roots(log_dir)
-    good = [r for r in roots if any((r / m).is_dir() for m in _ROOTFS_MARKERS)]
-    return good or roots
+    """The extracted Linux root filesystem(s). A directory qualifies if it holds
+    at least `etc/` and `bin/` plus one more rootfs dir. Nested candidates and
+    EMBA's own output dirs are dropped; only the outermost real roots are kept.
+
+    This does NOT rely on the directory being named '*extract*' - vendor
+    firmware often unpacks to '<hash>/squashfs-root/' etc."""
+    fw = log_dir / "firmware"
+    search_base = fw if fw.is_dir() else log_dir
+
+    candidates: list[Path] = []
+    for p in search_base.rglob("*"):
+        if not p.is_dir():
+            continue
+        s = str(p)
+        if any(x in s for x in _EXCLUDE_ROOT_PARTS):
+            continue
+        if not ((p / "etc").is_dir() and (p / "bin").is_dir()):
+            continue
+        if sum(1 for m in _ROOTFS_HINTS if (p / m).is_dir()) >= 3:
+            candidates.append(p)
+
+    if not candidates:
+        # last resort: the old heuristic (name contains 'extract')
+        candidates = [r for r in find_extraction_roots(log_dir)
+                      if any((r / m).is_dir() for m in _ROOTFS_HINTS)
+                      and not any(x in str(r) for x in _EXCLUDE_ROOT_PARTS)]
+    if not candidates:
+        candidates = find_extraction_roots(log_dir)
+
+    # keep only the outermost of any nested set
+    candidates = sorted(set(candidates), key=lambda x: len(str(x)))
+    roots: list[Path] = []
+    for c in candidates:
+        if not any(str(c).startswith(str(r) + "/") for r in roots):
+            roots.append(c)
+    return roots
+
+
+_EXTRACT_SEGMENTS = ("squashfs-root", "firmware_extract", "cpio-root", "jffs2-root",
+                     "firmware.extracted")
+
+
+def _canon_path(fp: str) -> str:
+    """Strip leading extraction-container segments so the same file found under
+    two extractors dedups to one path (binwalk vs unblob)."""
+    parts = [p for p in fp.split("/") if p]
+    while parts and ("extract" in parts[0].lower() or parts[0] in _EXTRACT_SEGMENTS
+                     or re.fullmatch(r"[0-9A-Fa-f]{4,8}", parts[0])):
+        parts.pop(0)
+    return "/".join(parts) or fp
 
 
 # ---------------------------------------------------------------------------
@@ -208,7 +261,8 @@ def _py_lines(root: Path, rules: list[Rule], profile: dict):
 # Scan
 # ---------------------------------------------------------------------------
 def scan(log_dir: Path, profile: dict) -> list[dict]:
-    rules = [Rule(spec) for spec in profile.get("rules", [])]
+    _grej = [re.compile(r) for r in profile.get("global_reject_values", [])]
+    rules = [Rule(spec, _grej) for spec in profile.get("rules", [])]
     if not rules:
         raise SystemExit("[!] the profile has no rules")
 
@@ -234,13 +288,14 @@ def scan(log_dir: Path, profile: dict) -> list[dict]:
                 rel_path = Path(abs_path).resolve().relative_to(root.resolve()).as_posix()
             except ValueError:
                 rel_path = Path(abs_path).name
+            rel_path = _canon_path(rel_path)
 
             for rule in rules:
                 res = rule.match(text)
                 if res is None:
                     continue
                 matched_text, value = res
-                key = (rel_path, line_no, rule.id)
+                key = (rel_path, line_no, rule.id, value)
                 if key in seen:
                     continue
                 if per_rule_count[rule.id] >= per_rule_cap or len(findings) >= total_cap:

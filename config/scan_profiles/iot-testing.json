@@ -1,61 +1,86 @@
 {
   "name": "iot-testing",
-  "description": "Default profile. Cleartext credential / key patterns that EMBA's credential modules (S45/S99/S106/S107/S108) tend to miss on IoT firmware.",
-  "version": 1,
+  "description": "Default profile. Cleartext credential / key patterns that EMBA's credential modules (S45/S99/S106/S107/S108) tend to miss on IoT firmware. Tuned to stay quiet on real vendor firmware (web UI assets, extractor artifacts, config templates are filtered out).",
+  "version": 2,
   "target": "extracted_fs",
   "text_files_only": true,
-  "max_file_size_kb": 768,
-  "max_hits_per_rule": 200,
-  "max_total_hits": 1000,
+  "max_file_size_kb": 512,
+  "max_hits_per_rule": 60,
+  "max_total_hits": 400,
   "include_paths": ["**"],
   "exclude_paths": [
     "**/*.so", "**/*.so.*", "**/*.ko", "**/*.a", "**/*.o",
-    "**/lib/modules/**", "usr/share/locale/**", "**/*.min.js", "**/*.map",
-    "**/*.png", "**/*.jpg", "**/*.jpeg", "**/*.gif", "**/*.ico", "**/*.bmp",
+    "**/lib/modules/**", "usr/share/**", "usr/lib/lua/**", "usr/lib/opkg/**",
+    "**/*.raw", "**/*_copyright.*",
+    "www/**/*.html", "www/**/*.htm", "www/**/*.js", "www/**/*.css", "www/**/*.htc",
+    "www/**/*.json", "**/webpages/**", "**/*.min.js", "**/*.min.css", "**/*.map",
+    "**/i18n/**", "**/locale/**", "**/locales/**",
+    "usr/share/locale/**",
+    "**/*.png", "**/*.jpg", "**/*.jpeg", "**/*.gif", "**/*.ico", "**/*.bmp", "**/*.svg",
     "**/*.woff", "**/*.woff2", "**/*.ttf", "**/*.eot",
     "**/*.gz", "**/*.bz2", "**/*.xz", "**/*.lzma", "**/*.zip", "**/*.tar", "**/*.7z"
+  ],
+  "global_reject_values": [
+    "^.{0,3}$",
+    "^[0-9]{1,5}$",
+    "^[xX*.\\-_ ]+$",
+    "^[\"']+$",
+    "^/",
+    "^[.~]/",
+    "[\\$`\\\\]",
+    "[()]",
+    "=.",
+    "^[+\\-]",
+    "^\\[.*\\]$",
+    "^<.*>$",
+    "^%.*%$",
+    "^\\{.*\\}$",
+    "^@.*@$",
+    "(?i)^[a-z_][a-z0-9_]*(\\.[a-z_][a-z0-9_]*)+$",
+    "\\.(sh|cnf|conf|cfg|ini|txt|json|xml|pem|crt|cer|der|key|lua|py|pl|c|h|log|list|db)$",
+    "(?i)^(secret|secrets|password|passwords|passwd|pass|pwd|passphrase|passwort|key|keys|token|credential|credentials|value|string|none|null|nil|na|true|false|yes|no|on|off|enable|enabled|disable|disabled|default|defaults|example|test|testing|sample|dummy|changeme|change_me|admin|administrator|root|user|username|guest|public|private|auto|manual|integer|number|bool|boolean|foo|bar|baz|xxx+|todo|fixme|unknown|undefined|localhost|hostname)$"
   ],
   "rules": [
     {
       "id": "cleartext_credential_assign",
-      "description": "A credential assigned to a literal value with = or : . Covers key names EMBA's grepit does not treat as narrow (psk, auth_pass, http_passwd, admin_pass, secret, token, ...).",
-      "pattern": "(?i)\\b([a-z0-9_]*(?:pass(?:word|wd|phrase)?|pwd|psk|passkey|api[_-]?key|auth[_-]?token|secret|credential)s?)\\b\\s*[:=]\\s*[\"']?(?P<value>[^\\s\"';#,)}]{3,80})",
+      "description": "A credential assigned to a literal value with = or : . Covers key names EMBA's grepit does not treat as narrow (psk, auth_pass, http_passwd, admin_pass, ...).",
+      "pattern": "(?i)\\b([a-z0-9_]*(?:pass(?:word|wd|phrase)?|_pwd|_psk|wpa_psk|passkey|http_passwd)s?)\\b\\s*[:=]\\s*[\"'](?P<value>[^\"'\\s]{4,80})[\"']",
       "value_group": "value",
       "min_value_len": 4,
-      "min_value_entropy": 1.6,
-      "reject_values": [
-        "^[xX*]+$",
-        "^\\$\\{.*\\}$",
-        "^%[sd]$",
-        "^<[^>]*>$",
-        "(?i)^(password|passwd|pass|changeme|change_me|admin|root|none|null|nil|true|false|yes|no|example|test|sample|dummy|xxx+|todo|fixme|default|n/a|na|0+|1234|12345|123456|password123)$",
-        "^[-_. ]+$"
-      ]
+      "min_value_entropy": 2.2
+    },
+    {
+      "id": "cleartext_credential_assign_unquoted",
+      "description": "Same, but for shell/env style KEY=value without quotes.",
+      "pattern": "(?i)(?:^|\\s|;)([a-z0-9_]*(?:pass(?:word|wd|phrase)?|_pwd|_psk|wpa_psk|http_passwd))\\s*=\\s*(?P<value>[^\\s\"';#&|]{6,80})(?:\\s|$)",
+      "value_group": "value",
+      "min_value_len": 6,
+      "min_value_entropy": 2.6
     },
     {
       "id": "private_key_block",
-      "description": "Any PEM private key header anywhere in the filesystem (S106 only greps two patterns over a narrow scope).",
-      "pattern": "-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP |ENCRYPTED )?PRIVATE KEY-----",
-      "multiline": false
+      "description": "A PEM private key header anywhere in the filesystem (S106 only greps two patterns over a narrow scope).",
+      "pattern": "-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP |ENCRYPTED )?PRIVATE KEY-----"
     },
     {
       "id": "ssh_authorized_key",
       "description": "An OpenSSH public key line (authorized_keys / dropbear). EMBA's S106 only matches the PEM '-----BEGIN-----' form.",
-      "pattern": "(?P<value>(?:ssh-(?:rsa|ed25519|dss)|ecdsa-sha2-[a-z0-9-]+)\\s+AAAA[0-9A-Za-z+/]{60,}={0,3})",
+      "pattern": "(?P<value>(?:ssh-(?:rsa|ed25519|dss)|ecdsa-sha2-[a-z0-9-]+)\\s+AAAA[0-9A-Za-z+/]{80,}={0,3})",
       "value_group": "value"
     },
     {
       "id": "http_basic_auth",
       "description": "An HTTP Authorization: Basic header with a base64 user:pass. EMBA never decodes these.",
-      "pattern": "(?i)authorization\\s*:\\s*basic\\s+(?P<value>[A-Za-z0-9+/]{12,}={0,2})",
+      "pattern": "(?i)authorization\\s*:\\s*basic\\s+(?P<value>[A-Za-z0-9+/]{16,}={0,2})",
       "value_group": "value"
     },
     {
       "id": "url_embedded_credential",
       "description": "A credential embedded in a URL (scheme://user:pass@host).",
-      "pattern": "(?i)[a-z][a-z0-9+.-]*://[^\\s/:@\"']+:(?P<value>[^\\s/@\"'<>]{3,})@",
+      "pattern": "(?i)(?:https?|ftp|mysql|postgres|redis|mongodb)://[A-Za-z0-9._%-]+:(?P<value>[^\\s/@\"'<>:$%\\[\\]{}]{6,})@[A-Za-z0-9.-]+",
       "value_group": "value",
-      "reject_values": ["^\\$\\{.*\\}$", "^%[sd]$", "(?i)^(user|username|pass|password)$"]
+      "min_value_len": 6,
+      "min_value_entropy": 2.6
     },
     {
       "id": "api_key_prefixed",
@@ -65,17 +90,17 @@
     },
     {
       "id": "snmp_community",
-      "description": "An SNMP community string (a read/write community string is effectively a credential).",
-      "pattern": "(?i)\\b(?:ro|rw)?community\\b\\s+(?P<value>[^\\s#\"']{2,40})",
+      "description": "An SNMP read/write community string with a concrete non-default value.",
+      "pattern": "(?i)\\b(?:ro|rw)community\\s+(?P<value>[A-Za-z0-9_@.-]{3,40})\\b",
       "value_group": "value",
-      "reject_values": ["^\\$\\{.*\\}$"]
+      "reject_values": ["(?i)^(public|private|community|snmp)$"]
     },
     {
       "id": "uci_secret_option",
-      "description": "An OpenWrt/LEDE UCI config option holding a secret with a literal value (space-delimited, unlike a normal key=value).",
-      "pattern": "option\\s+(?P<optname>key|[a-z0-9_]*(?:pass(?:word|wd|phrase)?|pwd|psk|secret|community|auth_key))\\s+'(?P<value>[^']{3,})'",
+      "description": "An OpenWrt/LEDE UCI config option holding a secret with a concrete literal value.",
+      "pattern": "option\\s+(?P<optname>key|[a-z0-9_]*(?:pass(?:word|wd|phrase)?|psk|http_passwd))\\s+'(?P<value>[^']{4,})'",
       "value_group": "value",
-      "reject_values": ["^[xX*]+$", "(?i)^(psk2?|wpa2?|none|open)$"]
+      "reject_values": ["(?i)^(psk2?|wpa[23]?|none|open|sae|mixed)$"]
     },
     {
       "id": "htpasswd_entry",

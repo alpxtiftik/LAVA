@@ -417,13 +417,14 @@ You are connected to the LAVA MCP server. Its tools are prefixed `mcp__lava__`
 
 Steps:
 1. Call `list_findings` to get every finding and its `finding_id`.
-2. Call `get_hardcoded_keys_module_output` to read the raw EMBA module output.
-3. For each finding, investigate as needed with `read_log_file`,
-   `search_log_content`, `list_log_files`, and especially `read_firmware_file`
-   (check whether the credential is real and actually used - init scripts,
-   configs, /etc/passwd vs /etc/shadow, etc.).
-4. Decide TP or FP for EVERY finding using the rules above.
-5. Write results with ONE `submit_all_verdicts` call: a list of
+2. Call `get_hardcoded_keys_module_output` ONCE to read the raw EMBA module output.
+3. Decide TP or FP for EVERY finding using the rules above. For most findings you
+   already have enough: file_path, matched_content, candidate_value, source and
+   corroboration_count. Use `read_firmware_file` / `search_log_content` ONLY for
+   the genuinely ambiguous ones (is this value real or a placeholder / does the
+   script actually use it). Do NOT read a file for every finding - be economical,
+   especially when there are many findings.
+4. Write results with ONE `submit_all_verdicts` call: a list of
    {{"finding_id": ..., "verdict": "TP"|"FP", "confidence": 0.0-1.0,
      "reasoning": "1-2 sentence English"}}.
    (Use `submit_verdict` only for follow-up corrections.)
@@ -584,6 +585,18 @@ def classify_via_mcp_agent(
 
     if not MCP_SERVER_PATH.exists():
         raise RuntimeError(f"MCP server not found: {MCP_SERVER_PATH}")
+
+    # The MCP agent gets ALL findings in one context. On a big real firmware that
+    # can blow past the agent CLI's per-turn limit and time out. Warn early.
+    if custom_findings:
+        try:
+            _n = len(json.loads(Path(custom_findings).read_text(encoding="utf-8")))
+            if _n > 120:
+                print(f"[!] WARNING: the custom grep produced {_n} findings. MCP agent mode "
+                      "sends them all to the agent in one turn and may time out. Consider a "
+                      "tighter scan profile, or AI_PROVIDER=local / gemini for this firmware.")
+        except (json.JSONDecodeError, OSError):
+            pass
 
     prompt = _build_agent_prompt(ground_truth_path)
 
