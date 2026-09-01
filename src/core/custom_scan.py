@@ -191,8 +191,17 @@ def _canon_path(fp: str) -> str:
 # ---------------------------------------------------------------------------
 # Line producers
 # ---------------------------------------------------------------------------
+_RG_NAMED_GROUP_RE = re.compile(r"\(\?P<[^>]+>")
+
+
 def _rg_lines(root: Path, rules: list[Rule], profile: dict):
-    """Yield (abs_path, line_no, line_text) for candidate lines, via ripgrep."""
+    """Yield (abs_path, line_no, line_text) for candidate lines, via ripgrep.
+
+    Returns None on ANY problem (rg missing, rg error, unusable output) so the
+    caller falls back to the pure-Python scanner. ripgrep uses the Rust regex
+    engine, which rejects a few constructs Python's `re` accepts - if that
+    happens the whole rg run fails and we must not silently report 0 findings.
+    """
     if not shutil.which("rg"):
         return None
     max_kb = int(profile.get("max_file_size_kb", 768))
@@ -202,21 +211,36 @@ def _rg_lines(root: Path, rules: list[Rule], profile: dict):
         cmd += ["--glob", g]
     for g in profile.get("exclude_paths", []):
         cmd += ["--glob", "!" + g]
+    # rg ORs all -e patterns into one regex; two rules with (?P<value>...) then
+    # collide ("duplicate capture group name"). rg is only a candidate-line
+    # prefilter here (scan() re-matches every line with the real Python rule),
+    # so drop the group names for the rg pass.
     for r in rules:
-        cmd += ["-e", r.pattern]
+        cmd += ["-e", _RG_NAMED_GROUP_RE.sub("(?:", r.pattern)]
     cmd.append(str(root))
 
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=900)
-    except subprocess.TimeoutExpired:
-        print(f"[!] WARNING: ripgrep timed out on {root}", file=sys.stderr)
-        return []
+    except (subprocess.TimeoutExpired, OSError) as e:
+        print(f"[!] ripgrep unusable ({e}); falling back to the Python scanner.",
+              file=sys.stderr)
+        return None
+    # rg exit codes: 0 = matches, 1 = no matches (both fine), >=2 = real error
+    if proc.returncode >= 2:
+        msg = (proc.stderr or "").strip().splitlines()
+        print(f"[!] ripgrep failed (exit {proc.returncode}): "
+              f"{msg[0] if msg else 'unknown error'} - falling back to the Python scanner.",
+              file=sys.stderr)
+        return None
+
     lines: list[tuple[str, int, str]] = []
+    saw_json = False
     for raw in proc.stdout.splitlines():
         try:
             obj = json.loads(raw)
         except json.JSONDecodeError:
             continue
+        saw_json = True
         if obj.get("type") != "match":
             continue
         d = obj["data"]
@@ -225,6 +249,11 @@ def _rg_lines(root: Path, rules: list[Rule], profile: dict):
         if path is None or text is None:
             continue
         lines.append((path, d.get("line_number", 0), text.rstrip("\n")))
+
+    if proc.stdout.strip() and not saw_json:
+        print("[!] 'rg' did not return ripgrep JSON output (wrong binary?); "
+              "falling back to the Python scanner.", file=sys.stderr)
+        return None
     return lines
 
 
@@ -276,12 +305,14 @@ def scan(log_dir: Path, profile: dict) -> list[dict]:
     per_rule_count: Counter = Counter()
     seen: set[tuple] = set()
     findings: list[dict] = []
-    used_engine = "ripgrep" if shutil.which("rg") else "python"
+    used_engine = "python"
 
     for root in roots:
         producer = _rg_lines(root, rules, profile)
         if producer is None:
             producer = _py_lines(root, rules, profile)
+        else:
+            used_engine = "ripgrep"
 
         for abs_path, line_no, text in producer:
             try:
