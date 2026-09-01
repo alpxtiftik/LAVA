@@ -164,6 +164,3 @@ python3 src/core/enricher.py --merged merged_findings.json --log-dir "emba_iotgo
 # 3. Classify using Local AI
 python3 src/core/classifier.py --mode run --config config/ai_config.env --ground-truth ground_truth.json --enriched enriched_findings.json --out verdicts.json
 ```
-
-## License
-MIT License
