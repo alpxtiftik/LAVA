@@ -113,17 +113,19 @@
 
                             <label class="settings-label">EMBA S99 grepit coverage</label>
                             <select id="s99ScanSelect" class="settings-input">
-                                <option value="narrow">narrow &ndash; real KEY=value / private keys only (default)</option>
-                                <option value="broad">broad &ndash; also wide word-matches (higher recall, noisier)</option>
+                                <option value="narrow">narrow &ndash; /etc/shadow hashes + PEM private keys only (default)</option>
+                                <option value="broad">broad &ndash; also password/secret word-matches, filtered (noisier)</option>
                                 <option value="off">off &ndash; skip S99 entirely</option>
                             </select>
                             <div class="settings-note">
-                                <b>narrow</b> keeps only lines where EMBA's regex bank matched an actual
-                                assignment (<code>password=</code>, <code>secret:</code>, PEM private keys).
-                                <b>broad</b> adds the bare word-matches (<code>Authentication</code>,
-                                <code>pass.?wo?r?d</code>, <code>encrypt&hellip;key</code>, <code>BEGIN CERTIFICATE</code>) &ndash;
-                                hundreds of extra hits on real firmware, almost all noise. Use <b>broad</b>
-                                only with Local AI / Gemini, never with MCP Agent mode.
+                                EMBA's grepit is a source-audit tool &ndash; most of its "cryptocred"
+                                categories just match the word <code>password</code> / <code>secret</code>
+                                anywhere and are almost all false positives on real firmware.
+                                <b>narrow</b> keeps only the unambiguous hits (shadow-file hashes,
+                                <code>-----BEGIN PRIVATE KEY-----</code>). Other <code>KEY=value</code>
+                                leaks are covered by EMBA S107 and by the Custom Grep layer.
+                                <b>broad</b> adds the word-match categories behind a heuristic filter &ndash;
+                                still noisy; use with Local AI / Gemini only, never MCP Agent mode.
                             </div>
 
                             <div style="margin-top: 16px;">

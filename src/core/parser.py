@@ -21,34 +21,37 @@ from pathlib import Path
 from fw_paths import normalize_path
 
 # ---------------------------------------------------------------------------
-# S99_grepit (crass "cryptocred" regex bank) category selection.
+# S99_grepit (crass "cryptocred" regex bank) selection + quality gate.
 #
-# EMBA's grepit emits ~30 "cryptocred_*" category files. They fall in two groups:
+# grepit is a SOURCE-AUDIT tool: it flags "code that touches passwords" for a
+# human reviewer. Most of its ~30 "cryptocred_*" categories match a bare word
+# (`password:`, `secret=`, `Authentication`) with NO way to tell a hardcoded
+# literal from ordinary code (`if ($pass != "")`, `"&password=".$password`,
+# error strings in an ELF). On real firmware that is hundreds of false positives.
 #
-#   NARROW  -  the match is an actual "KEY = value" / "KEY: value" assignment or
-#              a PEM private-key block. The line carries a candidate secret.
-#              e.g. 2_cryptocred_password_colon_narrow  (`password:` ...)
-#                   2_cryptocred_password_equals_narrow (`password=` ...)
-#                   2_cryptocred_secret_narrow          (`secret=` ...)
-#                   1_cryptocred_certificates_and_keys_narrow_private-key
+# Two categories ARE structurally unambiguous:
+#   1_cryptocred_passwd_or_shadow_files              -> /etc/shadow $1$salt$hash
+#   1_cryptocred_certificates_and_keys_narrow_private-key -> PEM PRIVATE KEY block
+# Those are the only ones LAVA trusts by default. Everything else "KEY=value"
+# is better covered by EMBA S107 and by LAVA's own custom grep layer (which
+# requires a concrete quoted value with entropy).
 #
-#   WIDE    -  a bare word-match anywhere in the line: `pass.?wo?r?d`,
-#              literal `Authentication`, `encrypt.{0,N}key`, `sign.{0,N}key`,
-#              every `-----BEGIN CERTIFICATE-----`, every SSH *public* key.
-#              No value is captured; on real firmware these hit JS/HTML/comments
-#              and the CA bundle - hundreds of findings, ~all noise, and certs /
-#              public keys are not secrets.
-#
-# LAVA_S99_SCAN selects the group:
-#   narrow (default)  - NARROW categories only. Safe for every AI provider,
-#                       required for MCP agent mode (finding budget).
-#   broad             - NARROW + every other cryptocred_* category. Higher
-#                       recall, much noisier; use with AI_PROVIDER=local/gemini.
-#   off               - skip S99 entirely (S45/S106/S107/S108 + custom grep only).
+# LAVA_S99_SCAN:
+#   narrow (default) - ONLY the two structural categories, gated to real hits.
+#   broad            - also the word-match categories, run through a heuristic
+#                      value gate (still noisy; for AI_PROVIDER=local/gemini +
+#                      manual triage). Never for MCP agent mode.
+#   off              - skip S99 entirely (S45/S106/S107/S108 + custom grep only).
 # ---------------------------------------------------------------------------
-S99_CATEGORY_WHITELIST = {
+S99_STRUCTURAL_CATEGORIES = {
     "1_cryptocred_passwd_or_shadow_files",
     "1_cryptocred_certificates_and_keys_narrow_private-key",
+}
+# Kept for compatibility (ground_truth.py / tests import this name).
+S99_CATEGORY_WHITELIST = S99_STRUCTURAL_CATEGORIES
+
+# broad-mode extras: value-bearing but noisy.
+S99_VALUE_CATEGORIES = {
     "2_cryptocred_passphrase_narrow",
     "2_cryptocred_password_colon_narrow",
     "2_cryptocred_password_equals_narrow",
@@ -59,6 +62,43 @@ S99_CATEGORY_WHITELIST = {
     "5_cryptocred_pwd_capitalcase",
 }
 
+_S99_SHADOW_RE = re.compile(
+    r"^[A-Za-z0-9_.\-]{1,32}:(\$[0-9a-z]{1,4}\$\S{6,}|[A-Za-z0-9./+]{13,})[:$]")
+_S99_PEM_PRIV_RE = re.compile(r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----")
+# ELF / compiled-object paths: a "shadow line" or "PRIVATE KEY" here is a
+# format string baked into a binary (libssh, libcrypto, smbd, busybox ...), not
+# a real credential file. EMBA's re-extracted "*_0_pem_private_key.raw" blobs
+# are NOT binaries - keep those.
+_S99_BINARY_PATH_RE = re.compile(
+    r"(?i)\.(?:so|so\.[0-9.]+|ko|o|a|bin|elf|axf|dylib)(?:$|[/_])"
+    r"|_[0-9]+_elf(?:\.raw)?$"
+    r"|_[0-9]+_unknown\.raw$")
+
+# broad-mode value gate ---------------------------------------------------------
+_S99_WEB_ASSET_RE = re.compile(r"""(?ix)
+      \.(html?|xhtml|css|scss|less|map|png|jpe?g|gif|bmp|ico|svg|tiff?|webp|
+         woff2?|ttf|eot|otf|swf|mp[34]|md|rst|po|mo|pot)$
+    | \.min\.(js|css)$
+    | (?:^|/)(?:jquery|bootstrap|angular|backbone|underscore|lodash|modernizr|
+         prototype|mootools|react|vue|ember|dojo)[.\-][^/]*$
+    | /(?:www|web|webs|webpages|wwwroot|htdocs|luci-static|i18n|
+         locale|locales|lang|help|manual|docs?)/
+""")
+_S99_ASSIGN_RE = re.compile(r"""(?ix)
+    (?:pass(?:word|wd|phrase|code|key)?|pwd|pw|secret|psk|passwort)
+    \s*(?P<op>[:=])\s*(?P<v>.*)$""")
+_S99_VALUE_REJECT_RE = re.compile(r"""(?ix) ^\s*(?:
+      $
+    | ["'`]{1,2}\s*[;,)\]}]?\s*$
+    | [{\[(<%$]
+    | \\?\$?\{
+    | (?:true|false|null|nil|none|undefined|nan|required|optional|auto|yes|no|
+        on|off|enabled?|disabled?|function|typeof|return|var|let|const|new|
+        i18n|gettext|query|get|set|document|window|this|self)\b
+    | [A-Za-z_]\w*\s*\(
+    | .{0,120}[=!]=
+)""")
+
 
 def _s99_scan_mode() -> str:
     mode = os.environ.get("LAVA_S99_SCAN", "narrow").strip().lower()
@@ -68,10 +108,60 @@ def _s99_scan_mode() -> str:
 def _s99_category_allowed(category: str, mode: str) -> bool:
     if mode == "off":
         return False
-    if category in S99_CATEGORY_WHITELIST:
+    if category in S99_STRUCTURAL_CATEGORIES:
         return True
-    # broad: also accept any remaining crass "cryptocred" category
-    return mode == "broad" and "cryptocred" in category
+    if mode != "broad":
+        return False
+    return category in S99_VALUE_CATEGORIES or "cryptocred" in category
+
+
+def _s99_keep_match(category: str, path: str, content: str) -> bool:
+    """The quality gate. Returns True only for a match that plausibly points at
+    a hardcoded secret (not code that merely mentions one)."""
+    c = content.strip()
+    if category in S99_STRUCTURAL_CATEGORIES:
+        if _S99_BINARY_PATH_RE.search(path):
+            return False
+        if "private-key" in category:
+            return bool(_S99_PEM_PRIV_RE.search(c))
+        return bool(_S99_SHADOW_RE.match(c))  # passwd/shadow
+
+    # broad-mode word-match categories -> heuristic gate
+    if _S99_WEB_ASSET_RE.search(path):
+        return False
+    m = _S99_ASSIGN_RE.search(c)
+    if not m:
+        return False
+    val = m.group("v").strip().strip("\"'` ,;)")
+    if len(val) < 4 or _S99_VALUE_REJECT_RE.match(m.group("v")):
+        return False
+    # value is just another variable / accessor
+    if re.fullmatch(r"\$?\{?[A-Za-z_][\w.]*\}?", val) or re.search(
+            r"\.(query|get|value|val)\b", m.group("v")):
+        return False
+    return True
+
+
+_S99_RAW_SUFFIX_RE = re.compile(
+    r"_\d+_(?:pem_private_key|elf|copyright|unknown|copy|ascii)\b.*$"
+    r"|_\d+_copy(?:right)?$")
+
+
+def _canon_s99_path(path: str) -> str:
+    """Collapse the same file found under several EMBA extractors / re-extracted
+    as a *.raw blob down to one key, so merge_and_corroborate dedups them."""
+    seg = [s for s in path.split("/") if s]
+    while seg and ("extract" in seg[0].lower() or "squashfs" in seg[0].lower()
+                   or seg[0] in ("logs", "firmware", "firmware_extract",
+                                 "squashfs-root", "rootfs", "root", "jffs2-root",
+                                 "cpio-root", "ubifs-root", "_rootfs")
+                   or seg[0].isdigit()
+                   or re.fullmatch(r"[0-9A-Fa-f-]{4,}", seg[0])
+                   or seg[0].endswith(("_extract", ".uncompressed", "-root"))):
+        seg.pop(0)
+    if seg:
+        seg[-1] = _S99_RAW_SUFFIX_RE.sub("", seg[-1])
+    return "/".join(seg) or path
 
 
 def content_is_mostly_printable(text: str, min_ratio: float = 0.85) -> bool:
@@ -220,14 +310,16 @@ def parse_s106(s106_dir: Path) -> list[dict]:
 _MATCH_LINE_RE = re.compile(r"^(/[^:]+):(\d+):(.*)$")
 
 _skipped_binary_noise = 0
+_s99_gate_rejected = 0
 
 
 def parse_s99(s99_dir: Path) -> list[dict]:
-    global _skipped_binary_noise
+    global _skipped_binary_noise, _s99_gate_rejected
     out = []
     mode = _s99_scan_mode()
     if mode == "off" or not s99_dir.exists():
         return out
+    seen: set[tuple] = set()  # (canon_path, category, content) - cross-extractor dedup
     for txt_path in s99_dir.glob("*.txt"):
         category = txt_path.stem
         if not _s99_category_allowed(category, mode):
@@ -236,21 +328,29 @@ def parse_s99(s99_dir: Path) -> list[dict]:
         for block in text.split("\n--\n"):
             for line in block.strip().splitlines():
                 m = _MATCH_LINE_RE.match(line)
-                if m:
-                    raw_path = m.group(1)
-                    content = m.group(3)
-                    if not looks_like_valid_path(raw_path) or not content_is_mostly_printable(content):
-                        _skipped_binary_noise += 1
-                        break  # this block is binary junk - skip to the next block
-                    out.append(
-                        new_finding(
-                            "S99_grepit",
-                            raw_path,
-                            content,
-                            {"category": category, "line_no": m.group(2)},
-                        )
+                if not m:
+                    continue
+                raw_path = m.group(1)
+                content = m.group(3)
+                if not looks_like_valid_path(raw_path) or not content_is_mostly_printable(content):
+                    _skipped_binary_noise += 1
+                    break  # this block is binary junk - skip to the next block
+                if not _s99_keep_match(category, raw_path, content):
+                    _s99_gate_rejected += 1
+                    break
+                key = (_canon_s99_path(raw_path), category, content.strip()[:160])
+                if key in seen:
+                    break
+                seen.add(key)
+                out.append(
+                    new_finding(
+                        "S99_grepit",
+                        raw_path,
+                        content,
+                        {"category": category, "line_no": m.group(2)},
                     )
-                    break  # take only the actual match per block, skip context lines
+                )
+                break  # take only the actual match per block, skip context lines
     return out
 
 
@@ -404,7 +504,8 @@ def main():
               f"custom={by_source.get('custom', 0)}, overlap={by_source.get('both', 0)}")
     multi = [m for m in merged if m["corroboration_count"] > 1]
     print(f"[+] Confirmed by more than one module: {len(multi)}")
-    print(f"[+] Blocks skipped as binary noise in S99_grepit: {_skipped_binary_noise}")
+    print(f"[+] S99_grepit: {_skipped_binary_noise} blocks skipped as binary noise, "
+          f"{_s99_gate_rejected} rejected by the credential gate")
     print(f"[+] Outputs: {args.out}, {args.merged_out}")
 
 
