@@ -20,40 +20,26 @@ from pathlib import Path
 from fw_paths import normalize_path
 
 # ---------------------------------------------------------------------------
-# Only the genuinely credential-focused S99_grepit categories (MVP whitelist).
-# "crypto usage detection" categories such as ciphers_*, ssl_usage_*,
-# tls_usage_*, dev_random, x509 are deliberately left out.
+# Only the genuinely credential-focused S99_grepit categories.
+#
+# The "wide" (5_*, 4_*password/passphrase) categories and the certificate /
+# public-key categories are deliberately OUT: on real firmware they match the
+# words "password" / "secret" / "authentication" anywhere (JS, HTML, comments)
+# and every "-----BEGIN CERTIFICATE-----" in the CA bundle - hundreds of
+# findings, almost all noise, and certs/public keys are not secrets. We keep the
+# "narrow" (KEY=value style) categories and anything about a PRIVATE key.
 # ---------------------------------------------------------------------------
 S99_CATEGORY_WHITELIST = {
     "1_cryptocred_passwd_or_shadow_files",
     "1_cryptocred_certificates_and_keys_narrow_private-key",
-    "2_cryptocred_certificates_and_keys_narrow_begin-certificate",
-    "2_cryptocred_certificates_and_keys_narrow_public-key",
-    "2_cryptocred_encryption_key",
     "2_cryptocred_passphrase_narrow",
     "2_cryptocred_password_colon_narrow",
     "2_cryptocred_password_equals_narrow",
     "2_cryptocred_password_equals_switch",
     "2_cryptocred_secret_narrow",
-    "2_cryptocred_sign_key",
-    # "3_cryptocred_mysql_old_hashes" - removed: almost all 138 findings were
-    # random byte sequences inside binary files; the regex is far broader than
-    # real MySQL-style hashes.
-    "4_cryptocred_certificates_and_keys_wide_private-key",
     "4_cryptocred_crypt_call",
-    "4_cryptocred_passphrase_generic",
-    "4_cryptocred_password",
-    "5_cryptocred_authentication",
-    "5_cryptocred_authorization",
-    "5_cryptocred_certificates_and_keys_wide_begin-certificate",
-    "5_cryptocred_certificates_and_keys_wide_public-key",
-    "5_cryptocred_credentials_wide",
-    "5_cryptocred_passphrase_wide",
     "5_cryptocred_pw_capitalcase",
     "5_cryptocred_pwd_capitalcase",
-    "5_cryptocred_pwd_lowercase",
-    "5_cryptocred_pwd_uppercase",
-    "5_cryptocred_secret_wide",
 }
 
 
@@ -145,6 +131,9 @@ def parse_s108(json_path: Path) -> list[dict]:
                 phys = loc.get("physicalLocation", {})
                 uri = phys.get("artifactLocation", {}).get("uri", "")
                 snippet = phys.get("region", {}).get("snippet", {}).get("text", "")
+                # empty snippet or a binwalk extraction artifact (*.raw) -> skip
+                if not snippet.strip() or uri.endswith(".raw"):
+                    continue
                 out.append(
                     new_finding(
                         "S108_stacs_password_search",

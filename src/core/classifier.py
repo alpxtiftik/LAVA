@@ -42,6 +42,10 @@ from parser import _derive_source  # 'emba' | 'custom' | 'both' from a module li
 # subprocess is terminated and reported as an error (no risk of hanging forever).
 AGENT_TIMEOUT_SECONDS = int(os.environ.get("LAVA_AGENT_TIMEOUT_SECONDS", str(60 * 60)))
 MCP_SERVER_PATH = Path(__file__).resolve().parents[2] / "src" / "mcp" / "lava_mcp_server.py"
+# In MCP mode the agent gets EVERY finding in one context. Above this it reliably
+# times out on real firmware (S99_grepit alone can be 1000+ findings). Override
+# with LAVA_MCP_FORCE=1.
+MCP_MAX_FINDINGS = int(os.environ.get("LAVA_MCP_MAX_FINDINGS", "120"))
 # Fields that MUST be present in verdicts.json (local/Gemini run-mode schema)
 _VERDICT_REQUIRED_FIELDS = {
     "file_path", "matched_content", "predicted_verdict", "confidence", "model_reasoning",
@@ -500,6 +504,28 @@ _AUTH_HINTS = (
 )
 
 
+def _estimate_finding_count(log_dir: Path, custom_findings: str | None) -> int:
+    """Rough count of the findings the MCP registry will hold (EMBA + custom),
+    using the same parser functions the MCP server uses."""
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import parser as _p  # src/core/parser.py
+        csv = log_dir / "csv_logs"
+        raw = []
+        raw += _p.parse_s45(csv / "s45_pass_file_check.csv")
+        raw += _p.parse_s107(csv / "s107_deep_password_search.csv")
+        raw += _p.parse_s108(log_dir / "s108_stacs_password_search" / "stacs_pw_hashes.json")
+        raw += _p.parse_s106(log_dir / "s106_deep_key_search")
+        raw += _p.parse_s99(log_dir / "s99_grepit")
+        if custom_findings and Path(custom_findings).exists():
+            extra = json.loads(Path(custom_findings).read_text(encoding="utf-8"))
+            if isinstance(extra, list):
+                raw += extra
+        return len(_p.merge_and_corroborate(raw))
+    except Exception:  # noqa: BLE001 - a bad estimate must not block the run
+        return 0
+
+
 def _raise_if_auth_error(text: str, cli_name: str) -> None:
     low = (text or "").lower()
     if any(h in low for h in _AUTH_HINTS):
@@ -625,17 +651,20 @@ def classify_via_mcp_agent(
     if not MCP_SERVER_PATH.exists():
         raise RuntimeError(f"MCP server not found: {MCP_SERVER_PATH}")
 
-    # The MCP agent gets ALL findings in one context. On a big real firmware that
-    # can blow past the agent CLI's per-turn limit and time out. Warn early.
-    if custom_findings:
-        try:
-            _n = len(json.loads(Path(custom_findings).read_text(encoding="utf-8")))
-            if _n > 120:
-                print(f"[!] WARNING: the custom grep produced {_n} findings. MCP agent mode "
-                      "sends them all to the agent in one turn and may time out. Consider a "
-                      "tighter scan profile, or AI_PROVIDER=local / gemini for this firmware.")
-        except (json.JSONDecodeError, OSError):
-            pass
+    # The MCP agent gets EVERY finding in one context. On real firmware EMBA's
+    # S99_grepit alone can produce 1000+ findings and the agent CLI times out.
+    n_findings = _estimate_finding_count(Path(log_dir), custom_findings)
+    if n_findings > MCP_MAX_FINDINGS and os.environ.get("LAVA_MCP_FORCE") != "1":
+        raise RuntimeError(
+            f"This scan has ~{n_findings} findings (mostly from EMBA's S99_grepit). "
+            f"MCP agent mode ({agent}) sends them all to the agent in one turn and "
+            f"reliably times out above ~{MCP_MAX_FINDINGS}. Use AI_PROVIDER=local or "
+            f"gemini for this firmware (they classify one finding at a time), or set "
+            f"LAVA_MCP_FORCE=1 to try anyway."
+        )
+    if n_findings > 60:
+        print(f"[!] NOTE: ~{n_findings} findings - the MCP agent run may be slow or flaky. "
+              "local / gemini are steadier at this size.")
 
     prompt = _build_agent_prompt(ground_truth_path)
 
