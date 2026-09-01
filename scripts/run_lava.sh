@@ -16,6 +16,53 @@ if [ -z "$LOGDIR" ]; then
     exit 2
 fi
 
+# ---------------------------------------------------------------------------
+# Resolve the actual EMBA log directory.
+#
+# EMBA writes csv_logs/, emba.log, s99_grepit/ ... into its log dir. But users
+# often point LAVA at a PARENT folder:
+#   fws/DIR880LA/                        <- selected (grandparent, wrong)
+#     emba_dir880la1fw1_log/             <- real EMBA log dir
+#     lava_scan_.../emba_logs/           <- real EMBA log dir (Full Pipeline layout)
+# Without this, the parser silently finds 0 EMBA findings.
+# ---------------------------------------------------------------------------
+_is_emba_logdir() {
+    [ -d "$1/csv_logs" ] || [ -f "$1/emba.log" ] || [ -d "$1/s99_grepit" ] \
+        || [ -d "$1/s106_deep_key_search" ]
+}
+
+_find_emba_logdirs() {  # prints every EMBA log dir at/under "$1" (depth <= 2)
+    local d="$1" c
+    _is_emba_logdir "$d" && echo "$d"
+    _is_emba_logdir "$d/emba_logs" && echo "$d/emba_logs"
+    for c in "$d"/*/; do
+        [ -d "$c" ] || continue
+        c="${c%/}"
+        [ "$c" = "$d/emba_logs" ] && continue
+        _is_emba_logdir "$c" && echo "$c"
+        _is_emba_logdir "$c/emba_logs" && echo "$c/emba_logs"
+    done
+}
+
+if ! _is_emba_logdir "$LOGDIR"; then
+    mapfile -t _EMBA_CANDIDATES < <(_find_emba_logdirs "$LOGDIR" | sort -u)
+    if [ "${#_EMBA_CANDIDATES[@]}" -eq 1 ]; then
+        echo "[*] '$LOGDIR' is not an EMBA log directory itself."
+        echo "[*] Using the EMBA log directory found inside it: ${_EMBA_CANDIDATES[0]}"
+        LOGDIR="${_EMBA_CANDIDATES[0]}"
+    elif [ "${#_EMBA_CANDIDATES[@]}" -gt 1 ]; then
+        echo "ERROR: '$LOGDIR' contains more than one EMBA log directory."
+        echo "       Point LAVA at exactly one of these:"
+        printf '           %s\n' "${_EMBA_CANDIDATES[@]}"
+        exit 2
+    else
+        echo "WARNING: '$LOGDIR' does not look like an EMBA log directory"
+        echo "         (no csv_logs/, emba.log, s99_grepit/, s106_deep_key_search/)."
+        echo "         The parser will most likely find no EMBA findings. Select the"
+        echo "         folder EMBA wrote its logs into."
+    fi
+fi
+
 if [ -z "$BASEOUTDIR" ]; then
     BASEOUTDIR="$LOGDIR/lava_out"
 fi
