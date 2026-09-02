@@ -151,8 +151,7 @@ if [ -f "config/ai_config.env" ]; then
     [ -n "$batch_val" ] && MCP_BATCH_SIZE="$batch_val"
 fi
 
-# S99_grepit coverage (parser.py reads LAVA_S99_SCAN):
-#   raw (default) | light | gated | strict | off
+# S99_grepit coverage (parser.py reads LAVA_S99_SCAN): raw (default) | light | off
 export LAVA_S99_SCAN="$S99_SCAN"
 
 # MCP batching (classifier.py): MCP_BATCH_SIZE=0 -> one giant turn, else batch size
@@ -200,12 +199,11 @@ if [ "$CUSTOM_GREP_ENABLED" = "1" ]; then
     echo "[AI_INFO] Custom grep: ON (profile: $SCAN_PROFILE)"
 fi
 case "$S99_SCAN" in
-    raw)    echo "[AI_INFO] S99_grepit coverage: raw (all cryptocred matches; only unreadable binary bytes removed)" ;;
-    light)  echo "[AI_INFO] S99_grepit coverage: light (raw minus binary string tables + static web assets)" ;;
-    gated)  echo "[AI_INFO] S99_grepit coverage: gated (light + must look like a real key=value assignment)" ;;
-    strict) echo "[AI_INFO] S99_grepit coverage: strict (only /etc/shadow hashes + PEM private keys)" ;;
-    off)    echo "[AI_INFO] S99_grepit coverage: off" ;;
-    *)      echo "[AI_INFO] S99_grepit coverage: $S99_SCAN" ;;
+    raw)              echo "[AI_INFO] S99_grepit coverage: raw (all cryptocred matches; only unreadable binary bytes removed)" ;;
+    light|strict|gated|narrow|broad)
+                      echo "[AI_INFO] S99_grepit coverage: light (raw minus binary string tables + static web assets)" ;;
+    off)              echo "[AI_INFO] S99_grepit coverage: off" ;;
+    *)                echo "[AI_INFO] S99_grepit coverage: $S99_SCAN" ;;
 esac
 if [[ "$AI_PROVIDER" == mcp* ]]; then
     if [ "$MCP_BATCH_SIZE" = "0" ]; then

@@ -1,7 +1,7 @@
 {
   "name": "iot-testing",
-  "description": "Default profile. Cleartext credential / key patterns that EMBA's credential modules (S45/S99/S106/S107/S108) tend to miss on IoT firmware. Tuned to stay quiet on real vendor firmware (web UI assets, extractor artifacts, config templates are filtered out).",
-  "version": 2,
+  "description": "Default profile. Cleartext credential / key patterns that EMBA's credential modules (S45/S99/S106/S107/S108) tend to miss on IoT firmware. Every rule 'pattern' is a plain regex that runs verbatim with `grep -E` (add -i when 'ignore_case' is true), ripgrep, and Python re - no named groups, no (?:...), no inline flags. 'value_group' is the 1-based capture group holding the candidate secret; that, the entropy/reject filtering and 'exclude_paths' are extras LAVA layers on top - plain grep just returns the matching lines.",
+  "version": 3,
   "target": "extracted_fs",
   "text_files_only": true,
   "max_file_size_kb": 512,
@@ -21,92 +21,80 @@
     "**/*.gz", "**/*.bz2", "**/*.xz", "**/*.lzma", "**/*.zip", "**/*.tar", "**/*.7z"
   ],
   "global_reject_values": [
-    "^.{0,3}$",
-    "^[0-9]{1,5}$",
+    "^.{0,2}$",
+    "^[\\s\"'`]*$",
     "^[xX*.\\-_ ]+$",
-    "^[\"']+$",
-    "^/",
-    "^[.~]/",
-    "[\\$`\\\\]",
+    "^[.~]?/",
+    "[$`\\\\]",
     "[()]",
-    "=.",
-    "^[+\\-]",
-    "^\\[.*\\]$",
-    "^<.*>$",
-    "^%.*%$",
-    "^\\{.*\\}$",
-    "^@.*@$",
-    "(?i)^[a-z_][a-z0-9_]*(\\.[a-z_][a-z0-9_]*)+$",
-    "\\.(sh|cnf|conf|cfg|ini|txt|json|xml|pem|crt|cer|der|key|lua|py|pl|c|h|log|list|db)$",
-    "(?i)^(secret|secrets|password|passwords|passwd|pass|pwd|passphrase|passwort|key|keys|token|credential|credentials|value|string|none|null|nil|na|true|false|yes|no|on|off|enable|enabled|disable|disabled|default|defaults|example|test|testing|sample|dummy|changeme|change_me|admin|administrator|root|user|username|guest|public|private|auto|manual|integer|number|bool|boolean|foo|bar|baz|xxx+|todo|fixme|unknown|undefined|localhost|hostname)$"
+    "^[\\[<%{@].*[\\]>%}@]$"
   ],
   "rules": [
     {
       "id": "cleartext_credential_assign",
-      "description": "A credential assigned to a literal value with = or : . Covers key names EMBA's grepit does not treat as narrow (psk, auth_pass, http_passwd, admin_pass, ...).",
-      "pattern": "(?i)\\b([a-z0-9_]*(?:pass(?:word|wd|phrase)?|_pwd|_psk|wpa_psk|passkey|http_passwd)s?)\\b\\s*[:=]\\s*[\"'](?P<value>[^\"'\\s]{4,80})[\"']",
-      "value_group": "value",
-      "min_value_len": 4,
-      "min_value_entropy": 2.2
+      "description": "A credential assigned to a quoted literal with = or : . Covers key names EMBA's grepit does not treat as narrow (psk, auth_pass, http_passwd, admin_pass, ...). grep: -iE",
+      "pattern": "\\b([a-z0-9_]*(pass(word|wd|phrase)?|_pwd|_psk|wpa_psk|passkey|http_passwd)s?)\\b\\s*[:=]\\s*[\"']([^\"'\\s]{4,80})[\"']",
+      "ignore_case": true,
+      "value_group": 4
     },
     {
       "id": "cleartext_credential_assign_unquoted",
-      "description": "Same, but for shell/env style KEY=value without quotes.",
-      "pattern": "(?i)(?:^|\\s|;)([a-z0-9_]*(?:pass(?:word|wd|phrase)?|_pwd|_psk|wpa_psk|http_passwd))\\s*=\\s*(?P<value>[^\\s\"';#&|]{6,80})(?:\\s|$)",
-      "value_group": "value",
-      "min_value_len": 6,
-      "min_value_entropy": 2.6
+      "description": "Same, for shell/env style KEY=value without quotes. grep: -iE",
+      "pattern": "(^|\\s|;)([a-z0-9_]*(pass(word|wd|phrase)?|_pwd|_psk|wpa_psk|http_passwd))\\s*=\\s*([^\\s\"';#&|]{6,80})(\\s|$)",
+      "ignore_case": true,
+      "value_group": 5
     },
     {
       "id": "private_key_block",
-      "description": "A PEM private key header anywhere in the filesystem (S106 only greps two patterns over a narrow scope).",
-      "pattern": "-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP |ENCRYPTED )?PRIVATE KEY-----"
+      "description": "A PEM private key header anywhere in the filesystem (S106 only greps two patterns over a narrow scope). Leading [-] so the pattern does not start with a dash. grep: -E",
+      "pattern": "[-]----BEGIN (RSA |EC |DSA |OPENSSH |PGP |ENCRYPTED )?PRIVATE KEY-----"
     },
     {
       "id": "ssh_authorized_key",
-      "description": "An OpenSSH public key line (authorized_keys / dropbear). EMBA's S106 only matches the PEM '-----BEGIN-----' form.",
-      "pattern": "(?P<value>(?:ssh-(?:rsa|ed25519|dss)|ecdsa-sha2-[a-z0-9-]+)\\s+AAAA[0-9A-Za-z+/]{80,}={0,3})",
-      "value_group": "value"
+      "description": "An OpenSSH public key line (authorized_keys / dropbear). EMBA's S106 only matches the PEM '-----BEGIN-----' form. grep: -E",
+      "pattern": "((ssh-(rsa|ed25519|dss)|ecdsa-sha2-[a-z0-9-]+)\\s+AAAA[0-9A-Za-z+/]{80,}={0,3})",
+      "value_group": 1
     },
     {
       "id": "http_basic_auth",
-      "description": "An HTTP Authorization: Basic header with a base64 user:pass. EMBA never decodes these.",
-      "pattern": "(?i)authorization\\s*:\\s*basic\\s+(?P<value>[A-Za-z0-9+/]{16,}={0,2})",
-      "value_group": "value"
+      "description": "An HTTP Authorization: Basic header with a base64 user:pass. EMBA never decodes these. grep: -iE",
+      "pattern": "authorization\\s*:\\s*basic\\s+([A-Za-z0-9+/]{16,}={0,2})",
+      "ignore_case": true,
+      "value_group": 1
     },
     {
       "id": "url_embedded_credential",
-      "description": "A credential embedded in a URL (scheme://user:pass@host).",
-      "pattern": "(?i)(?:https?|ftp|mysql|postgres|redis|mongodb)://[A-Za-z0-9._%-]+:(?P<value>[^\\s/@\"'<>:$%\\[\\]{}]{6,})@[A-Za-z0-9.-]+",
-      "value_group": "value",
-      "min_value_len": 6,
-      "min_value_entropy": 2.6
+      "description": "A credential embedded in a URL (scheme://user:pass@host). grep: -iE",
+      "pattern": "(https?|ftp|mysql|postgres|redis|mongodb)://[A-Za-z0-9._%~-]+:([^\\s@/\"']{6,})@[A-Za-z0-9.-]+",
+      "ignore_case": true,
+      "value_group": 2
     },
     {
       "id": "api_key_prefixed",
-      "description": "A vendor API key / token identified by its prefix (AWS, GCP, Stripe, Slack, GitHub).",
-      "pattern": "(?P<value>AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{35}|sk_live_[0-9A-Za-z]{20,}|xox[baprs]-[0-9A-Za-z-]{10,}|gh[pousr]_[0-9A-Za-z]{36,})",
-      "value_group": "value"
+      "description": "A vendor API key / token identified by its prefix (AWS, GCP, Stripe, Slack, GitHub). Case-sensitive. grep: -E",
+      "pattern": "(AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{35}|sk_live_[0-9A-Za-z]{20,}|xox[baprs]-[0-9A-Za-z-]{10,}|gh[pousr]_[0-9A-Za-z]{36,})",
+      "value_group": 1
     },
     {
       "id": "snmp_community",
-      "description": "An SNMP read/write community string with a concrete non-default value.",
-      "pattern": "(?i)\\b(?:ro|rw)community\\s+(?P<value>[A-Za-z0-9_@.-]{3,40})\\b",
-      "value_group": "value",
+      "description": "An SNMP read/write community string with a concrete non-default value. grep: -iE",
+      "pattern": "\\b(ro|rw)community\\s+([A-Za-z0-9_@.-]{3,40})\\b",
+      "ignore_case": true,
+      "value_group": 2,
       "reject_values": ["(?i)^(public|private|community|snmp)$"]
     },
     {
       "id": "uci_secret_option",
-      "description": "An OpenWrt/LEDE UCI config option holding a secret with a concrete literal value.",
-      "pattern": "option\\s+(?P<optname>key|[a-z0-9_]*(?:pass(?:word|wd|phrase)?|psk|http_passwd))\\s+'(?P<value>[^']{4,})'",
-      "value_group": "value",
+      "description": "An OpenWrt/LEDE UCI config option holding a secret with a concrete literal value. grep: -E",
+      "pattern": "option\\s+(key|[a-z0-9_]*(pass(word|wd|phrase)?|psk|http_passwd))\\s+'([^']{4,})'",
+      "value_group": 4,
       "reject_values": ["(?i)^(psk2?|wpa[23]?|none|open|sae|mixed)$"]
     },
     {
       "id": "htpasswd_entry",
-      "description": "An .htpasswd-style user:hash line (Apache MD5, SHA, bcrypt, crypt).",
-      "pattern": "^(?P<value>[A-Za-z0-9._-]{1,40}:(?:\\$apr1\\$|\\{SHA\\}|\\$2[aby]\\$|\\$1\\$|\\$5\\$|\\$6\\$)[^\\s:]{6,})\\s*$",
-      "value_group": "value"
+      "description": "An .htpasswd-style user:hash line (Apache MD5, SHA, bcrypt, crypt). grep: -E",
+      "pattern": "^([A-Za-z0-9._-]{1,40}:(\\$apr1\\$|\\{SHA\\}|\\$2[aby]\\$|\\$1\\$|\\$5\\$|\\$6\\$)[^\\s:]{6,})\\s*$",
+      "value_group": 1
     }
   ]
 }

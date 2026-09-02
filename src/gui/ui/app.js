@@ -270,7 +270,7 @@ function setupEventListeners() {
                     scanProfileSelect.value = config.SCAN_PROFILE || 'iot-testing';
                 }
                 if (s99ScanSelect) {
-                    const aliases = { narrow: 'strict', broad: 'gated' };
+                    const aliases = { narrow: 'light', broad: 'light', strict: 'light', gated: 'light' };
                     s99ScanSelect.value = aliases[config.S99_SCAN] || config.S99_SCAN || 'raw';
                 }
                 if (mcpBatchSizeInput) mcpBatchSizeInput.value = (config.MCP_BATCH_SIZE ?? '40');

@@ -66,12 +66,22 @@ def _shannon_entropy(s: str) -> float:
 
 
 class Rule:
+    """One profile rule. `pattern` is a plain regex that runs verbatim with
+    `grep -E` (add `-i` when `ignore_case` is set), ripgrep, and Python `re` -
+    no `(?P<name>...)`, no `(?:...)`, no inline `(?i)`. `value_group` is the
+    1-based capture-group number holding the candidate secret (LAVA-only extras:
+    the extracted value is shown to the AI, used for dedup, and run past the
+    global / per-rule reject lists; plain grep just returns the matching line).
+    """
+
     def __init__(self, spec: dict, global_reject: list | None = None):
         self.id = spec["id"]
         self.description = spec.get("description", "")
         self.pattern = spec["pattern"]
-        self.rx = re.compile(spec["pattern"])
-        self.value_group = spec.get("value_group")
+        self.ignore_case = bool(spec.get("ignore_case", False))
+        self.rx = re.compile(spec["pattern"], re.IGNORECASE if self.ignore_case else 0)
+        vg = spec.get("value_group")
+        self.value_group = int(vg) if isinstance(vg, str) and vg.lstrip("-").isdigit() else vg
         self.min_value_len = int(spec.get("min_value_len", 0))
         self.min_value_entropy = float(spec.get("min_value_entropy", 0.0))
         self.reject = list(global_reject or []) + [re.compile(r) for r in spec.get("reject_values", [])]
@@ -211,12 +221,14 @@ def _rg_lines(root: Path, rules: list[Rule], profile: dict):
         cmd += ["--glob", g]
     for g in profile.get("exclude_paths", []):
         cmd += ["--glob", "!" + g]
-    # rg ORs all -e patterns into one regex; two rules with (?P<value>...) then
-    # collide ("duplicate capture group name"). rg is only a candidate-line
-    # prefilter here (scan() re-matches every line with the real Python rule),
-    # so drop the group names for the rg pass.
+    # rg is only a candidate-line prefilter here (scan() re-matches every line
+    # with the real Python rule), so a per-rule "(?i)" prefix and best-effort
+    # named-group stripping are enough - correctness comes from the re-match.
     for r in rules:
-        cmd += ["-e", _RG_NAMED_GROUP_RE.sub("(?:", r.pattern)]
+        pat = _RG_NAMED_GROUP_RE.sub("(?:", r.pattern)
+        if getattr(r, "ignore_case", False):
+            pat = "(?i)" + pat
+        cmd += ["-e", pat]
     cmd.append(str(root))
 
     try:

@@ -115,8 +115,6 @@
                             <select id="s99ScanSelect" class="settings-input">
                                 <option value="raw">raw &ndash; everything grepit found (default)</option>
                                 <option value="light">light &ndash; drop binary string tables + web assets</option>
-                                <option value="gated">gated &ndash; only real key=value assignments</option>
-                                <option value="strict">strict &ndash; only shadow hashes + private keys</option>
                                 <option value="off">off &ndash; skip S99 entirely</option>
                             </select>
                             <div class="settings-note">
@@ -132,17 +130,10 @@
                                   <li><b>light</b> &ndash; raw, minus two things that structurally can't be a
                                       config credential: matches inside a compiled binary's string table
                                       (<code>*.so</code>, ELF), and static web assets (minified JS libraries,
-                                      images, <code>.html</code>, locale bundles).</li>
-                                  <li><b>gated</b> &ndash; light, and the line must look like an actual
-                                      assignment (<code>key = "value"</code> / <code>key: value</code> with a
-                                      concrete literal). Drops <code>x="";</code>, <code>if (x=="")</code>,
-                                      <code>pw=$pass</code>, <code>{</code>, <code>%s</code>.</li>
-                                  <li><b>strict</b> &ndash; only the two unambiguous categories:
-                                      <code>/etc/shadow</code> hashes and
-                                      <code>-----BEGIN&nbsp;&hellip;&nbsp;PRIVATE&nbsp;KEY-----</code> blocks,
-                                      each verified. Other <code>key=value</code> leaks are still covered by
-                                      EMBA S107 and the Custom Grep layer.</li>
-                                  <li><b>off</b> &ndash; no S99 at all.</li>
+                                      images, <code>.html</code>, locale bundles). Recommended for MCP Agent
+                                      mode.</li>
+                                  <li><b>off</b> &ndash; no S99 at all (S45/S106/S107/S108 + Custom Grep
+                                      still run).</li>
                                 </ul>
                                 Duplicate hits (same file grepped by two extractors) are collapsed at
                                 every level.

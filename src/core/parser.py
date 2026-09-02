@@ -29,28 +29,22 @@ from fw_paths import normalize_path
 # call - so by default LAVA passes everything through and only removes matches
 # that provably cannot be a real credential (unreadable binary bytes).
 #
-# LAVA_S99_SCAN - five levels, most permissive first:
+# LAVA_S99_SCAN - three levels, most permissive first:
 #   raw (default) - every cryptocred_* category. The ONLY thing removed is a
 #                   match whose line is unreadable binary garbage / not a real
 #                   path. The AI triages the rest.
 #   light         - raw, minus two things that structurally cannot be a config
 #                   credential: (a) matches inside a compiled binary's string
 #                   table (*.so / ELF / *_elf.raw), (b) static web assets
-#                   (minified JS libs, images, .html, locale bundles).
-#   gated         - light, and additionally the line must look like an actual
-#                   assignment - `key = "value"` / `key: value` with a concrete
-#                   literal. Drops empty values (`x="";`), comparisons
-#                   (`if (x=="")`), bare variable refs (`pw=$pass`), `{`/`%s`.
-#   strict        - ONLY the two structurally-unambiguous categories:
-#                   /etc/shadow hashes and `-----BEGIN ... PRIVATE KEY-----`
-#                   blocks, each verified. Everything else is left to S107 and
-#                   the custom grep layer.
+#                   (minified JS libs, images, .html, locale bundles). For the
+#                   two structural categories (shadow files / PEM private keys)
+#                   the matched line is also verified.
 #   off           - skip S99 entirely.
 #
 # Cross-extractor duplicates (same file grepped under binwalk AND unblob, or
 # re-extracted as a *.raw blob) are collapsed to one finding in every level.
 # ---------------------------------------------------------------------------
-S99_MODES = ("off", "strict", "gated", "light", "raw")
+S99_MODES = ("off", "light", "raw")
 S99_DEFAULT_MODE = "raw"
 
 S99_STRUCTURAL_CATEGORIES = {
@@ -80,65 +74,40 @@ _S99_WEB_ASSET_RE = re.compile(r"""(?ix)
     | /(?:www|web|webs|webpages|wwwroot|htdocs|luci-static|i18n|
          locale|locales|lang|help|manual|docs?)/
 """)
-_S99_ASSIGN_RE = re.compile(r"""(?ix)
-    (?:pass(?:word|wd|phrase|code|key)?|pwd|pw|secret|psk|passwort)
-    \s*(?P<op>[:=])\s*(?P<v>.*)$""")
-_S99_VALUE_REJECT_RE = re.compile(r"""(?ix) ^\s*(?:
-      $
-    | ["'`]{1,2}\s*[;,)\]}]?\s*$
-    | [{\[(<%$]
-    | \\?\$?\{
-    | (?:true|false|null|nil|none|undefined|nan|required|optional|auto|yes|no|
-        on|off|enabled?|disabled?|function|typeof|return|var|let|const|new|
-        i18n|gettext|query|get|set|document|window|this|self)\b
-    | [A-Za-z_]\w*\s*\(
-    | .{0,120}[=!]=
-)""")
 
 
 def _s99_scan_mode() -> str:
     mode = os.environ.get("LAVA_S99_SCAN", S99_DEFAULT_MODE).strip().lower()
-    mode = {"narrow": "strict", "broad": "gated"}.get(mode, mode)  # old names
+    # old names (strict / gated / narrow / broad) -> the surviving filtered mode
+    mode = {"strict": "light", "gated": "light",
+            "narrow": "light", "broad": "light"}.get(mode, mode)
     return mode if mode in S99_MODES else S99_DEFAULT_MODE
 
 
 def _s99_category_allowed(category: str, mode: str) -> bool:
     if mode == "off":
         return False
-    if mode == "strict":
-        return category in S99_STRUCTURAL_CATEGORIES
-    return "cryptocred" in category  # gated / light / raw: every cryptocred cat
+    return "cryptocred" in category  # light / raw: every cryptocred category
 
 
 def _s99_keep_match(category: str, path: str, content: str, mode: str) -> bool:
-    """Level-dependent filter. `raw` keeps everything the caller already deemed
-    printable; the tighter levels remove progressively more."""
+    """`raw` keeps everything the caller already deemed printable. `light` also
+    drops matches that structurally cannot be a config credential."""
     if mode == "raw":
         return True
 
-    c = content.strip()
-    # 'light' and up: things that structurally cannot be a config credential
+    # light: matches inside a compiled binary's string table or a static web
+    # asset are never a real hardcoded credential.
     if _S99_BINARY_PATH_RE.search(path) or _S99_WEB_ASSET_RE.search(path):
         return False
 
+    # light: verify the two structurally-unambiguous categories
     if category in S99_STRUCTURAL_CATEGORIES:
+        c = content.strip()
         if "private-key" in category:
             return bool(_S99_PEM_PRIV_RE.search(c))
         return bool(_S99_SHADOW_RE.match(c))
 
-    if mode == "light":
-        return True
-
-    # mode == 'gated': require a real "key = value" assignment
-    m = _S99_ASSIGN_RE.search(c)
-    if not m:
-        return False
-    val = m.group("v").strip().strip("\"'` ,;)")
-    if len(val) < 4 or _S99_VALUE_REJECT_RE.match(m.group("v")):
-        return False
-    if re.fullmatch(r"\$?\{?[A-Za-z_][\w.]*\}?", val) or re.search(
-            r"\.(query|get|value|val)\b", m.group("v")):
-        return False
     return True
 
 
