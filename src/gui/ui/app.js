@@ -118,12 +118,31 @@ function populateModuleFilter() {
     });
 }
 
+// A tab is a "seen by" SET, not a disjoint bucket:
+//   EMBA    = found by an EMBA module (emba-only OR both)
+//   Grep    = found by a custom rule  (custom-only OR both)
+//   Overlap = found by both
+function matchesSourceTab(f, tab) {
+    if (tab === 'all') return true;
+    const s = deriveSource(f);
+    if (tab === 'emba')   return s === 'emba' || s === 'both';
+    if (tab === 'custom') return s === 'custom' || s === 'both';
+    if (tab === 'both')   return s === 'both';
+    return true;
+}
+
 function updateSourceTabs() {
-    const counts = { all: allFindings.length, emba: 0, custom: 0, both: 0 };
-    allFindings.forEach(f => { counts[deriveSource(f)] = (counts[deriveSource(f)] || 0) + 1; });
+    const raw = { emba: 0, custom: 0, both: 0 };
+    allFindings.forEach(f => { raw[deriveSource(f)] = (raw[deriveSource(f)] || 0) + 1; });
+    const counts = {
+        all: allFindings.length,
+        emba: raw.emba + raw.both,
+        custom: raw.custom + raw.both,
+        both: raw.both,
+    };
 
     const tabs = document.getElementById('sourceTabs');
-    const hasCustom = counts.custom > 0 || counts.both > 0;
+    const hasCustom = raw.custom > 0 || raw.both > 0;
     if (tabs) tabs.classList.toggle('hidden', !hasCustom);
     if (!hasCustom && sourceFilter !== 'all') sourceFilter = 'all';
 
@@ -553,10 +572,7 @@ function filterData(searchTerm, verdictFilter) {
         const mods = f.found_by_modules || (f.module ? [f.module] : []);
         const matchesModule = modFilterVal === 'all' || mods.includes(modFilterVal);
 
-        const src = deriveSource(f);
-        const matchesSource = sourceFilter === 'all' || src === sourceFilter;
-
-        return matchesSearch(f) && matchesVerdict && matchesModule && matchesSource;
+        return matchesSearch(f) && matchesVerdict && matchesModule && matchesSourceTab(f, sourceFilter);
     });
 
     renderFindings(filtered);

@@ -235,10 +235,19 @@ function closeModal(){document.getElementById('overlay').classList.remove('on');
 document.getElementById('overlay').onclick=e=>{if(e.target.id==='overlay')closeModal();};
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
 
-function counts(){
-  const c={all:DATA.length,emba:0,custom:0,both:0};
-  DATA.forEach(f=>c[srcOf(f)]++);
-  return c;
+// a tab is a "seen by" SET: EMBA = emba-only OR both, Grep = custom-only OR both
+function tabMatch(f,tab){
+  if(tab==='all') return true;
+  const s=srcOf(f);
+  if(tab==='emba')   return s==='emba'||s==='both';
+  if(tab==='custom') return s==='custom'||s==='both';
+  if(tab==='both')   return s==='both';
+  return true;
+}
+function rawCounts(){
+  const r={emba:0,custom:0,both:0};
+  DATA.forEach(f=>r[srcOf(f)]++);
+  return r;
 }
 function searchMatch(f,t){
   return (f.file_path||'').toLowerCase().includes(t) || (f.matched_content||'').toLowerCase().includes(t)
@@ -261,8 +270,7 @@ function render(){
   }
   const rows=searched.filter(f=>{
     const okV=verdictFilter==='all'||f.predicted_verdict===verdictFilter;
-    const okS=sourceFilter==='all'||srcOf(f)===sourceFilter;
-    return okV&&okS;
+    return okV&&tabMatch(f,sourceFilter);
   });
   const g=document.getElementById('grid'); g.innerHTML='';
   rows.forEach(f=>g.appendChild(card(f)));
@@ -285,9 +293,10 @@ function visibility(){
   document.getElementById('s-fp').textContent=fp;
   document.getElementById('sub').textContent=new Date().toISOString().slice(0,16).replace('T',' ')+'  ·  verdicts.json';
 
-  const c=counts();
+  const rc=rawCounts();
+  const c={all:DATA.length,emba:rc.emba+rc.both,custom:rc.custom+rc.both,both:rc.both};
   ['all','emba','custom','both'].forEach(s=>document.getElementById('c-'+s).textContent=c[s]);
-  const hasCustom=c.custom>0||c.both>0;
+  const hasCustom=rc.custom>0||rc.both>0;
   document.getElementById('tabs').classList.toggle('hidden',!hasCustom);
 
   document.getElementById('search').addEventListener('input',render);
