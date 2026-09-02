@@ -1,6 +1,6 @@
 {
   "name": "iot-testing",
-  "description": "Default profile. Cleartext credential / key patterns that EMBA's credential modules (S45/S99/S106/S107/S108) tend to miss on IoT firmware. Every rule 'pattern' is a plain regex that runs verbatim with `grep -E` (add -i when 'ignore_case' is true), ripgrep, and Python re - no named groups, no (?:...), no inline flags. 'value_group' is the 1-based capture group holding the candidate secret; that, the entropy/reject filtering and 'exclude_paths' are extras LAVA layers on top - plain grep just returns the matching lines.",
+  "description": "Default profile. Cleartext credential / key patterns that EMBA's credential modules (S45/S99/S106/S107/S108) tend to miss on IoT firmware. Every rule 'pattern' is a plain regex that runs verbatim with `grep -E` (add -i when 'ignore_case' is true), ripgrep, and Python re - no named groups, no (?:...), no inline flags. 'value_group' is the 1-based capture group holding the candidate secret; that, the reject lists ('global_reject_values' / per-rule 'reject_values') and 'exclude_paths' are extras LAVA layers on top - plain grep just returns the matching lines. Optional per-rule 'min_value_len' / 'min_value_entropy' gates exist but are left OFF here (a weak-but-real password like 'admin' has low entropy - the AI, not a threshold, decides).",
   "version": 3,
   "target": "extracted_fs",
   "text_files_only": true,
