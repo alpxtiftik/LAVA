@@ -125,17 +125,25 @@ Below are examples. Learn from them, then evaluate the NEW finding given to you.
 
 {few_shot_block}
 
+THE "category" FIELD:
+Give every finding a short 1-4 word English label describing WHAT KIND of thing
+it is - a heading a human would skim. Examples: "MD5 shadow hash",
+"PEM private key", "Hardcoded API token", "SSH host key", "Basic-auth header",
+"WPA passphrase", "Config template placeholder", "jQuery validation rule",
+"Library binary string", "Package signing key", "Script variable read".
+It is a title, NOT a verdict - a TP and an FP can share a category.
+
 VERY IMPORTANT RULES:
-1. Write the "reasoning" field STRICTLY AND ONLY IN ENGLISH.
+1. Write the "reasoning" and "category" fields STRICTLY AND ONLY IN ENGLISH.
 2. Respond ONLY in the following JSON format, with no other text:
-{{"verdict": "TP" or "FP", "confidence": a number between 0.0-1.0, "reasoning": "1-2 sentence short ENGLISH reasoning"}}
+{{"verdict": "TP" or "FP", "confidence": a number between 0.0-1.0, "category": "1-4 word label", "reasoning": "1-2 sentence short ENGLISH reasoning"}}
 """
 
 FEW_SHOT_ITEM_TEMPLATE = """### Example {n}
 File: {file_path}
 Module: {module}
 Matched content: {matched_content}
-Correct answer: {{"verdict": "{verdict}", "confidence": 0.99, "reasoning": "{reasoning}"}}
+Correct answer: {{"verdict": "{verdict}", "confidence": 0.99, "category": "{category}", "reasoning": "{reasoning}"}}
 """
 
 USER_PROMPT_TEMPLATE = """Now evaluate this finding:
@@ -205,6 +213,7 @@ def build_few_shot_block(few_shot_items: list[dict]) -> str:
                 module=item["module"],
                 matched_content=item["matched_content"],
                 verdict=item["verdict"],
+                category=item.get("category", ""),
                 reasoning=item.get("reasoning", ""),
             )
         )
@@ -338,9 +347,14 @@ def parse_verdict_response(raw_text: str) -> dict | None:
         except (ValueError, TypeError):
             pass
 
+    category = str(parsed.get("category", "")).strip()
+    if len(category) > 60:
+        category = category[:60]
+
     return {
         "verdict": verdict,
         "confidence": conf,
+        "category": category,
         "reasoning": parsed.get("reasoning", ""),
     }
 
@@ -387,7 +401,9 @@ def classify_item(
             print("        Retrying (2s)...")
             time.sleep(2)
 
-    return {"verdict": "ERROR", "confidence": None, "reasoning": f"No valid response from the {provider.upper()} API. {last_error_details}", "attempts": max_retries}
+    return {"verdict": "ERROR", "confidence": None, "category": "",
+            "reasoning": f"No valid response from the {provider.upper()} API. {last_error_details}",
+            "attempts": max_retries}
 
 
 
@@ -432,6 +448,7 @@ Steps:
    especially when there are many findings.
 4. Write results with ONE `submit_all_verdicts` call: a list of
    {{"finding_id": ..., "verdict": "TP"|"FP", "confidence": 0.0-1.0,
+     "category": "1-4 word English label (see 'THE category FIELD' above)",
      "reasoning": "1-2 sentence English"}}.
    (Use `submit_verdict` only for follow-up corrections.)
 
@@ -849,6 +866,7 @@ def run_test_mode(args, config: dict):
             "true_verdict": item["verdict"],
             "predicted_verdict": pred["verdict"],
             "confidence": pred.get("confidence"),
+            "category": pred.get("category", ""),
             "model_reasoning": pred.get("reasoning"),
             "human_reasoning": item.get("reasoning"),
             "attempts": pred.get("attempts"),
@@ -896,6 +914,7 @@ def run_full_mode(args, config: dict):
             "line_no": item.get("line_no") or (item.get("extra") or {}).get("line_no"),
             "predicted_verdict": pred["verdict"],
             "confidence": pred.get("confidence"),
+            "category": pred.get("category", ""),
             "model_reasoning": pred.get("reasoning"),
             "attempts": pred.get("attempts"),
         })

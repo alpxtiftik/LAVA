@@ -8,6 +8,7 @@
       "module": "S107_deep_password_search",
       "corroboration_count": 4,
       "verdict": "TP",
+      "category": "MD5 shadow hash",
       "reasoning": "This is a real, working MD5-crypt hash embedded in the password file, independently corroborated by 4 different modules.",
       "context": {
         "status": "ok",
@@ -32,6 +33,7 @@
       "module": "S99_grepit",
       "corroboration_count": 1,
       "verdict": "FP",
+      "category": "Package signing key",
       "reasoning": "This is not a secret key; it is a PUBLIC key used to verify package signatures, which is meant to be public.",
       "context": {
         "status": "ok",
@@ -50,6 +52,7 @@
       "module": "S99_grepit",
       "corroboration_count": 1,
       "verdict": "FP",
+      "category": "UCI config flag",
       "reasoning": "This is not a password value; it is an option/flag name (boolean) in the UCI config system indicating whether password authentication is enabled.",
       "context": {
         "status": "ok",
@@ -87,6 +90,7 @@
       "module": "S107_deep_password_search",
       "corroboration_count": 1,
       "verdict": "FP",
+      "category": "Library binary string",
       "reasoning": "The hash is found in the library's own binary rather than a user configuration file; it appears to be a crypt() documentation or test string rather than a real user credential.",
       "context": {
         "status": "binary_file_skipped"
@@ -99,6 +103,7 @@
       "module": "S99_grepit",
       "corroboration_count": null,
       "verdict": "FP",
+      "category": "Passwd placeholder",
       "reasoning": "The 'x' placeholder in the passwd file simply indicates that the hash is stored in the shadow file; this line itself does not contain any cryptographic hash or credential value.",
       "context": {
         "status": "ok",

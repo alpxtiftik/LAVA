@@ -205,7 +205,8 @@ def _load_existing_verdicts() -> list[dict]:
     return []
 
 
-def _verdict_record(finding: dict, verdict: str, confidence: float, reasoning: str) -> dict:
+def _verdict_record(finding: dict, verdict: str, confidence: float,
+                    reasoning: str, category: str = "") -> dict:
     """Field-for-field identical to the object produced by run_full_mode in local/Gemini mode."""
     return {
         "file_path": finding["file_path"],
@@ -216,6 +217,7 @@ def _verdict_record(finding: dict, verdict: str, confidence: float, reasoning: s
         "line_no": finding.get("line_no"),
         "predicted_verdict": verdict,
         "confidence": confidence,
+        "category": category,
         "model_reasoning": reasoning,
         "attempts": 1,
     }
@@ -409,6 +411,9 @@ class VerdictIn(BaseModel):
     finding_id: str = Field(description="finding_id from list_findings")
     verdict: str = Field(description="'TP' (True Positive) or 'FP' (False Positive)")
     confidence: float = Field(description="confidence score between 0.0 and 1.0")
+    category: str = Field(default="", description="1-4 word English label for the KIND of finding "
+                                                  "(e.g. 'MD5 shadow hash', 'PEM private key', "
+                                                  "'jQuery validation rule'); a title, not a verdict")
     reasoning: str = Field(description="1-2 sentence SHORT ENGLISH rationale")
 
 
@@ -419,19 +424,23 @@ def _submit_one(v: VerdictIn, sink: dict[str, dict]) -> str:
         return (f"[error] unknown finding_id: {v.finding_id!r}. "
                 f"Get valid ids with list_findings (e.g. {valid} ...)")
     verdict = _normalize_verdict(v.verdict)
-    rec = _verdict_record(finding, verdict, _clamp_conf(v.confidence), str(v.reasoning).strip())
+    rec = _verdict_record(finding, verdict, _clamp_conf(v.confidence),
+                          str(v.reasoning).strip(), str(v.category).strip()[:60])
     sink[v.finding_id] = rec
     return f"[ok] {v.finding_id} -> {verdict} (conf={rec['confidence']})"
 
 
 @mcp.tool()
-def submit_verdict(finding_id: str, verdict: str, confidence: float, reasoning: str) -> str:
+def submit_verdict(finding_id: str, verdict: str, confidence: float, reasoning: str,
+                   category: str = "") -> str:
     """Writes the verdict for a single finding to verdicts.json (same schema,
     same file, atomic - as in local/Gemini mode). verdict='TP'|'FP',
-    confidence=0.0-1.0, reasoning=short English rationale."""
+    confidence=0.0-1.0, reasoning=short English rationale, category=1-4 word
+    English label for the KIND of finding."""
     sink: dict[str, dict] = {}
     msg = _submit_one(
-        VerdictIn(finding_id=finding_id, verdict=verdict, confidence=confidence, reasoning=reasoning),
+        VerdictIn(finding_id=finding_id, verdict=verdict, confidence=confidence,
+                  reasoning=reasoning, category=category),
         sink,
     )
     if sink:
@@ -442,8 +451,8 @@ def submit_verdict(finding_id: str, verdict: str, confidence: float, reasoning: 
 @mcp.tool()
 def submit_all_verdicts(verdicts: list[VerdictIn]) -> str:
     """Writes the verdicts for ALL findings in ONE call (the preferred method).
-    Each item is {finding_id, verdict, confidence, reasoning}. verdicts.json is
-    written in the exact same schema as local/Gemini mode."""
+    Each item is {finding_id, verdict, confidence, category, reasoning}.
+    verdicts.json is written in the exact same schema as local/Gemini mode."""
     sink: dict[str, dict] = {}
     lines: list[str] = []
     for v in verdicts:
