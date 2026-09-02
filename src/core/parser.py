@@ -268,7 +268,14 @@ def parse_s108(json_path: Path) -> list[dict]:
     out = []
     if not json_path.exists():
         return out
-    data = json.loads(json_path.read_text(encoding="utf-8", errors="replace"))
+    try:
+        data = json.loads(json_path.read_text(encoding="utf-8", errors="replace"))
+    except (json.JSONDecodeError, OSError, ValueError) as e:
+        print(f"[!] WARNING: {json_path.name} is unreadable / invalid JSON, skipping S108: {e}",
+              file=sys.stderr)
+        return out
+    if not isinstance(data, dict):
+        return out
     for run in data.get("runs", []):
         for result in run.get("results", []):
             rule_id = result.get("ruleId", "")
@@ -520,9 +527,12 @@ def main():
 
     log_dir = Path(args.log_dir)
 
-    if not (log_dir / "csv_logs").exists() and not (log_dir / "s99_grepit").exists():
+    # Same acceptance test as run_lava.sh's _is_emba_logdir() - stay consistent so
+    # a dir that the launcher accepted is not then rejected here.
+    if not any((log_dir / m).exists() for m in
+               ("csv_logs", "s99_grepit", "s106_deep_key_search", "emba.log")):
         print("[!] ERROR: the selected folder is not a valid EMBA log directory.")
-        print(f"    No 'csv_logs' or 's99_grepit' folder found inside '{log_dir}'.")
+        print(f"    None of csv_logs/, s99_grepit/, s106_deep_key_search/, emba.log found in '{log_dir}'.")
         print("    If you extracted the EMBA logs from a zip, you may have selected a subfolder.")
         print("    Please select the actual log directory that contains 'csv_logs', 'firmware', etc.")
         sys.exit(1)

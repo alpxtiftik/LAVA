@@ -296,6 +296,12 @@ class Api:
         if self.last_output_dir and os.path.isdir(self.last_output_dir):
             return self.last_output_dir
 
+        # A scan is running but has not printed its LAVA_OUTPUT_DIR marker yet
+        # (still in EMBA). Do NOT fall back to a PREVIOUS run's directory - that
+        # would show stale findings for the whole EMBA phase.
+        if scan_process is not None and scan_process.poll() is None:
+            return os.path.join(_LAVA_CACHE, "__scan_pending__")
+
         hint = os.path.expanduser(hint or "")
         cands = []
         if os.path.isfile(hint):                       # firmware path

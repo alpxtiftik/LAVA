@@ -423,7 +423,11 @@ def _submit_one(v: VerdictIn, sink: dict[str, dict]) -> str:
         valid = ", ".join(list(REGISTRY)[:8])
         return (f"[error] unknown finding_id: {v.finding_id!r}. "
                 f"Get valid ids with list_findings (e.g. {valid} ...)")
-    verdict = _normalize_verdict(v.verdict)
+    try:
+        verdict = _normalize_verdict(v.verdict)
+    except ValueError as e:
+        # Report this one, keep the rest of the batch (do NOT raise).
+        return f"[error] {v.finding_id}: {e}"
     rec = _verdict_record(finding, verdict, _clamp_conf(v.confidence),
                           str(v.reasoning).strip(), str(v.category).strip()[:60])
     sink[v.finding_id] = rec

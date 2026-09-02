@@ -16,6 +16,26 @@ if [ -z "$LOGDIR" ]; then
     exit 2
 fi
 
+# The pipeline runs `python3 src/core/...` and reads `config/...` as relative
+# paths, so it MUST run from the repo root. Make the user's paths absolute
+# first (they were relative to the caller's cwd), then cd to the root.
+_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
+_LAVA_ROOT="$(dirname "$(dirname "$_SCRIPT")")"
+case "$LOGDIR" in
+    /*) ;;
+    *)  LOGDIR="$(cd "$LOGDIR" 2>/dev/null && pwd)" || LOGDIR="$PWD/$LOGDIR" ;;
+esac
+if [ -n "${BASEOUTDIR:-}" ]; then
+    case "$BASEOUTDIR" in /*) ;; *) BASEOUTDIR="$PWD/$BASEOUTDIR" ;; esac
+fi
+cd "$_LAVA_ROOT" || { echo "Error: cannot enter the LAVA root ($_LAVA_ROOT)."; exit 1; }
+
+# config/ai_config.env is gitignored; seed it from the template on first run.
+if [ ! -f "config/ai_config.env" ] && [ -f "config/ai_config.example.env" ]; then
+    cp config/ai_config.example.env config/ai_config.env
+    echo "[*] Created config/ai_config.env from the example template."
+fi
+
 # ---------------------------------------------------------------------------
 # Resolve the actual EMBA log directory.
 #
@@ -75,9 +95,6 @@ if [ -z "$BASEOUTDIR" ]; then
 else
     OUTDIR="$BASEOUTDIR"
 fi
-
-_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
-_LAVA_ROOT="$(dirname "$(dirname "$_SCRIPT")")"
 
 # The LAVA pipeline does NOT need root, and in MCP mode the agent CLI (claude /
 # agy) plus its login live in the invoking user's home - as root they are not
@@ -227,11 +244,15 @@ echo "========================================="
 # [1/4] Custom credential grep over the extracted firmware (optional).
 if [ "$CUSTOM_GREP_ENABLED" = "1" ]; then
     echo "[1/4] Running the custom credential grep (profile: $SCAN_PROFILE)..."
-    python3 src/core/custom_scan.py --log-dir "$LOGDIR" --profile "$SCAN_PROFILE" --out "$CUSTOM_FINDINGS_FILE"
-    if [ $? -ne 0 ]; then echo "Error: custom_scan.py failed!"; exit 2; fi
-    PARSER_EXTRA_ARGS=(--extra-findings "$CUSTOM_FINDINGS_FILE")
-    CLASSIFIER_CUSTOM_ARGS=(--custom-findings "$CUSTOM_FINDINGS_FILE")
-    echo "[OK] Custom grep complete."
+    if python3 src/core/custom_scan.py --log-dir "$LOGDIR" --profile "$SCAN_PROFILE" --out "$CUSTOM_FINDINGS_FILE"; then
+        PARSER_EXTRA_ARGS=(--extra-findings "$CUSTOM_FINDINGS_FILE")
+        CLASSIFIER_CUSTOM_ARGS=(--custom-findings "$CUSTOM_FINDINGS_FILE")
+        echo "[OK] Custom grep complete."
+    else
+        # The custom grep is an optional add-on; its failure must not sink the
+        # whole run - carry on with EMBA findings only.
+        echo "[!] WARNING: custom_scan.py failed - continuing with EMBA findings only."
+    fi
 else
     echo "[1/4] Custom grep: disabled (set CUSTOM_GREP_ENABLED=\"1\" in config/ai_config.env to enable)."
 fi

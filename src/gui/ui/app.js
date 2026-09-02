@@ -679,7 +679,7 @@ async function checkStatus() {
                 if (data.exit_code === 0) {
                     alert("Scan completed successfully!");
                 } else if (data.exit_code !== null && data.exit_code !== undefined && data.exit_code !== 143 && data.exit_code !== 130) { // 143=SIGTERM, 130=SIGINT on stop, mostly ignore
-                    alert("Scan failed or was stopped (exit code: " + data.exit_code + "). Check lava_out/lava_scan.log for details.");
+                    alert("Scan failed or was stopped (exit code: " + data.exit_code + "). Check ~/.cache/lava/last_scan.log or the Terminal view for details.");
                 }
             }
             indicator.textContent = 'IDLE';

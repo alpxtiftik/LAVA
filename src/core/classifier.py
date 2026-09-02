@@ -369,7 +369,9 @@ def classify_item(
     user_prompt = build_user_prompt(item, max_chars)
     provider = config.get("AI_PROVIDER", "local")
     base_url = f"http://{config['LOCAL_AI_IP']}:{config['LOCAL_AI_PORT']}"
-    model = config.get("LOCAL_AI_MODEL", "")
+    # Fall back to the template default so a missing/empty LOCAL_AI_MODEL does
+    # not send an empty model name to Ollama (which rejects the whole run).
+    model = config.get("LOCAL_AI_MODEL") or "qwen2.5-coder:7b"
     gemini_key = config.get("GEMINI_API_KEY", "")
 
     # Log which provider is used before the first attempt
@@ -545,7 +547,10 @@ def _estimate_finding_count(log_dir: Path, custom_findings: str | None) -> int:
             if isinstance(extra, list):
                 raw += extra
         return len(_p.merge_and_corroborate(raw))
-    except Exception:  # noqa: BLE001 - a bad estimate must not block the run
+    except Exception as e:  # noqa: BLE001 - a bad estimate must not block the run
+        print(f"[!] finding-count estimate failed ({e!r}); MCP batching / guard disabled "
+              "for this run - if it times out, use S99_SCAN=light/off or AI_PROVIDER=local.",
+              file=sys.stderr)
         return 0
 
 
@@ -605,8 +610,11 @@ def _build_agent_command(
         agy = _resolve_cli("agy")
         cfg = json.loads(Path(mcp_config_path).read_text(encoding="utf-8"))
         srv = cfg["mcpServers"]["lava"]
-        # agy has no --mcp-config; add/update the persistent config, then remove it.
-        pre = [[agy, "mcp", "add", "lava", "--", srv["command"], *srv["args"]]]
+        # agy has no --mcp-config; add/update the PERSISTENT (global) config, then
+        # remove it. The leading remove clears any stale 'lava' entry left behind
+        # by a previous run that was killed before its cleanup ran.
+        pre = [[agy, "mcp", "remove", "lava"],
+               [agy, "mcp", "add", "lava", "--", srv["command"], *srv["args"]]]
         post = [[agy, "mcp", "remove", "lava"]]
         # agy takes the next arg as the prompt for -p -> keep it last.
         cmd = [
@@ -960,9 +968,6 @@ def main():
         }.get(provider, "claude")
 
         log_dir = args.log_dir
-        if not log_dir and args.enriched:
-            # run_lava.sh: --out <LogDir>/lava_out/<ts>/verdicts.json
-            log_dir = str(Path(args.out).resolve().parents[2])
         if not log_dir:
             ap.error("--log-dir is required for MCP provider mode")
         fw_root = args.fw_root or log_dir

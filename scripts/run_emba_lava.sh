@@ -20,6 +20,18 @@ if [ -z "$FirmwarePath" ]; then
     exit 2
 fi
 
+# Make the firmware / log-dir paths absolute (they were relative to the caller's
+# cwd) - EMBA is invoked after `cd` into its own install dir, so a relative -f/-l
+# would resolve against the wrong directory.
+case "$FirmwarePath" in
+    /*) ;;
+    *)  FirmwarePath="$(cd "$(dirname "$FirmwarePath")" 2>/dev/null && pwd)/$(basename "$FirmwarePath")" \
+            || FirmwarePath="$PWD/$FirmwarePath" ;;
+esac
+if [ -n "$LogDir" ]; then
+    case "$LogDir" in /*) ;; *) LogDir="$PWD/$LogDir" ;; esac
+fi
+
 # EMBA's check_path_input() only accepts [a-zA-Z0-9./_~-] in the -f and -l
 # paths and aborts with "Invalid input detected - paths aka ~/abc/def123/ASDF
 # only" on anything else (spaces, [], (), +, ...). TP-Link/vendor firmware file
@@ -73,12 +85,19 @@ echo "[*] LAVA output : $LAVA_OUT_DIR"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
 LAVA_ROOT="$(dirname "$SCRIPT_DIR")"
+CONFIG_ENV="$LAVA_ROOT/config/ai_config.env"
+
+# config/ai_config.env is gitignored; seed it from the template on first run.
+if [ ! -f "$CONFIG_ENV" ] && [ -f "$LAVA_ROOT/config/ai_config.example.env" ]; then
+    cp "$LAVA_ROOT/config/ai_config.example.env" "$CONFIG_ENV"
+    echo "[*] Created config/ai_config.env from the example template."
+fi
 
 AI_PROVIDER="local"
-if [ -f "$LAVA_ROOT/config/ai_config.env" ]; then
+if [ -f "$CONFIG_ENV" ]; then
     # Only match a line-leading "AI_PROVIDER="; skip comment lines such as
     # "# AI_PROVIDER options:", take the first match, strip quotes/whitespace.
-    prov_val=$(grep -E "^[[:space:]]*AI_PROVIDER[[:space:]]*=" "$LAVA_ROOT/config/ai_config.env" 2>/dev/null | head -n1 \
+    prov_val=$(grep -E "^[[:space:]]*AI_PROVIDER[[:space:]]*=" "$CONFIG_ENV" 2>/dev/null | head -n1 \
         | sed -E "s/^[[:space:]]*AI_PROVIDER[[:space:]]*=[[:space:]]*[\"']?([^\"']*)[\"']?[[:space:]]*\$/\1/")
     [ -n "$prov_val" ] && AI_PROVIDER="$prov_val"
 fi
@@ -114,17 +133,16 @@ CANDIDATE_PATHS=(
     "/usr/local/emba/emba"
     "/root/emba/emba"
     "/home/kali/emba/emba"
-	"/home/ahtiftik/emba"
 )
 
 # Read EMBA_PATH from the config file and prepend it (backward compatibility)
-if [ -f "config/ai_config.env" ]; then
+if [ -f "$CONFIG_ENV" ]; then
     while IFS='=' read -r key value; do
         if [ "$key" == "EMBA_PATH" ]; then
             config_path=$(echo "$value" | tr -d '"' | tr -d "'")
             CANDIDATE_PATHS=("$config_path" "${CANDIDATE_PATHS[@]}")
         fi
-    done < "config/ai_config.env"
+    done < "$CONFIG_ENV"
 fi
 
 # Test the candidate paths

@@ -43,10 +43,16 @@ _MATCHED_CONTENT_CAP = 400
 def load_profile(name_or_path: str) -> dict:
     p = Path(name_or_path)
     if not p.exists():
-        candidate = name_or_path if name_or_path.endswith(".json") else name_or_path + ".json"
-        p = PROFILE_DIR / candidate
+        fname = name_or_path if name_or_path.endswith(".json") else name_or_path + ".json"
+        # config/scan_profiles/<name>.json  OR  config/scan_profiles/local/<name>.json
+        # (the GUI lists profiles from both places).
+        for cand in (PROFILE_DIR / fname, PROFILE_DIR / "local" / fname):
+            if cand.exists():
+                p = cand
+                break
     if not p.exists():
-        raise SystemExit(f"[!] scan profile not found: {name_or_path} (looked in {PROFILE_DIR})")
+        raise SystemExit(f"[!] scan profile not found: {name_or_path} "
+                         f"(looked in {PROFILE_DIR} and {PROFILE_DIR / 'local'})")
     try:
         prof = json.loads(p.read_text(encoding="utf-8"))
     except json.JSONDecodeError as e:
