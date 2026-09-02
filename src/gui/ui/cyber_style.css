@@ -306,9 +306,11 @@ header {
 /* Grid & Cards */
 .findings-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(450px, 1fr));
+    grid-template-columns: 1fr 1fr;   /* 2 columns - readable on a laptop */
     gap: 1rem;
 }
+@media (max-width: 880px)  { .findings-grid { grid-template-columns: 1fr; } }
+@media (min-width: 1900px) { .findings-grid { grid-template-columns: 1fr 1fr 1fr; } }
 
 .finding-card {
     background: var(--bg-secondary);
@@ -343,7 +345,8 @@ header {
     
 }
 
-.card-header {
+.card-header,
+.card-top {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
@@ -354,6 +357,30 @@ header {
     font-size: 0.85rem;
     word-break: break-all;
     color: var(--text-primary);
+}
+
+/* card headings: file path (bold, same size) then category (bold, larger) */
+.card-titles { min-width: 0; }
+.card-file {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    word-break: break-all;
+    line-height: 1.35;
+}
+.card-category {
+    margin-top: 0.35rem;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--accent);
+    line-height: 1.25;
+}
+.card-category:empty { display: none; }
+.card-chips {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex-shrink: 0;
 }
 
 .verdict-badge {

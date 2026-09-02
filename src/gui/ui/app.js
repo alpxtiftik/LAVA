@@ -154,14 +154,18 @@ function buildFindingCard(finding) {
 
     const src = deriveSource(finding);
     const srcLabel = { emba: 'EMBA', custom: 'GREP', both: 'BOTH' }[src] || src;
+    const category = (finding.category || '').trim();
 
     card.innerHTML = `
-        <div class="card-header">
-            <span class="file-path">${escapeHtml(finding.file_path)}${finding.line_no ? ':' + finding.line_no : ''}</span>
-            <span style="display:flex; gap:6px; align-items:center;">
+        <div class="card-top">
+            <div class="card-titles">
+                <div class="card-file">${escapeHtml(finding.file_path)}${finding.line_no ? ':' + finding.line_no : ''}</div>
+                <div class="card-category">${escapeHtml(category)}</div>
+            </div>
+            <div class="card-chips">
                 <span class="source-chip source-${src}">${srcLabel}</span>
                 <span class="verdict-badge badge-${finding.predicted_verdict.toLowerCase()}">${finding.predicted_verdict}</span>
-            </span>
+            </div>
         </div>
         <div class="snippet">${escapeHtml(finding.matched_content || '')}</div>
         <div class="card-footer">
@@ -593,14 +597,17 @@ function setSplitView(on) {
 }
 
 function openModal(finding) {
-    document.getElementById('modalTitle').textContent = finding.file_path;
-    
+    const category = (finding.category || '').trim();
+    document.getElementById('modalTitle').textContent = category || finding.file_path;
+
     const isTP = finding.predicted_verdict === 'TP';
     const src = deriveSource(finding);
     const srcLabel = { emba: 'Source: EMBA', custom: 'Source: Custom grep', both: 'Source: EMBA + Custom grep' }[src] || src;
+    const fileChip = `<span class="verdict-badge" style="border: 1px solid var(--glass-border); color: var(--text-secondary)">${escapeHtml(finding.file_path)}${finding.line_no ? ':' + finding.line_no : ''}</span>`;
     const badgesHtml = `
         <span class="verdict-badge badge-${finding.predicted_verdict.toLowerCase()}">${finding.predicted_verdict}</span>
         <span class="source-chip source-${src}">${srcLabel}</span>
+        ${category ? fileChip : ''}
         <span class="verdict-badge" style="border: 1px solid var(--glass-border); color: var(--text-secondary)">Corroboration: ${finding.corroboration_count}</span>
     `;
 
