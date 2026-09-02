@@ -23,9 +23,15 @@ master_fd_global = None
 DIRECTORY = os.path.dirname(os.path.abspath(__file__))
 APP_DIR = os.path.dirname(os.path.dirname(DIRECTORY))
 
+_LAVA_CACHE = os.path.expanduser("~/.cache/lava")
+# The scripts print this line once they know where the run's output goes.
+_OUTPUT_DIR_MARKER = re.compile(rb"LAVA_OUTPUT_DIR=(\S+)")
+
+
 class Api:
     def __init__(self):
         self.current_log_file = None
+        self.last_output_dir = None  # captured from the scan's stdout marker
 
     def open_folder_dialog(self):
         try:
@@ -122,20 +128,13 @@ class Api:
             return {"status": "error", "message": "Scan already running"}
 
         try:
-            log_dir = None
+            self.last_output_dir = None
             if mode == "firmware":
+                # run_emba_lava.sh picks the output locations itself
+                # (emba_<name>_<ts>/ and lava_scan_<name>_<ts>/ next to the
+                # firmware, or under ~/.cache/lava if the path isn't EMBA-safe).
                 sh_path = os.path.join(APP_DIR, "scripts", "run_emba_lava.sh")
-                timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-                # Mirror run_emba_lava.sh: EMBA rejects anything outside
-                # [a-zA-Z0-9./_~-] in its -l path, so the leaf name is sanitized;
-                # if the parent dir itself is not EMBA-safe, relocate to ~/.cache/lava.
-                parent = os.path.dirname(input_path)
-                leaf = "lava_scan_" + re.sub(r"[^A-Za-z0-9._-]", "_", os.path.basename(input_path)) + "_" + timestamp
-                if re.search(r"[^A-Za-z0-9./_~-]", parent):
-                    log_dir = os.path.join(os.path.expanduser("~/.cache/lava"), leaf)
-                else:
-                    log_dir = os.path.join(parent, leaf)
-                cmd = ["bash", sh_path, "-FirmwarePath", input_path, "-LogDir", log_dir]
+                cmd = ["bash", sh_path, "-FirmwarePath", input_path]
             else:
                 sh_path = os.path.join(APP_DIR, "scripts", "run_lava.sh")
                 cmd = ["bash", sh_path, "-LogDir", input_path]
@@ -164,17 +163,14 @@ class Api:
             )
             os.close(slave_fd)
 
-            actual_log_dir = log_dir if mode == "firmware" else input_path
-
-            # Do not create the log directory beforehand if we are running EMBA (firmware mode)
-            # because EMBA checks if the log directory is empty and prompts for deletion.
-            if mode == "firmware":
+            # Persist the raw terminal output to a stable location (the real
+            # output dir is only known once the script prints its marker).
+            os.makedirs(_LAVA_CACHE, exist_ok=True)
+            self.current_log_file = os.path.join(_LAVA_CACHE, "last_scan.log")
+            try:
+                open(self.current_log_file, "w").close()
+            except Exception:
                 self.current_log_file = None
-            else:
-                lava_out_dir = os.path.join(actual_log_dir, "lava_out")
-                os.makedirs(lava_out_dir, exist_ok=True)
-                self.current_log_file = os.path.join(lava_out_dir, "lava_scan.log")
-                open(self.current_log_file, 'w').close()
 
             def _reader():
                 while True:
@@ -186,6 +182,13 @@ class Api:
                         break
                     with scan_buffer_lock:
                         scan_buffer.extend(chunk)
+
+                    m = _OUTPUT_DIR_MARKER.search(chunk)
+                    if m:
+                        try:
+                            self.last_output_dir = m.group(1).decode("utf-8", "replace")
+                        except Exception:
+                            pass
 
                     if self.current_log_file:
                         try:
@@ -199,7 +202,9 @@ class Api:
             msg = f"Started LAVA pipeline for {input_path}"
             if mode == "firmware":
                 msg = f"Started EMBA + LAVA pipeline for firmware {input_path}"
-            return {"status": "success", "message": msg, "log_dir": log_dir if mode == "firmware" else input_path}
+            # `log_dir` is a HINT the UI passes back to get_verdicts(); the real
+            # output dir is resolved later (marker / newest sibling dir).
+            return {"status": "success", "message": msg, "log_dir": input_path}
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
@@ -263,18 +268,70 @@ class Api:
             return {"status": "error", "message": str(e)}
         return {"status": "cancelled"}
 
-    def _get_latest_out_dir(self, log_dir):
-        base_out = os.path.join(log_dir, "lava_out")
-        if not os.path.exists(base_out):
-            return base_out
-        try:
-            dirs = [d for d in os.listdir(base_out) if os.path.isdir(os.path.join(base_out, d)) and d.startswith("20")]
-            if not dirs:
-                return base_out
-            dirs.sort(reverse=True)
-            return os.path.join(base_out, dirs[0])
-        except Exception:
-            return base_out
+    def _is_emba_logdir(self, d):
+        return os.path.isdir(d) and (
+            os.path.isdir(os.path.join(d, "csv_logs"))
+            or os.path.isfile(os.path.join(d, "emba.log"))
+            or os.path.isdir(os.path.join(d, "s99_grepit"))
+            or os.path.isdir(os.path.join(d, "s106_deep_key_search")))
+
+    def _resolve_emba_logdir(self, hint):
+        """The selected path, or an EMBA log dir one level inside it."""
+        hint = os.path.expanduser(hint)
+        if self._is_emba_logdir(hint):
+            return hint
+        for cand in ([os.path.join(hint, "emba_logs")] +
+                     [os.path.join(hint, d) for d in sorted(os.listdir(hint))] if os.path.isdir(hint) else []):
+            if self._is_emba_logdir(cand):
+                return cand
+        return hint
+
+    def _get_latest_out_dir(self, hint):
+        """Resolve where a run wrote its output. Priority:
+        1. the marker line the running/last script printed
+        2. newest 'lava_scan_*' (firmware hint) / 'lava_out_*' (log-dir hint)
+           dir next to the target, or under ~/.cache/lava
+        3. legacy layout: <log_dir>/lava_out/<timestamp>/
+        """
+        if self.last_output_dir and os.path.isdir(self.last_output_dir):
+            return self.last_output_dir
+
+        hint = os.path.expanduser(hint or "")
+        cands = []
+        if os.path.isfile(hint):                       # firmware path
+            bases, prefixes = [os.path.dirname(hint), _LAVA_CACHE], ("lava_scan_",)
+        else:                                          # EMBA log dir (or its parent)
+            emba = self._resolve_emba_logdir(hint)
+            bases = [os.path.dirname(emba), _LAVA_CACHE]
+            prefixes = ("lava_out_", "lava_scan_")
+        for b in bases:
+            try:
+                for d in os.listdir(b):
+                    p = os.path.join(b, d)
+                    if os.path.isdir(p) and d.startswith(prefixes):
+                        cands.append(p)
+            except OSError:
+                pass
+        def _legacy_descent(d):
+            # old layout put the run under <d>/lava_out/<timestamp>/
+            lo = os.path.join(d, "lava_out")
+            try:
+                ts = sorted((x for x in os.listdir(lo)
+                             if x.startswith("20") and os.path.isdir(os.path.join(lo, x))), reverse=True)
+                if ts:
+                    return os.path.join(lo, ts[0])
+            except OSError:
+                pass
+            return None
+
+        if cands:
+            best = max(cands, key=os.path.getmtime)
+            if not os.path.exists(os.path.join(best, "verdicts.json")) \
+                    and not os.path.exists(os.path.join(best, "enriched_findings.json")):
+                return _legacy_descent(best) or best
+            return best
+
+        return _legacy_descent(hint) or os.path.join(hint, "lava_out")
 
     def get_verdicts(self, log_dir):
         if not log_dir:

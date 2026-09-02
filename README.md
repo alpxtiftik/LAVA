@@ -152,6 +152,28 @@ bash scripts/run_emba_lava.sh -FirmwarePath "/home/user/firmware.bin"
 bash scripts/run_lava.sh -LogDir "/path/to/emba_log"
 ```
 
+### Where the output goes
+
+Every run writes to a **timestamped directory next to the EMBA log directory**
+(never inside it):
+
+| Mode | EMBA logs | LAVA output |
+|------|-----------|-------------|
+| **Full Pipeline** (`run_emba_lava.sh`) | `<fw-dir>/emba_<name>_<timestamp>/` | `<fw-dir>/lava_scan_<name>_<timestamp>/` |
+| **EMBA log analysis** (`run_lava.sh`) | *(the directory you point at)* | `<its-parent>/lava_out_<timestamp>/` |
+
+If the firmware path contains characters EMBA rejects (spaces, `[]`, `()`, `+`,
+…), both directories are created under `~/.cache/lava/` instead.
+
+Each output directory holds: `custom_findings.json`, `merged_findings.json`,
+`enriched_findings.json`, `verdicts.json` (the schema is identical across all AI
+providers) and `lava_report.html`. `run_lava.sh` prints its path and also a
+machine-readable `LAVA_OUTPUT_DIR=<path>` line.
+
+> If you point `run_lava.sh` at a *parent* folder that contains one EMBA log
+> directory, it descends into it automatically; if it contains several, it stops
+> and lists them so you can pick one.
+
 ### 3. Manual Pipeline
 If you prefer to run the steps manually:
 ```bash

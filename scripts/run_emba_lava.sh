@@ -50,21 +50,26 @@ if ! _path_ok "$FirmwarePath"; then
     CLEANUP_FW="$EMBA_FW"
 fi
 
-# --- log dir: keep the user's location, sanitize the leaf name --------------
-if [ -z "$LogDir" ]; then
-    LogDir="${FIRMWARE_DIR}/lava_scan_$(_sanitize "$FIRMWARE_BASENAME")_${TIMESTAMP}"
-    echo "[*] -LogDir not given, using: $LogDir"
+# --- output dirs: EMBA logs and LAVA output as timestamped SIBLINGS ---------
+#   <base>/emba_<name>_<ts>/     <- EMBA writes here   (EMBA_DIR)
+#   <base>/lava_scan_<name>_<ts>/ <- LAVA writes here  (LAVA_OUT_DIR)
+# base = the firmware's own directory, unless it has characters EMBA's
+# check_path_input() rejects, in which case ~/.cache/lava/ .
+_FW_SANITIZED="$(_sanitize "$FIRMWARE_BASENAME")"
+if [ -n "$LogDir" ]; then
+    # explicit -LogDir: that IS the EMBA log dir; LAVA output is its sibling
+    _OUT_BASE="$(dirname "$LogDir")"
+    _path_ok "$_OUT_BASE" || _OUT_BASE="${HOME}/.cache/lava"
+    EMBA_DIR="$LogDir"
+    _path_ok "$EMBA_DIR" || EMBA_DIR="${_OUT_BASE}/emba_${_FW_SANITIZED}_${TIMESTAMP}"
+else
+    if _path_ok "$FIRMWARE_DIR"; then _OUT_BASE="$FIRMWARE_DIR"; else _OUT_BASE="${HOME}/.cache/lava"; fi
+    EMBA_DIR="${_OUT_BASE}/emba_${_FW_SANITIZED}_${TIMESTAMP}"
 fi
-if ! _path_ok "$LogDir"; then
-    _ld_parent=$(dirname "$LogDir"); _ld_leaf=$(basename "$LogDir")
-    if _path_ok "$_ld_parent"; then
-        LogDir="${_ld_parent}/$(_sanitize "$_ld_leaf")"
-    else
-        LogDir="${HOME}/.cache/lava/$(_sanitize "$_ld_leaf")"
-        mkdir -p "$(dirname "$LogDir")"
-    fi
-    echo "[*] Log directory had characters EMBA rejects; using: $LogDir"
-fi
+LAVA_OUT_DIR="${_OUT_BASE}/lava_scan_${_FW_SANITIZED}_${TIMESTAMP}"
+mkdir -p "$_OUT_BASE"
+echo "[*] EMBA logs   : $EMBA_DIR"
+echo "[*] LAVA output : $LAVA_OUT_DIR"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
 LAVA_ROOT="$(dirname "$SCRIPT_DIR")"
@@ -152,8 +157,7 @@ fi
 echo "[1/2] Running EMBA..."
 echo "Firmware: $FirmwarePath"
 [ "$EMBA_FW" != "$FirmwarePath" ] && echo "         (passed to EMBA as: $EMBA_FW)"
-echo "Parent directory (LAVA & EMBA): $LogDir"
-echo "EMBA directory: $EMBA_PATH"
+echo "EMBA executable: $EMBA_PATH"
 
 emba_dir=$(dirname "$EMBA_PATH")
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
@@ -170,10 +174,7 @@ else
     PROFILE_ARG=""
 fi
 
-# Set up directories
-PARENT_DIR="$LogDir"
-EMBA_DIR="$PARENT_DIR/emba_logs"
-LAVA_OUT_DIR="$PARENT_DIR/lava_out"
+# EMBA_DIR and LAVA_OUT_DIR were set at the top (timestamped siblings).
 
 # --- Entropy-graph watchdog --------------------------------------------------
 # EMBA's P02 draws a firmware entropy graph with `binwalk --entropy --png`, which
@@ -229,7 +230,8 @@ echo "[OK] EMBA scan complete."
 # CLI) runs as a normal user, so hand ownership back.
 # Under `sudo`, $USER is root; get the real user from $SUDO_USER.
 TARGET_USER="${SUDO_USER:-$USER}"
-sudo chown -R "$TARGET_USER:$TARGET_USER" "$PARENT_DIR" 2>/dev/null
+sudo chown -R "$TARGET_USER:$TARGET_USER" "$EMBA_DIR" 2>/dev/null
+mkdir -p "$LAVA_OUT_DIR" && sudo chown -R "$TARGET_USER:$TARGET_USER" "$LAVA_OUT_DIR" 2>/dev/null
 
 echo ""
 echo "[2/2] Starting the LAVA AI analysis..."

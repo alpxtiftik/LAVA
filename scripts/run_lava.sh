@@ -63,8 +63,17 @@ if ! _is_emba_logdir "$LOGDIR"; then
     fi
 fi
 
+TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+
+# Output goes NEXT TO the EMBA log directory (a sibling), never inside it, and
+# the directory name itself carries the timestamp.
+#   - EMBA-log-analysis mode (run_lava.sh directly): <parent>/lava_out_<ts>/
+#   - full-pipeline mode (run_emba_lava.sh passes -OutDir): the path it gives.
 if [ -z "$BASEOUTDIR" ]; then
-    BASEOUTDIR="$LOGDIR/lava_out"
+    _LOGDIR_ABS="$(cd "$LOGDIR" 2>/dev/null && pwd || echo "$LOGDIR")"
+    OUTDIR="$(dirname "$_LOGDIR_ABS")/lava_out_$TIMESTAMP"
+else
+    OUTDIR="$BASEOUTDIR"
 fi
 
 _SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
@@ -77,10 +86,10 @@ _LAVA_ROOT="$(dirname "$(dirname "$_SCRIPT")")"
 if [ "$EUID" -eq 0 ] && [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ] && [ -z "${LAVA_DROPPED:-}" ]; then
     echo "[*] Running the LAVA pipeline as user '$SUDO_USER' (not root)."
     chown -R "$SUDO_USER" "$LOGDIR" 2>/dev/null
-    [ -d "$BASEOUTDIR" ] && chown -R "$SUDO_USER" "$BASEOUTDIR" 2>/dev/null
+    mkdir -p "$OUTDIR" 2>/dev/null && chown -R "$SUDO_USER" "$OUTDIR" 2>/dev/null
     exec sudo -u "$SUDO_USER" -H env LAVA_DROPPED=1 \
         bash -lc 'cd "$1" && exec bash "$2" -LogDir "$3" -OutDir "$4"' \
-        lava "$_LAVA_ROOT" "$_SCRIPT" "$LOGDIR" "$BASEOUTDIR"
+        lava "$_LAVA_ROOT" "$_SCRIPT" "$LOGDIR" "$OUTDIR"
 fi
 
 # If we are not already inside a venv and the repo has a .venv, activate it.
@@ -91,9 +100,10 @@ if [ -z "${VIRTUAL_ENV:-}" ] && [ -x "$_LAVA_ROOT/.venv/bin/python3" ]; then
     source "$_LAVA_ROOT/.venv/bin/activate"
 fi
 
-TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-OUTDIR="$BASEOUTDIR/$TIMESTAMP"
 mkdir -p "$OUTDIR"
+OUTDIR="$(cd "$OUTDIR" && pwd)"
+echo "[*] LAVA output directory: $OUTDIR"
+echo "LAVA_OUTPUT_DIR=$OUTDIR"
 
 PID_FILE="$OUTDIR/lava.pid"
 if [ -f "$PID_FILE" ]; then
