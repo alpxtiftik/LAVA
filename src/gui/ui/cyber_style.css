@@ -303,18 +303,21 @@ header {
     border-color: var(--text-primary);
 }
 
-/* Grid & Cards */
+/* Grid & Cards.
+   minmax(0,1fr) (not plain 1fr) so a card with a very long matched_content
+   line can't force the track wider than its share and push the page into
+   horizontal scroll. 2 columns on a laptop, 3 only on a genuinely wide screen. */
 .findings-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;   /* 2 columns - readable on a laptop */
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 1rem;
 }
-@media (max-width: 880px)  { .findings-grid { grid-template-columns: 1fr; } }
-@media (min-width: 1900px) { .findings-grid { grid-template-columns: 1fr 1fr 1fr; } }
+@media (max-width: 820px)  { .findings-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (min-width: 2200px) { .findings-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr); } }
 
 .finding-card {
     background: var(--bg-secondary);
-    
+
     border: 1px solid var(--border-color);
     border-left: 4px solid var(--border-color);
     border-radius: 0px;
@@ -324,7 +327,8 @@ header {
     gap: 1rem;
     cursor: pointer;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    
+    min-width: 0;       /* allow the card to shrink inside its grid track */
+    overflow: hidden;   /* clip anything that still overruns */
 }
 
 .finding-card.verdict-tp { border-left-color: var(--danger); }
@@ -401,7 +405,9 @@ header {
     padding: 0.75rem;
     font-size: 0.8rem;
     color: #a3a3a3;
-    overflow-x: hidden;
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -410,10 +416,18 @@ header {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 0.75rem;
     margin-top: auto;
     font-size: 0.75rem;
     color: var(--text-secondary);
 }
+.card-footer > span:first-child {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.confidence { flex-shrink: 0; }
 
 .confidence {
     display: flex;
@@ -728,7 +742,7 @@ pre {
 .controls.split-mode .filters .filter-btn,
 .controls.split-mode #moduleFilter { display: none !important; }
 
-.split-view { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.split-view { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
 .split-view.hidden { display: none !important; }
 .split-col {
     border: 1px solid var(--border-color);
