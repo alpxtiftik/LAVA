@@ -37,8 +37,11 @@ body{
 .wrap{max-width:1600px;margin:0 auto}
 header{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;
   flex-wrap:wrap;border-bottom:1px solid var(--border-color);padding-bottom:16px;margin-bottom:20px}
-h1{font-size:1.6rem;letter-spacing:2px;color:var(--accent);font-weight:700}
-.sub{color:var(--text-secondary);font-size:.8rem}
+h1{font-size:2rem;letter-spacing:2px;color:var(--text-primary);font-weight:700}
+h1::after{content:'_';color:var(--accent);animation:blink 1s step-end infinite}
+@keyframes blink{50%{opacity:0}}
+.sub{color:var(--text-secondary);font-size:.85rem;letter-spacing:1px;text-transform:uppercase;
+  display:block;margin-top:.25rem}
 .stats{display:flex;gap:12px}
 .stat{border:1px solid var(--border-color);background:var(--bg-secondary);padding:10px 18px;text-align:center}
 .stat .v{font-size:1.6rem;font-weight:700;display:block}
@@ -128,7 +131,7 @@ h1{font-size:1.6rem;letter-spacing:2px;color:var(--accent);font-weight:700}
 <body>
 <div class="wrap">
   <header>
-    <div><h1>LAVA REPORT</h1><div class="sub" id="sub"></div></div>
+    <div><h1>LAVA</h1><span class="sub" id="sub">Local AI Vulnerability Auditor</span></div>
     <div class="stats">
       <div class="stat"><span class="v" id="s-total">0</span><span class="l">findings</span></div>
       <div class="stat tp"><span class="v" id="s-tp">0</span><span class="l">true positive</span></div>
@@ -291,7 +294,7 @@ function visibility(){
   document.getElementById('s-total').textContent=DATA.length;
   document.getElementById('s-tp').textContent=tp;
   document.getElementById('s-fp').textContent=fp;
-  document.getElementById('sub').textContent=new Date().toISOString().slice(0,16).replace('T',' ')+'  ·  verdicts.json';
+  document.getElementById('sub').textContent='Local AI Vulnerability Auditor  ·  '+new Date().toISOString().slice(0,16).replace('T',' ');
 
   const rc=rawCounts();
   const c={all:DATA.length,emba:rc.emba+rc.both,custom:rc.custom+rc.both,both:rc.both};

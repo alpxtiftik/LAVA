@@ -631,12 +631,15 @@ pre {
 }
 .settings-overlay.hidden { display: none !important; }
 .settings-dialog {
-    width: 720px; max-width: 92vw; max-height: 82vh;
+    /* Fixed size so switching panels never resizes the window - a tall panel
+       just scrolls inside .settings-body. */
+    width: 760px; max-width: 94vw;
+    height: min(760px, 88vh);
     background: var(--bg-tertiary);
     border: 1px solid var(--border-color);
     box-shadow: 0 0 24px rgba(0, 255, 204, 0.08);
     display: grid;
-    grid-template-columns: 190px 1fr;
+    grid-template-columns: 200px 1fr;
     grid-template-rows: 1fr auto;
     overflow: hidden;
 }
