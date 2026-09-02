@@ -111,14 +111,24 @@ def _s99_keep_match(category: str, path: str, content: str, mode: str) -> bool:
     return True
 
 
-_S99_RAW_SUFFIX_RE = re.compile(
-    r"_\d+_(?:pem_private_key|elf|copyright|unknown|copy|ascii)\b.*$"
-    r"|_\d+_copy(?:right)?$")
+# EMBA re-extracts embedded blobs and appends "_<offset>_<type>[.raw]" to the
+# file name, and runs several extractors over the same image. Both make one
+# physical file look like several distinct paths. Strip that so the merge sees
+# one file.
+_EXTRACT_ARTIFACT_SUFFIX_RE = re.compile(
+    r"(?:"
+    r"_\d+_[a-z0-9_]+\.raw"
+    r"|_\d+_(?:elf|pem_private_key|pem_certificate|pem_public_key|pem|"
+    r"unknown|copyright|copy|ascii|gif|png|jpe?g|zlib|gzip|lzma|xz|bzip2)"
+    r"|\.extracted(?:/.*)?"
+    r")$", re.IGNORECASE)
 
 
-def _canon_s99_path(path: str) -> str:
-    """Collapse the same file found under several EMBA extractors / re-extracted
-    as a *.raw blob down to one key, so merge_and_corroborate dedups them."""
+def _canon_finding_path(path: str) -> str:
+    """Collapse the same physical file (found under several EMBA extractors, or
+    re-extracted as a *.raw blob) down to one key so merge_and_corroborate can
+    dedup it. Works on both raw EMBA paths and normalize_path() output."""
+    path = normalize_path(path)
     seg = [s for s in path.split("/") if s]
     while seg and ("extract" in seg[0].lower() or "squashfs" in seg[0].lower()
                    or seg[0] in ("logs", "firmware", "firmware_extract",
@@ -128,9 +138,55 @@ def _canon_s99_path(path: str) -> str:
                    or re.fullmatch(r"[0-9A-Fa-f-]{4,}", seg[0])
                    or seg[0].endswith(("_extract", ".uncompressed", "-root"))):
         seg.pop(0)
-    if seg:
-        seg[-1] = _S99_RAW_SUFFIX_RE.sub("", seg[-1])
-    return "/".join(seg) or path
+    out = "/".join(seg) or path
+    prev = None
+    while prev != out:
+        prev = out
+        out = _EXTRACT_ARTIFACT_SUFFIX_RE.sub("", out)
+    return out or path
+
+
+# backwards-compatible alias (parse_s99 dedup)
+_canon_s99_path = _canon_finding_path
+
+# A "file-level flag": the module is just saying "this file looks credential-
+# related" without pinning a specific secret (S45 by filename, S106 by a match
+# count). If a real finding already lands in the same file, the flag is noise.
+_FILE_FLAG_CONTENT_RE = re.compile(
+    r"^(?:flagged as password-related file"
+    r"|\d+ match\(es\) for pattern"
+    r"|\d+ match(?:es)? for pattern)")
+
+# "Which secret is this" - two findings with the same token are the same leak.
+_CRYPT_HASH_RE = re.compile(r"\$[0-9a-z]{1,6}\$[^\s:$][^\s:]{7,}")
+_API_TOKEN_RE = re.compile(
+    r"\b(AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{35}|xox[baprs]-[0-9A-Za-z-]{10,}"
+    r"|gh[pousr]_[0-9A-Za-z]{36,}|sk_live_[0-9A-Za-z]{20,})")
+_PEM_MARKER_RE = re.compile(r"-----(?:BEGIN|END) [A-Z0-9 ]*PRIVATE KEY-----")
+_PEM_BODY_RE = re.compile(r"^(?:MII[A-Za-z0-9+/]{16,}|[A-Za-z0-9+/]{40,}={0,3})\s*$")
+
+
+def _is_file_flag(f: dict) -> bool:
+    return bool(_FILE_FLAG_CONTENT_RE.match(f.get("matched_content", "").strip()))
+
+
+def _credential_token(content: str):
+    """A stable id for the secret in `content`, or None for generic text."""
+    m = _CRYPT_HASH_RE.search(content)
+    if m:
+        return "hash:" + m.group(0)
+    m = _API_TOKEN_RE.search(content)
+    if m:
+        return "token:" + m.group(1)
+    return None
+
+
+def _is_pem_privkey_material(content: str) -> bool:
+    c = content.strip()
+    if _PEM_MARKER_RE.search(c) or "PRIVATE KEY" in c.upper():
+        return True
+    first = c.splitlines()[0] if c else ""
+    return bool(_PEM_BODY_RE.match(first))
 
 
 def content_is_mostly_printable(text: str, min_ratio: float = 0.85) -> bool:
@@ -344,10 +400,19 @@ def _derive_source(modules: list[str]) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Corroboration: two findings are the same leak if they share
-# (file_path, matched_content) OR (file_path, line_no). When more than one
-# module (EMBA module or CUSTOM: rule) lands on the same leak, that is a strong
-# TP signal and it also drives the EMBA / Grep / overlap split in the UI.
+# Corroboration. Two findings are the same leak if, after collapsing the file
+# path to its canonical form (_canon_finding_path drops per-extractor and
+# re-extracted-blob variants), they share ANY of:
+#   * the same matched_content
+#   * the same line number
+#   * the same credential token (a crypt hash / API key that appears in both,
+#     e.g. the bare "$1$salt$hash" from stacs and the full "user:$1$..." line)
+#   * PEM private-key material in a file that also has a BEGIN/END marker (all
+#     lines of one key block, matched by different modules, collapse to one)
+# A "file-level flag" (S45 "flagged as password-related file", S106 "N match(es)
+# for pattern ...") is dropped when a real finding already covers that file.
+# When >1 module lands on the same leak that is a strong TP signal and it also
+# drives the EMBA / Grep / overlap split in the UI.
 # ---------------------------------------------------------------------------
 def merge_and_corroborate(findings: list[dict]) -> list[dict]:
     n = len(findings)
@@ -362,32 +427,65 @@ def merge_and_corroborate(findings: list[dict]) -> list[dict]:
     def union(a: int, b: int) -> None:
         parent[find(a)] = find(b)
 
+    cpaths = [_canon_finding_path(f["file_path"]) for f in findings]
+
     by_content: dict[tuple, int] = {}
     by_line: dict[tuple, int] = {}
+    by_token: dict[tuple, int] = {}
+    pem_anchor: dict[str, int] = {}   # canon_path -> a finding index with a PEM marker
     for i, f in enumerate(findings):
-        fp = f["file_path"]
-        ck = (fp, f["matched_content"])
-        if ck in by_content:
-            union(i, by_content[ck])
-        else:
-            by_content[ck] = i
+        cp = cpaths[i]
+        content = f["matched_content"]
+
+        ck = (cp, content)
+        union(i, by_content.setdefault(ck, i))
+
         ln = _finding_line_no(f)
         if ln is not None:
-            lk = (fp, ln)
-            if lk in by_line:
-                union(i, by_line[lk])
-            else:
-                by_line[lk] = i
+            union(i, by_line.setdefault((cp, ln), i))
 
-    groups: dict[int, list[dict]] = {}
+        if not _is_file_flag(f):
+            tok = _credential_token(content)
+            if tok:
+                union(i, by_token.setdefault((cp, tok), i))
+            if _PEM_MARKER_RE.search(content):
+                pem_anchor.setdefault(cp, i)
+
+    # PEM collapse: every PEM-ish finding in a file that has a BEGIN/END marker
+    # is the same key block.
     for i, f in enumerate(findings):
-        groups.setdefault(find(i), []).append(f)
+        anc = pem_anchor.get(cpaths[i])
+        if anc is not None and _is_pem_privkey_material(f["matched_content"]):
+            union(i, anc)
+
+    groups: dict[int, list[int]] = {}
+    for i in range(n):
+        groups.setdefault(find(i), []).append(i)
+
+    # Which canonical files have a "real" (non-flag) finding?
+    real_cpaths = {cpaths[i] for i in range(n) if not _is_file_flag(findings[i])}
 
     merged = []
-    for group in groups.values():
+    for idxs in groups.values():
+        group = [findings[i] for i in idxs]
+        # Drop a group that is only file-level flags for a file already covered
+        # by a real finding elsewhere.
+        if all(_is_file_flag(g) for g in group) and cpaths[idxs[0]] in real_cpaths:
+            continue
+
         modules = sorted({g["module"] for g in group})
-        # Representative content: prefer the longest matched_content (more context).
-        rep = max(group, key=lambda g: len(g.get("matched_content", "")))
+        specific = [g for g in group if not _is_file_flag(g)] or group
+        # Representative content: prefer a line that shows the actual secret
+        # (a PEM marker or a crypt hash), then the longest.
+        def _rep_score(g):
+            c = g.get("matched_content", "")
+            return (bool(_PEM_MARKER_RE.search(c) or _CRYPT_HASH_RE.search(c)), len(c))
+        rep = max(specific, key=_rep_score)
+        # nicest path: one that is already canonical, else the shortest
+        paths = [g["file_path"] for g in group]
+        canon_exact = [pp for pp in paths if _canon_finding_path(pp) == pp]
+        best_path = min(canon_exact or paths, key=len)
+
         line_nos = sorted({ln for g in group if (ln := _finding_line_no(g)) is not None})
         merged_extra: dict = {}
         for g in group:
@@ -395,7 +493,7 @@ def merge_and_corroborate(findings: list[dict]) -> list[dict]:
                 merged_extra.setdefault(k, v)
         merged.append(
             {
-                "file_path": rep["file_path"],
+                "file_path": best_path,
                 "matched_content": rep["matched_content"],
                 "found_by_modules": modules,
                 "corroboration_count": len(modules),
