@@ -148,24 +148,22 @@ fi
 # 1. Locate the EMBA executable
 EMBA_PATH=""
 
-# Candidate paths (dynamic `command -v` and home-dir scans removed for safety)
+# EMBA_PATH from config/ai_config.env wins. Then the common install locations,
+# including "<invoking user's home>/emba/emba" (the layout EMBA's own docs use
+# for a non-root git clone).
+_EMBA_CFG="$(read_cfg EMBA_PATH)"
+_INVOKER_HOME=""
+[ -n "${SUDO_USER:-}" ] && _INVOKER_HOME="/home/$SUDO_USER"
 CANDIDATE_PATHS=(
+    "$_EMBA_CFG"
+    "${_INVOKER_HOME:+$_INVOKER_HOME/emba/emba}"
+    "$HOME/emba/emba"
     "/emba/emba"
     "/opt/emba/emba"
     "/usr/local/emba/emba"
     "/root/emba/emba"
     "/home/kali/emba/emba"
 )
-
-# Read EMBA_PATH from the config file and prepend it (backward compatibility)
-if [ -f "$CONFIG_ENV" ]; then
-    while IFS='=' read -r key value; do
-        if [ "$key" == "EMBA_PATH" ]; then
-            config_path=$(echo "$value" | tr -d '"' | tr -d "'")
-            CANDIDATE_PATHS=("$config_path" "${CANDIDATE_PATHS[@]}")
-        fi
-    done < "$CONFIG_ENV"
-fi
 
 # Test the candidate paths
 for p in "${CANDIDATE_PATHS[@]}"; do
@@ -185,7 +183,10 @@ done
 
 if [ -z "$EMBA_PATH" ]; then
     echo "Error: EMBA executable not found, or it is not executable."
-    echo "Make sure EMBA is installed and has the '+x' bit. (Expected at: /opt/emba/emba, /home/kali/emba/emba, etc.)"
+    echo "Looked at: ${CANDIDATE_PATHS[*]}"
+    echo "Fix: set EMBA_PATH in config/ai_config.env (or Settings -> EMBA Scan ->"
+    echo "     'EMBA executable path') to the full path of the 'emba' launcher,"
+    echo "     e.g. /home/<you>/emba/emba . Make sure it has the '+x' bit."
     exit 2
 fi
 

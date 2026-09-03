@@ -129,7 +129,17 @@
 
                         <div class="settings-panel" id="panel-emba">
                             <h3>EMBA Scan</h3>
-                            <label class="settings-label">Scan profile (Full Pipeline only)</label>
+
+                            <label class="settings-label">EMBA executable path</label>
+                            <input type="text" id="embaPathInput" class="settings-input" placeholder="auto-detect (leave empty)">
+                            <div class="settings-note">
+                                Full path to the <code>emba</code> launcher, e.g.
+                                <code>/home/you/emba/emba</code> or <code>/opt/emba/emba</code>.
+                                Leave empty to auto-detect the usual locations (including
+                                <code>&lt;your home&gt;/emba/emba</code>). Only used by <b>Full Pipeline</b>.
+                            </div>
+
+                            <label class="settings-label" style="margin-top:16px;">Scan profile (Full Pipeline only)</label>
                             <select id="embaScanProfileSelect" class="settings-input">
                                 <option value="auto">Auto &ndash; minimal EMBA modules for the selected LAVA modules (faster)</option>
                                 <option value="full">Full &ndash; EMBA's complete default scan, ignores module selection (slowest)</option>

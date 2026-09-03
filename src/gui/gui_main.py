@@ -56,12 +56,12 @@ class Api:
 
     _CONFIG_KEYS = ("AI_PROVIDER", "GEMINI_API_KEY", "CUSTOM_GREP_ENABLED",
                     "SCAN_PROFILE", "S99_SCAN", "MCP_BATCH_SIZE", "CVE_SCAN_ENABLED",
-                    "EMBA_SCAN_PROFILE")
+                    "EMBA_SCAN_PROFILE", "EMBA_PATH")
     _CONFIG_DEFAULTS = {
         "AI_PROVIDER": "local", "GEMINI_API_KEY": "",
         "CUSTOM_GREP_ENABLED": "0", "SCAN_PROFILE": "iot-testing",
         "S99_SCAN": "raw", "MCP_BATCH_SIZE": "40", "CVE_SCAN_ENABLED": "0",
-        "EMBA_SCAN_PROFILE": "auto",
+        "EMBA_SCAN_PROFILE": "auto", "EMBA_PATH": "",
     }
 
     def _config_path(self):
