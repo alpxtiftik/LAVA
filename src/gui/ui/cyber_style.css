@@ -781,12 +781,97 @@ pre {
     .split-col { max-height: none; }
 }
 
-/* ============================ CVE module ============================ */
-.mod-check {
-    color: var(--text-primary); cursor: pointer; display: inline-flex;
-    align-items: center; gap: 4px; font-size: 0.9rem;
+/* ===================== scan control bar (modules / mode) ===================== */
+.control-bar {
+    display: flex;
+    align-items: center;
+    gap: 1.75rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+    padding: 0.6rem 0.25rem;
+}
+.control-group { display: flex; align-items: center; gap: 0.7rem; }
+.control-group-label {
+    font-size: 0.62rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--text-secondary);
+}
+.control-bar-settings { margin-left: auto; display: flex; align-items: center; gap: 0.5rem; }
+
+/* modules: toggle chips (checkboxes) */
+.toggle-set { display: flex; gap: 0.4rem; }
+.toggle-chip { position: relative; display: inline-flex; cursor: pointer; }
+.toggle-chip input { position: absolute; opacity: 0; width: 0; height: 0; }
+.toggle-chip-face {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.42rem 0.85rem;
+    border: 1px solid var(--border-color);
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+    letter-spacing: 0.3px;
+    transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+.toggle-chip:hover .toggle-chip-face { color: var(--text-primary); border-color: var(--text-secondary); }
+.toggle-chip-box {
+    width: 13px; height: 13px;
+    border: 1px solid var(--text-secondary);
+    display: inline-flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+.toggle-chip-box::after {
+    content: '\2713';
+    font-size: 10px; line-height: 1;
+    color: var(--bg-primary);
+    opacity: 0; transform: scale(0.4);
+    transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.toggle-chip input:checked + .toggle-chip-face {
+    color: var(--text-primary);
+    border-color: var(--accent);
+    background: rgba(0, 255, 204, 0.06);
+    box-shadow: inset 0 0 0 1px rgba(0, 255, 204, 0.22), 0 0 10px rgba(0, 255, 204, 0.10);
+}
+.toggle-chip input:checked + .toggle-chip-face .toggle-chip-box {
+    background: var(--accent); border-color: var(--accent);
+}
+.toggle-chip input:checked + .toggle-chip-face .toggle-chip-box::after { opacity: 1; transform: scale(1); }
+.toggle-chip input:focus-visible + .toggle-chip-face { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* mode: segmented control (radios) */
+.segmented { display: inline-flex; border: 1px solid var(--border-color); }
+.segment { position: relative; cursor: pointer; }
+.segment input { position: absolute; opacity: 0; width: 0; height: 0; }
+.segment span {
+    display: block;
+    padding: 0.42rem 0.95rem;
+    font-size: 0.82rem;
+    letter-spacing: 0.3px;
+    color: var(--text-secondary);
+    background: var(--bg-tertiary);
+    white-space: nowrap;
+    transition: color 0.15s ease, background 0.15s ease;
+}
+.segment + .segment span { border-left: 1px solid var(--border-color); }
+.segment:hover span { color: var(--text-primary); }
+.segment input:checked + span {
+    background: var(--accent);
+    color: var(--bg-primary);
+    font-weight: 600;
+}
+.segment input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+@media (max-width: 720px) {
+    .control-bar { gap: 1rem; }
+    .control-bar-settings { margin-left: 0; }
 }
 
+/* ============================ CVE module ============================ */
 .module-switch { display: flex; gap: 4px; margin-bottom: 16px; }
 .module-switch.hidden { display: none; }
 .mod-switch-btn {

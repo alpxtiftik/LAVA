@@ -34,24 +34,40 @@
         </header>
 
         <main>
-            <div class="mode-toggle" style="margin-bottom: 1rem; display: flex; gap: 1.5rem; align-items: center; justify-content: space-between; flex-wrap: wrap;">
-                <div style="display: flex; gap: 1.5rem; align-items: center; flex-wrap: wrap;">
-                    <div style="display: flex; gap: 0.75rem; align-items: center;">
-                        <label style="color: var(--text-secondary); font-weight: 600;">Modules:</label>
-                        <label class="mod-check"><input type="checkbox" id="modCreds" checked> Credentials</label>
-                        <label class="mod-check"><input type="checkbox" id="modCve"> CVE</label>
-                    </div>
-                    <div style="display: flex; gap: 0.75rem; align-items: center;">
-                        <label style="color: var(--text-secondary); font-weight: 600;">Mode:</label>
-                        <label style="color: var(--text-primary); cursor: pointer;">
-                            <input type="radio" name="scanMode" value="log" checked> Analyze EMBA Log Directory
+            <div class="control-bar">
+                <div class="control-group">
+                    <span class="control-group-label">Modules</span>
+                    <div class="toggle-set">
+                        <label class="toggle-chip" title="EMBA hardcoded-credential findings + AI triage">
+                            <input type="checkbox" id="modCreds" checked>
+                            <span class="toggle-chip-face">
+                                <span class="toggle-chip-box"></span>Credentials
+                            </span>
                         </label>
-                        <label style="color: var(--text-primary); cursor: pointer;">
-                            <input type="radio" name="scanMode" value="firmware"> Full Pipeline (Scan Firmware)
+                        <label class="toggle-chip" title="Structure EMBA's F17 / S26 CVE output (no AI)">
+                            <input type="checkbox" id="modCve">
+                            <span class="toggle-chip-face">
+                                <span class="toggle-chip-box"></span>CVE
+                            </span>
                         </label>
                     </div>
                 </div>
-                <button id="settingsBtn" class="btn-secondary" style="display: flex; align-items: center; gap: 0.5rem;">&#9881; Settings</button>
+
+                <div class="control-group">
+                    <span class="control-group-label">Mode</span>
+                    <div class="segmented">
+                        <label class="segment" title="Point LAVA at a folder EMBA already wrote its logs into">
+                            <input type="radio" name="scanMode" value="log" checked>
+                            <span>Analyze EMBA Logs</span>
+                        </label>
+                        <label class="segment" title="Run EMBA on a firmware image, then LAVA">
+                            <input type="radio" name="scanMode" value="firmware">
+                            <span>Full Pipeline</span>
+                        </label>
+                    </div>
+                </div>
+
+                <button id="settingsBtn" class="btn-secondary control-bar-settings">&#9881; Settings</button>
             </div>
 
             <div class="scan-panel">
