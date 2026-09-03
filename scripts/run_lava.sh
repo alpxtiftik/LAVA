@@ -1,12 +1,14 @@
 #!/bin/bash
 # LAVA (Local AI Vulnerability Auditor) pipeline runner (Linux)
 
-# Parse arguments
+# Parse arguments.  _MODULES_FLAG is a fresh name (never inherited from the
+# environment) so a stray $MODULES in the caller's env cannot shadow it.
+_MODULES_FLAG=""
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         -LogDir|--log-dir) LOGDIR="$2"; shift ;;
         -OutDir|--out-dir) BASEOUTDIR="$2"; shift ;;
-        -Modules|--modules) MODULES="$2"; shift ;;
+        -Modules|--modules) _MODULES_FLAG="$2"; shift ;;
         *) echo "Unknown parameter: $1"; exit 2 ;;
     esac
     shift
@@ -19,10 +21,10 @@ fi
 
 # Validate an explicitly-passed --modules before doing any work (the
 # config-derived default is resolved later, after ai_config.env is read).
-if [ -n "${MODULES:-}" ]; then
-    case ",$MODULES," in
+if [ -n "$_MODULES_FLAG" ]; then
+    case ",$_MODULES_FLAG," in
         *,credentials,*|*,cve,*) ;;
-        *) echo "Error: --modules must include 'credentials' and/or 'cve' (got: '$MODULES')."; exit 2 ;;
+        *) echo "Error: --modules must include 'credentials' and/or 'cve' (got: '$_MODULES_FLAG')."; exit 2 ;;
     esac
 fi
 
@@ -115,8 +117,10 @@ if [ "$EUID" -eq 0 ] && [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ] &&
     chown -R "$SUDO_USER" "$LOGDIR" 2>/dev/null
     mkdir -p "$OUTDIR" 2>/dev/null && chown -R "$SUDO_USER" "$OUTDIR" 2>/dev/null
     exec sudo -u "$SUDO_USER" -H env LAVA_DROPPED=1 \
-        bash -lc 'cd "$1" && exec bash "$2" -LogDir "$3" -OutDir "$4"' \
-        lava "$_LAVA_ROOT" "$_SCRIPT" "$LOGDIR" "$OUTDIR"
+        bash -lc 'cd "$1" || exit 1
+                  a=(-LogDir "$3" -OutDir "$4"); [ -n "$5" ] && a+=(-Modules "$5")
+                  exec bash "$2" "${a[@]}"' \
+        lava "$_LAVA_ROOT" "$_SCRIPT" "$LOGDIR" "$OUTDIR" "$_MODULES_FLAG"
 fi
 
 # If we are not already inside a venv and the repo has a .venv, activate it.
@@ -195,11 +199,15 @@ fi
 # Which analysis modules to run:
 #   credentials -> EMBA S45/S99/S106/S107/S108 (+ optional custom grep) + AI classify
 #   cve         -> structure EMBA's F17/S26 CVE output (no AI, no external DB)
-# Comma-separated. --modules overrides everything; otherwise "credentials" always
-# runs and CVE_SCAN_ENABLED="1" adds the cve module.
-if [ -z "${MODULES:-}" ]; then
+# The --modules flag wins outright. Only with NO flag do we fall back to
+# "credentials" (+ cve if CVE_SCAN_ENABLED=1).
+if [ -n "$_MODULES_FLAG" ]; then
+    MODULES="$_MODULES_FLAG"
+    _MODULES_SRC="--modules flag"
+else
     MODULES="credentials"
     [ "$CVE_SCAN_ENABLED" = "1" ] && MODULES="credentials,cve"
+    _MODULES_SRC="default (no --modules flag; CVE_SCAN_ENABLED=$CVE_SCAN_ENABLED)"
 fi
 case ",$MODULES," in *,credentials,*) RUN_CREDS=1 ;; *) RUN_CREDS=0 ;; esac
 case ",$MODULES," in *,cve,*)         RUN_CVE=1   ;; *) RUN_CVE=0   ;; esac
@@ -246,7 +254,7 @@ fi
 
 echo "========================================="
 echo "Starting the LAVA pipeline..."
-echo "[AI_INFO] Modules: $MODULES"
+echo "[AI_INFO] Modules: $MODULES   [$_MODULES_SRC]"
 if [ "$RUN_CREDS" = "1" ]; then
   if [ "$AI_PROVIDER" = "gemini" ]; then
     echo "[AI_INFO] Selected model: Gemini API (Cloud)"
@@ -335,10 +343,14 @@ if [ "$RUN_CVE" = "1" ]; then
     fi
 fi
 
-echo -e "\nGenerating the HTML report..."
-python3 src/reporting/html_report.py "${REPORT_ARGS[@]}" --out "$REPORT_FILE"
-if [ $? -ne 0 ]; then echo "Error: html_report.py failed!"; exit 2; fi
-echo "[OK] Report ready: $REPORT_FILE"
+if [ "${#REPORT_ARGS[@]}" -eq 0 ]; then
+    echo -e "\n[!] Nothing to report: no module produced output. Skipping the HTML report."
+else
+    echo -e "\nGenerating the HTML report..."
+    python3 src/reporting/html_report.py "${REPORT_ARGS[@]}" --out "$REPORT_FILE"
+    if [ $? -ne 0 ]; then echo "Error: html_report.py failed!"; exit 2; fi
+    echo "[OK] Report ready: $REPORT_FILE"
+fi
 
 echo -e "\n========================================="
 echo "LAVA complete."

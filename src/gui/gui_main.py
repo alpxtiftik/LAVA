@@ -13,6 +13,7 @@ import pty
 import fcntl
 import termios
 import struct
+import shlex
 
 scan_process = None
 scan_buffer = bytearray()
@@ -127,16 +128,16 @@ class Api:
         if scan_process and scan_process.poll() is None:
             return {"status": "error", "message": "Scan already running"}
 
-        # modules: comma string or list of "credentials" / "cve"; falsy -> the
-        # script's own default (credentials, plus cve if CVE_SCAN_ENABLED=1).
-        mod_arg = []
-        if modules:
-            if isinstance(modules, str):
-                modules = [m.strip() for m in modules.split(",") if m.strip()]
-            picked = [m for m in ("credentials", "cve") if m in modules]
-            if not picked:
-                return {"status": "error", "message": "Select at least one module (Credentials / CVE)."}
-            mod_arg = ["-Modules", ",".join(picked)]
+        # modules: comma string or list of "credentials" / "cve". The GUI always
+        # sends an explicit choice; default to "credentials" only if nothing
+        # usable arrived. We ALWAYS pass -Modules so the shell never falls back
+        # to its own config-derived default for a GUI-driven run.
+        if isinstance(modules, str):
+            modules = [m.strip() for m in modules.split(",") if m.strip()]
+        elif not isinstance(modules, (list, tuple)):
+            modules = []
+        picked = [m for m in ("credentials", "cve") if m in modules] or ["credentials"]
+        mod_arg = ["-Modules", ",".join(picked)]
 
         try:
             self.last_output_dir = None
@@ -153,6 +154,8 @@ class Api:
             global scan_buffer, master_fd_global
             with scan_buffer_lock:
                 scan_buffer.clear()
+                scan_buffer.extend(
+                    ("[GUI] exec: " + " ".join(shlex.quote(c) for c in cmd) + "\r\n\r\n").encode())
 
             master_fd, slave_fd = pty.openpty()
             master_fd_global = master_fd
@@ -162,6 +165,9 @@ class Api:
             env = os.environ.copy()
             env["TERM"] = "xterm-256color"
             env["LAVA_GUI_MODE"] = "1"
+            # never let an inherited value shadow the -Modules flag we pass
+            env.pop("LAVA_MODULES", None)
+            env.pop("MODULES", None)
 
             scan_process = subprocess.Popen(
                 cmd,
