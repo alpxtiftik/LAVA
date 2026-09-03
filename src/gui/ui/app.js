@@ -10,7 +10,20 @@ const splitVerdict = { emba: 'all', grep: 'all' };  // per-column TP/FP filter
 let cveFindings = [];
 let moduleView = "creds";   // creds | cve  (results-area switch)
 let cveShowHidden = false;
+let cveSort = 'sev-desc';   // sev-desc (JSON default: high->low) | sev-asc
 const cveFilter = { av: 'all', sev: 'all', exp: 'all', type: 'all' };
+const _SEV_RANK = { critical: 0, high: 1, medium: 2, low: 3, unknown: 4 };
+
+function sortCveRows(rows) {
+    if (cveSort !== 'sev-asc') return rows;   // default = the file's order
+    return rows.slice().sort((a, b) => {
+        const r = (_SEV_RANK[b.severity] ?? 5) - (_SEV_RANK[a.severity] ?? 5);  // least severe first
+        if (r) return r;
+        return ((b.kev ? 1 : 0) - (a.kev ? 1 : 0))
+            || ((b.has_exploit ? 1 : 0) - (a.has_exploit ? 1 : 0))
+            || ((a.cvss_score || 0) - (b.cvss_score || 0));
+    });
+}
 // which module tabs to show even before their data lands - driven by the
 // Modules checkboxes / the modules a running scan was started with.
 let credsModuleWanted = true;
@@ -367,7 +380,7 @@ function renderCve() {
     const grid = document.getElementById('cveGrid');
     if (!grid) return;
     const term = (document.getElementById('cveSearch')?.value || '').toLowerCase();
-    const rows = cveFindings.filter(r => cveMatches(r, term));
+    const rows = sortCveRows(cveFindings.filter(r => cveMatches(r, term)));
     grid.innerHTML = '';
     rows.forEach(r => grid.appendChild(buildCveCard(r)));
     if (!rows.length) {
@@ -593,6 +606,10 @@ function setupEventListeners() {
     const cveTypeSelect = document.getElementById('cveTypeSelect');
     if (cveTypeSelect) cveTypeSelect.addEventListener('change', () => {
         cveFilter.type = cveTypeSelect.value; renderCve();
+    });
+    const cveSortSelect = document.getElementById('cveSortSelect');
+    if (cveSortSelect) cveSortSelect.addEventListener('change', () => {
+        cveSort = cveSortSelect.value; renderCve();
     });
     const cveShowAllBtn = document.getElementById('cveShowAll');
     if (cveShowAllBtn) cveShowAllBtn.addEventListener('click', () => {

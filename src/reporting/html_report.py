@@ -229,6 +229,12 @@ h1::after{content:'_';color:var(--accent);animation:blink 1s step-end infinite}
         <button class="btn cve-f" data-k="av" data-v="Local">Local</button>
         <button class="btn cve-f" data-k="av" data-v="Physical">Physical</button>
       </div>
+      <div class="fgroup"><span class="lbl">Sort</span>
+        <select id="cve-sort">
+          <option value="sev-desc">Severity: high &rarr; low</option>
+          <option value="sev-asc">Severity: low &rarr; high</option>
+        </select>
+      </div>
       <div class="fgroup"><span class="lbl">Type</span>
         <select id="cve-type">
           <option value="all">All types</option>
@@ -423,6 +429,16 @@ function initCreds(){
 /* ============================== CVE ============================== */
 const cveFilter={av:'all',sev:'all',exp:'all',type:'all'};
 let cveShowHidden=false;
+let cveSort='sev-desc';
+const _SEV_RANK={critical:0,high:1,medium:2,low:3,unknown:4};
+function sortCve(rows){
+  if(cveSort!=='sev-asc') return rows;
+  return rows.slice().sort(function(a,b){
+    const r=(_SEV_RANK[b.severity]??5)-(_SEV_RANK[a.severity]??5);
+    if(r) return r;
+    return ((b.kev?1:0)-(a.kev?1:0))||((b.has_exploit?1:0)-(a.has_exploit?1:0))||((a.cvss_score||0)-(b.cvss_score||0));
+  });
+}
 
 function cveCard(r){
   const el=document.createElement('div');
@@ -498,7 +514,7 @@ function cveMatch(r,t){
 
 function renderCve(){
   const t=document.getElementById('cve-search').value.toLowerCase();
-  const rows=CVEDATA.filter(r=>cveMatch(r,t));
+  const rows=sortCve(CVEDATA.filter(r=>cveMatch(r,t)));
   const g=document.getElementById('cve-grid'); g.innerHTML='';
   rows.forEach(r=>g.appendChild(cveCard(r)));
   if(!rows.length) g.innerHTML='<div class="empty">No CVEs match your criteria.</div>';
@@ -510,6 +526,7 @@ function renderCve(){
 function initCve(){
   document.getElementById('cve-search').addEventListener('input',renderCve);
   document.getElementById('cve-type').addEventListener('change',function(){cveFilter.type=this.value;renderCve();});
+  document.getElementById('cve-sort').addEventListener('change',function(){cveSort=this.value;renderCve();});
   document.querySelectorAll('.cve-f').forEach(b=>b.onclick=()=>{
     document.querySelectorAll(`.cve-f[data-k="${b.dataset.k}"]`).forEach(x=>x.classList.remove('active'));
     b.classList.add('active'); cveFilter[b.dataset.k]=b.dataset.v; renderCve();
