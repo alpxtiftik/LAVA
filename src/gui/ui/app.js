@@ -536,7 +536,7 @@ function setupEventListeners() {
     });
     const cveSearch = document.getElementById('cveSearch');
     if (cveSearch) cveSearch.addEventListener('input', renderCve);
-    document.querySelectorAll('.cve-filter-btn').forEach(btn => {
+    document.querySelectorAll('.cve-filter-btn[data-k]').forEach(btn => {
         btn.addEventListener('click', () => {
             document.querySelectorAll(`.cve-filter-btn[data-k="${btn.dataset.k}"]`)
                 .forEach(b => b.classList.remove('active'));

@@ -908,7 +908,12 @@ pre {
 .cve-filter-btn.active {
     background: var(--text-primary); color: var(--bg-primary); border-color: var(--text-primary);
 }
-#cveShowAll.active { border-color: var(--accent); color: var(--accent); }
+/* the show-hidden toggle sits with the filter buttons; give its "on" state a
+   distinct accent look so it does not read as another value filter */
+#cveShowAll { margin-left: 4px; }
+#cveShowAll.active {
+    background: rgba(0, 255, 204, 0.12); color: var(--accent); border-color: var(--accent);
+}
 .cve-note { color: var(--text-secondary); font-size: 0.75rem; margin: 6px 0 14px; }
 .cve-type-select {
     padding: 5px 10px; background: var(--bg-primary);

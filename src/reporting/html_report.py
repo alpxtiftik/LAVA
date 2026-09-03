@@ -71,6 +71,8 @@ h1::after{content:'_';color:var(--accent);animation:blink 1s step-end infinite}
   color:var(--text-secondary);cursor:pointer;font-family:inherit;font-size:.8rem;transition:all .15s}
 .btn:hover{color:var(--text-primary)}
 .btn.active{background:var(--text-primary);color:#000;border-color:var(--text-primary)}
+#cve-showall{margin-left:4px}
+#cve-showall.active{background:rgba(0,255,204,.12);color:var(--accent);border-color:var(--accent)}
 .controls.split-mode .filter-btn{display:none}
 .fgroup{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
 .fgroup .lbl{font-size:.65rem;letter-spacing:1px;color:var(--text-secondary);text-transform:uppercase;margin-right:4px}
