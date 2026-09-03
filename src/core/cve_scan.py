@@ -53,6 +53,73 @@ _PR_NAME = {"N": "None", "L": "Low", "H": "High"}
 _UI_NAME = {"N": "None", "R": "Required"}
 _IMPACT_NAME = {"N": "None", "L": "Low", "P": "Partial", "C": "Complete", "H": "High"}
 
+# ---------------------------------------------------------------------------
+# Vulnerability type (CWE first, description keywords as a fallback).
+# "Attack vector" (AV, above) is *where* the attacker is; this is *what* the
+# bug is. Neither is a CVSS field beyond CWE, so coverage is best-effort.
+# ---------------------------------------------------------------------------
+_CWE_BUCKET = {
+    # Injection / code execution
+    "Injection / RCE": {77, 78, 88, 94, 95, 96, 917, 502, 89, 90, 91, 470, 1336},
+    # Memory-safety
+    "Memory safety": {119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 131,
+                      190, 191, 415, 416, 457, 476, 590, 680, 787, 788, 822, 823,
+                      824, 825, 908, 1284},
+    # Concurrency
+    "Race condition": {362, 363, 364, 365, 366, 367, 368, 421, 662, 667},
+    # AuthN / AuthZ / privilege
+    "Auth / access control": {284, 285, 287, 288, 290, 294, 295, 306, 269, 270,
+                              271, 272, 273, 862, 863, 732, 250, 668, 522, 798, 259},
+    "Path traversal": {22, 23, 24, 25, 26, 27, 28, 29, 36, 37, 38, 39, 40, 73, 61},
+    "Information disclosure": {200, 201, 203, 209, 215, 359, 497, 532, 538, 540, 552, 214},
+    "Denial of service": {248, 369, 400, 401, 404, 405, 674, 770, 771, 772, 834, 835, 1333},
+    "Cryptographic issue": {295, 310, 311, 319, 321, 322, 323, 324, 325, 326, 327,
+                            328, 329, 330, 331, 335, 337, 338, 340, 347, 916, 759, 760},
+    "Web (XSS / CSRF / SSRF)": {79, 80, 83, 87, 352, 918, 601, 611, 776, 384},
+}
+_CWE_TO_BUCKET = {c: name for name, cwes in _CWE_BUCKET.items() for c in cwes}
+
+_DESC_TYPE_RE = [
+    ("Injection / RCE", re.compile(
+        r"command injection|os command|shell command|arbitrary command|"
+        r"remote code execution|arbitrary code|code execution|sql injection|"
+        r"code injection|deserializ", re.I)),
+    ("Auth / access control", re.compile(
+        r"authentication bypass|bypass authentication|improper authentication|"
+        r"auth(entication|orization) bypass|privilege escalation|gain (root |)privileges|"
+        r"elevation of privilege|escalate privileges|hardcoded (password|credential)|"
+        r"access control", re.I)),
+    ("Path traversal", re.compile(r"path traversal|directory traversal|\.\./", re.I)),
+    ("Memory safety", re.compile(
+        r"buffer overflow|heap overflow|stack overflow|heap-based buffer|"
+        r"stack-based buffer|out-of-bounds|out of bounds|use.after.free|double free|"
+        r"integer overflow|integer underflow|null pointer deref|uninitialized", re.I)),
+    ("Race condition", re.compile(r"race condition|toctou|time-of-check", re.I)),
+    ("Information disclosure", re.compile(
+        r"information disclosure|information leak|sensitive information|memory disclosure|"
+        r"info(rmation|) leak", re.I)),
+    ("Web (XSS / CSRF / SSRF)", re.compile(
+        r"cross-site scripting|xss|cross-site request forgery|csrf|"
+        r"server-side request forgery|ssrf", re.I)),
+    ("Cryptographic issue", re.compile(
+        r"weak (crypto|cipher|hash|encryption)|improper certificate|"
+        r"predictable (random|seed)|insufficient entropy", re.I)),
+    ("Denial of service", re.compile(
+        r"denial of service|null pointer deref|infinite loop|reachable assertion|"
+        r"divide by zero|resource exhaustion|crash|kernel panic", re.I)),
+]
+
+
+def _vuln_type(cwes: list[int], description: str) -> str:
+    for c in cwes:
+        b = _CWE_TO_BUCKET.get(c)
+        if b:
+            return b
+    for name, rx in _DESC_TYPE_RE:
+        if rx.search(description or ""):
+            return name
+    return ""
+
 
 # ---------------------------------------------------------------------------
 # Locating EMBA's CVE output
@@ -295,6 +362,8 @@ def _record(v: dict, component: str, version: str, source_module: str,
                       or (score is not None and score >= 7.0)
                       or is_kev or has_exploit)
 
+    cwes = _cwes(v)
+    description = str(v.get("description") or "").strip()
     return {
         "cve": cve,
         "component": component or "unknown",
@@ -309,8 +378,9 @@ def _record(v: dict, component: str, version: str, source_module: str,
         "pr": parts["pr"],
         "ui": parts["ui"],
         "impact": parts["impact"],
-        "cwe": _cwes(v),
-        "description": str(v.get("description") or "").strip(),
+        "cwe": cwes,
+        "vuln_type": _vuln_type(cwes, description),
+        "description": description,
         "has_exploit": has_exploit,
         "exploit_sources": exsrc,
         "exploit_tier": _exploit_tier(exsrc),
@@ -420,10 +490,12 @@ def _summary(records: list[dict]) -> None:
     from collections import Counter
     av = Counter(r["av"] for r in records)
     sev = Counter(r["severity"] for r in records)
+    vt = Counter(r["vuln_type"] or "unclassified" for r in records)
     print(f"[+] CVE findings    : {len(records)} ({len(visible)} shown by default, "
           f"{len(records) - len(visible)} lower-severity kernel CVEs hidden)")
     print(f"      attack vector : " + ", ".join(f"{k}={c}" for k, c in av.most_common()))
     print(f"      severity      : " + ", ".join(f"{k}={c}" for k, c in sev.most_common()))
+    print(f"      type          : " + ", ".join(f"{k}={c}" for k, c in vt.most_common()))
     print(f"      with exploit  : {sum(1 for r in records if r['has_exploit'])}")
     print(f"      KEV (known-exploited): {sum(1 for r in records if r['kev'])}")
     print(f"      kernel-verified: {sum(1 for r in records if r['verified'])}")

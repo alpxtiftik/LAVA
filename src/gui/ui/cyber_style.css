@@ -910,6 +910,15 @@ pre {
 }
 #cveShowAll.active { border-color: var(--accent); color: var(--accent); }
 .cve-note { color: var(--text-secondary); font-size: 0.75rem; margin: 6px 0 14px; }
+.cve-type-select {
+    padding: 5px 10px; background: var(--bg-primary);
+    border: 1px solid var(--border-color); color: var(--text-primary);
+    font-family: inherit; font-size: 0.78rem;
+}
+.cve-type-line {
+    font-size: 0.7rem; letter-spacing: 1px; text-transform: uppercase;
+    color: #ffb000; font-weight: 700;
+}
 
 /* severity accent on the card's left border */
 .finding-card.sev-critical { border-left-color: var(--danger); }

@@ -284,6 +284,21 @@
                     <button class="cve-filter-btn" data-k="av" data-v="Local">Local</button>
                     <button class="cve-filter-btn" data-k="av" data-v="Physical">Physical</button>
                 </div>
+                <div class="fgroup"><span class="fgroup-lbl">Type</span>
+                    <select id="cveTypeSelect" class="cve-type-select">
+                        <option value="all">All types</option>
+                        <option value="Injection / RCE">Injection / RCE</option>
+                        <option value="Memory safety">Memory safety</option>
+                        <option value="Auth / access control">Auth / access control</option>
+                        <option value="Path traversal">Path traversal</option>
+                        <option value="Information disclosure">Information disclosure</option>
+                        <option value="Race condition">Race condition</option>
+                        <option value="Denial of service">Denial of service</option>
+                        <option value="Cryptographic issue">Cryptographic issue</option>
+                        <option value="Web (XSS / CSRF / SSRF)">Web (XSS / CSRF / SSRF)</option>
+                        <option value="__unclassified__">Unclassified</option>
+                    </select>
+                </div>
                 <div class="fgroup"><span class="fgroup-lbl">Severity</span>
                     <button class="cve-filter-btn active" data-k="sev" data-v="all">All</button>
                     <button class="cve-filter-btn" data-k="sev" data-v="critical">Critical</button>

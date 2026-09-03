@@ -74,6 +74,9 @@ h1::after{content:'_';color:var(--accent);animation:blink 1s step-end infinite}
 .controls.split-mode .filter-btn{display:none}
 .fgroup{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
 .fgroup .lbl{font-size:.65rem;letter-spacing:1px;color:var(--text-secondary);text-transform:uppercase;margin-right:4px}
+.fgroup select{padding:6px 10px;background:#000;border:1px solid var(--border-color);color:var(--text-primary);
+  font-family:inherit;font-size:.78rem}
+.cve-type-line{font-size:.72rem;letter-spacing:1px;text-transform:uppercase;color:var(--warn);font-weight:700}
 
 .source-tabs{display:flex;gap:4px;border-bottom:1px solid var(--border-color);margin-bottom:14px}
 .source-tabs.hidden{display:none}
@@ -217,6 +220,21 @@ h1::after{content:'_';color:var(--accent);animation:blink 1s step-end infinite}
         <button class="btn cve-f" data-k="av" data-v="Adjacent">Adjacent</button>
         <button class="btn cve-f" data-k="av" data-v="Local">Local</button>
         <button class="btn cve-f" data-k="av" data-v="Physical">Physical</button>
+      </div>
+      <div class="fgroup"><span class="lbl">Type</span>
+        <select id="cve-type">
+          <option value="all">All types</option>
+          <option value="Injection / RCE">Injection / RCE</option>
+          <option value="Memory safety">Memory safety</option>
+          <option value="Auth / access control">Auth / access control</option>
+          <option value="Path traversal">Path traversal</option>
+          <option value="Information disclosure">Information disclosure</option>
+          <option value="Race condition">Race condition</option>
+          <option value="Denial of service">Denial of service</option>
+          <option value="Cryptographic issue">Cryptographic issue</option>
+          <option value="Web (XSS / CSRF / SSRF)">Web (XSS / CSRF / SSRF)</option>
+          <option value="__unclassified__">Unclassified</option>
+        </select>
       </div>
     </div>
     <div class="controls">
@@ -395,7 +413,7 @@ function initCreds(){
 }
 
 /* ============================== CVE ============================== */
-const cveFilter={av:'all',sev:'all',exp:'all'};
+const cveFilter={av:'all',sev:'all',exp:'all',type:'all'};
 let cveShowHidden=false;
 
 function cveCard(r){
@@ -409,6 +427,7 @@ function cveCard(r){
   if(r.verified) chips.push('<span class="chip verified">VERIFIED</span>');
   chips.push('<span class="badge sev-'+(r.severity||'unknown')+'">'+esc((r.severity||'?').toUpperCase())+'</span>');
   const score=(r.cvss_score!=null)?r.cvss_score.toFixed(1):'--';
+  const vt=(r.vuln_type||'').trim();
   el.innerHTML=`
     <div class="card-top">
       <div>
@@ -417,6 +436,7 @@ function cveCard(r){
       </div>
       <div class="chips">${chips.join('')}</div>
     </div>
+    ${vt?`<div class="cve-type-line">${esc(vt)}</div>`:''}
     <div class="snippet wrap">${esc(r.description||'(no description)')}</div>
     <div class="foot">
       <span>${esc(r.av||'?')} &middot; ${esc(r.cvss_vector||'no vector')}</span>
@@ -436,6 +456,7 @@ function openCveModal(r){
       <span class="chip">CVSS ${r.cvss_score!=null?r.cvss_score:'--'} (v${esc(r.cvss_version||'?')})</span>
       <span class="chip">${esc(r.component)} ${esc(r.version||'')}</span>
       <span class="chip">${esc(r.source_module==='S26'?'kernel (S26)':'component (F17)')}</span>
+      ${r.vuln_type?'<span class="chip">'+esc(r.vuln_type)+'</span>':''}
       ${r.kev?'<span class="chip kev">KNOWN-EXPLOITED</span>':''}
       ${r.verified?'<span class="chip verified">kernel-verified: '+esc(r.verified)+'</span>':''}
     </div>
@@ -463,6 +484,8 @@ function cveMatch(r,t){
   if(cveFilter.sev!=='all' && r.severity!==cveFilter.sev) return false;
   if(cveFilter.exp==='exploit' && !r.has_exploit) return false;
   if(cveFilter.exp==='kev' && !r.kev) return false;
+  if(cveFilter.type==='__unclassified__' && (r.vuln_type||'')!=='') return false;
+  if(cveFilter.type!=='all' && cveFilter.type!=='__unclassified__' && r.vuln_type!==cveFilter.type) return false;
   return true;
 }
 
@@ -479,6 +502,7 @@ function renderCve(){
 
 function initCve(){
   document.getElementById('cve-search').addEventListener('input',renderCve);
+  document.getElementById('cve-type').addEventListener('change',function(){cveFilter.type=this.value;renderCve();});
   document.querySelectorAll('.cve-f').forEach(b=>b.onclick=()=>{
     document.querySelectorAll(`.cve-f[data-k="${b.dataset.k}"]`).forEach(x=>x.classList.remove('active'));
     b.classList.add('active'); cveFilter[b.dataset.k]=b.dataset.v; renderCve();
