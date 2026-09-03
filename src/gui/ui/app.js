@@ -49,12 +49,22 @@ async function fetchData() {
             throw new Error('PyWebView API not available.');
         }
         
-        // Use currentLogDir if set (from a scan), otherwise read from input box
-        const inputVal = document.getElementById('logDirInput') ? document.getElementById('logDirInput').value.trim() : '';
-        const logDir = currentLogDir || inputVal;
-        
+        // Only ever show results from a scan started in THIS session
+        // (currentLogDir is set by start_scan). Merely selecting a log directory
+        // must NOT surface a previous run's lava_out_* sibling - that is a
+        // different scan even if the CVE side is deterministic.
+        const logDir = currentLogDir;
+
         if (!logDir) {
-            document.getElementById('findingsGrid').innerHTML = '<div class="loading-state"><p>Please select an EMBA Log Directory to view findings.</p></div>';
+            document.getElementById('findingsGrid').innerHTML =
+                '<div class="loading-state"><p>Select an input and press <b>Start Scan</b>. Results from previous runs are not loaded automatically.</p></div>';
+            allFindings = [];
+            cveFindings = [];
+            totalFindings = 0;
+            updateSourceTabs();
+            updateModuleSwitch();
+            renderCve();
+            updateStats();
             return;
         }
 
@@ -926,9 +936,8 @@ async function browseFolder() {
             if (path) {
                 document.getElementById('logDirInput').value = path;
                 currentLogDir = "";
-                if (mode === 'log') {
-                    fetchData();
-                }
+                // Do NOT load anything yet - picking a path is not a scan.
+                fetchData();   // clears the grid to the "press Start Scan" state
             }
         } catch (e) {
             console.error("Folder selection failed:", e);
@@ -938,12 +947,13 @@ async function browseFolder() {
     }
 }
 
-// Clear currentLogDir when user manually edits the input
+// Editing the path by hand is not a scan either - drop the session's scan
+// binding and clear any results that are still on screen.
 document.addEventListener('DOMContentLoaded', () => {
     const input = document.getElementById('logDirInput');
     if (input) {
         input.addEventListener('input', () => {
-            currentLogDir = "";
+            if (currentLogDir) { currentLogDir = ""; fetchData(); }
         });
     }
 });
@@ -1024,9 +1034,10 @@ async function stopScan() {
 }
 
 async function exportHtml() {
-    const logDir = currentLogDir || document.getElementById('logDirInput').value.trim();
+    // only the current session's scan output - never a previous run's sibling
+    const logDir = currentLogDir;
     if (!logDir) {
-        alert("Please run a scan or select a Log Directory first.");
+        alert("Run a scan first - the report is built from this session's results.");
         return;
     }
     if (window.pywebview && window.pywebview.api) {
