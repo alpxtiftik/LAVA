@@ -333,23 +333,27 @@ header {
     overflow: hidden;   /* clip anything that still overruns */
 }
 
+/* left accent = the card's semantic colour (verdict for credentials,
+   severity for CVE). On hover EVERY border takes that same colour. */
 .finding-card.verdict-tp { border-left-color: var(--danger); }
 .finding-card.verdict-fp { border-left-color: var(--success); }
+.finding-card.sev-critical { border-left-color: var(--danger); }
+.finding-card.sev-high     { border-left-color: #ffcc00; }
+.finding-card.sev-medium   { border-left-color: var(--success); }
+.finding-card.sev-low,
+.finding-card.sev-unknown  { border-left-color: var(--text-secondary); }
 
 .finding-card:hover {
     transform: translateY(-4px);
     background: var(--bg-tertiary);
-    border-color: var(--border-highlight);
-    
 }
-.finding-card.verdict-tp:hover { 
-    border-left-color: var(--danger); 
-    
-}
-.finding-card.verdict-fp:hover { 
-    border-left-color: var(--success); 
-    
-}
+.finding-card.verdict-tp:hover    { border-color: var(--danger); }
+.finding-card.verdict-fp:hover    { border-color: var(--success); }
+.finding-card.sev-critical:hover  { border-color: var(--danger); }
+.finding-card.sev-high:hover      { border-color: #ffcc00; }
+.finding-card.sev-medium:hover    { border-color: var(--success); }
+.finding-card.sev-low:hover,
+.finding-card.sev-unknown:hover   { border-color: var(--text-secondary); }
 
 .card-header,
 .card-top {
@@ -378,7 +382,7 @@ header {
     margin-top: 0.35rem;
     font-size: 1.15rem;
     font-weight: 700;
-    color: var(--accent);
+    color: var(--text-primary);   /* neutral - green/accent means FP / medium elsewhere */
     line-height: 1.25;
 }
 .card-category:empty { display: none; }
@@ -930,19 +934,11 @@ pre {
     border: 1px solid var(--border-color); color: var(--text-primary);
     font-family: inherit; font-size: 0.78rem;
 }
+/* vuln type: neutral grey label - NOT yellow (yellow = high severity) */
 .cve-type-line {
     font-size: 0.7rem; letter-spacing: 1px; text-transform: uppercase;
-    color: #ffb000; font-weight: 700;
+    color: var(--text-secondary); font-weight: 700;
 }
-
-/* severity accent on the card's left border */
-.finding-card.sev-critical { border-left-color: var(--danger); }
-.finding-card.sev-high     { border-left-color: #ffb000; }
-.finding-card.sev-medium   { border-left-color: #33aa99; }
-.finding-card.sev-low,
-.finding-card.sev-unknown  { border-left-color: var(--border-color); }
-.finding-card.sev-critical:hover { border-left-color: var(--danger); }
-.finding-card.sev-high:hover     { border-left-color: #ffb000; }
 
 .snippet.cve-desc {
     white-space: normal; max-height: 4.4rem; overflow: hidden;
@@ -953,15 +949,17 @@ pre {
     font-size: 0.62rem; letter-spacing: 1px; padding: 2px 6px;
     border: 1px solid #333; color: var(--text-secondary); text-transform: uppercase;
 }
-.cve-chip.chip-net      { color: var(--danger); border-color: var(--danger); }
+/* attack vector + exploit state are always red (attention markers) */
+.cve-chip.chip-av       { color: var(--danger); border-color: var(--danger); }
 .cve-chip.chip-exploit  { color: var(--danger); border-color: var(--danger); }
 .cve-chip.chip-kev      { color: #fff; background: var(--danger); border-color: var(--danger); }
-.cve-chip.chip-verified { color: var(--accent); border-color: var(--accent); }
+.cve-chip.chip-verified { color: var(--text-primary); border-color: var(--text-secondary); }
 
+/* severity badge: low grey / medium green / high yellow / critical red */
 .verdict-badge.sev-badge { font-weight: 700; }
 .sev-badge.sev-critical { background: var(--danger-dim); color: var(--danger); border: 1px solid var(--danger); }
-.sev-badge.sev-high     { background: rgba(255,176,0,0.15); color: #ffb000; border: 1px solid #ffb000; }
-.sev-badge.sev-medium   { background: rgba(51,170,153,0.15); color: #5cccbb; border: 1px solid #33aa99; }
+.sev-badge.sev-high     { background: rgba(255,204,0,0.15); color: #ffcc00; border: 1px solid #ffcc00; }
+.sev-badge.sev-medium   { background: var(--success-dim); color: var(--success); border: 1px solid var(--success); }
 .sev-badge.sev-low,
 .sev-badge.sev-unknown  { background: var(--bg-tertiary); color: var(--text-secondary); border: 1px solid #333; }
 

@@ -320,8 +320,9 @@ function buildCveCard(r) {
     const card = document.createElement('div');
     card.className = `finding-card cve-card sev-${r.severity || 'unknown'}`;
     const chips = [];
-    if (r.av === 'Network') chips.push('<span class="cve-chip chip-net">NET</span>');
-    else if (r.av && r.av !== 'Unknown') chips.push(`<span class="cve-chip">${escapeHtml(r.av.slice(0, 3).toUpperCase())}</span>`);
+    if (r.av && r.av !== 'Unknown') {
+        chips.push(`<span class="cve-chip chip-av">${escapeHtml(r.av === 'Network' ? 'NET' : r.av.slice(0, 3).toUpperCase())}</span>`);
+    }
     if (r.kev) chips.push('<span class="cve-chip chip-kev">KEV</span>');
     else if (r.has_exploit) chips.push('<span class="cve-chip chip-exploit">EXPLOIT</span>');
     if (r.verified) chips.push('<span class="cve-chip chip-verified">VERIFIED</span>');
@@ -374,7 +375,7 @@ function openCveModal(r) {
         `<span class="verdict-badge" style="border:1px solid var(--glass-border);color:var(--text-secondary)">${escapeHtml(r.component)} ${escapeHtml(r.version || '')}</span>`,
         `<span class="verdict-badge" style="border:1px solid var(--glass-border);color:var(--text-secondary)">${r.source_module === 'S26' ? 'kernel (S26)' : 'component (F17)'}</span>`,
     ];
-    if (r.vuln_type) badges.push(`<span class="verdict-badge" style="border:1px solid var(--warn);color:var(--warn)">${escapeHtml(r.vuln_type)}</span>`);
+    if (r.vuln_type) badges.push(`<span class="verdict-badge" style="border:1px solid var(--border-color);color:var(--text-secondary)">${escapeHtml(r.vuln_type)}</span>`);
     if (r.kev) badges.push('<span class="cve-chip chip-kev">KNOWN-EXPLOITED</span>');
     if (r.verified) badges.push(`<span class="cve-chip chip-verified">kernel-verified: ${escapeHtml(r.verified)}</span>`);
     document.getElementById('modalBadges').innerHTML = badges.join(' ');

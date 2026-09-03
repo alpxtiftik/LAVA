@@ -30,7 +30,7 @@ _PAGE = r"""<!DOCTYPE html>
   --text-primary:#e0e0e0;--text-secondary:#888;--accent:#00ffcc;
   --danger:#ff0044;--danger-dim:rgba(255,0,68,.15);
   --success:#00ffcc;--success-dim:rgba(0,255,204,.15);
-  --warn:#ffb000;--warn-dim:rgba(255,176,0,.15);
+  --warn:#ffcc00;--warn-dim:rgba(255,204,0,.15);
   --border-color:#222;
 }
 *{box-sizing:border-box;margin:0;padding:0}
@@ -78,7 +78,7 @@ h1::after{content:'_';color:var(--accent);animation:blink 1s step-end infinite}
 .fgroup .lbl{font-size:.65rem;letter-spacing:1px;color:var(--text-secondary);text-transform:uppercase;margin-right:4px}
 .fgroup select{padding:6px 10px;background:#000;border:1px solid var(--border-color);color:var(--text-primary);
   font-family:inherit;font-size:.78rem}
-.cve-type-line{font-size:.72rem;letter-spacing:1px;text-transform:uppercase;color:var(--warn);font-weight:700}
+.cve-type-line{font-size:.72rem;letter-spacing:1px;text-transform:uppercase;color:var(--text-secondary);font-weight:700}
 
 .source-tabs{display:flex;gap:4px;border-bottom:1px solid var(--border-color);margin-bottom:14px}
 .source-tabs.hidden{display:none}
@@ -98,24 +98,30 @@ h1::after{content:'_';color:var(--accent);animation:blink 1s step-end infinite}
 .card{background:var(--bg-secondary);border:1px solid var(--border-color);
   border-left:4px solid var(--border-color);padding:1.25rem;display:flex;flex-direction:column;
   gap:1rem;cursor:pointer;transition:background .2s,border-color .2s;min-width:0;overflow:hidden}
-.card:hover{background:var(--bg-tertiary);border-color:var(--accent)}
+.card:hover{background:var(--bg-tertiary)}
 .card.tp{border-left-color:var(--danger)} .card.fp{border-left-color:var(--success)}
 .card.sev-critical{border-left-color:var(--danger)}
-.card.sev-high{border-left-color:var(--warn)}
-.card.sev-medium{border-left-color:#3a9}
-.card.sev-low,.card.sev-unknown{border-left-color:var(--border-color)}
+.card.sev-high{border-left-color:#ffcc00}
+.card.sev-medium{border-left-color:var(--success)}
+.card.sev-low,.card.sev-unknown{border-left-color:var(--text-secondary)}
+/* on hover every border takes the card's semantic colour */
+.card.tp:hover{border-color:var(--danger)} .card.fp:hover{border-color:var(--success)}
+.card.sev-critical:hover{border-color:var(--danger)}
+.card.sev-high:hover{border-color:#ffcc00}
+.card.sev-medium:hover{border-color:var(--success)}
+.card.sev-low:hover,.card.sev-unknown:hover{border-color:var(--text-secondary)}
 .card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem}
 .card-top>div:first-child{min-width:0}
 .card-file{font-size:.9rem;font-weight:700;color:var(--text-primary);word-break:break-all;line-height:1.35}
-.card-cat{margin-top:.35rem;font-size:1.15rem;font-weight:700;color:var(--accent);line-height:1.25}
+.card-cat{margin-top:.35rem;font-size:1.15rem;font-weight:700;color:var(--text-primary);line-height:1.25}
 .card-cat:empty{display:none}
 .chips{display:flex;gap:6px;align-items:center;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end}
 .badge{padding:.2rem .5rem;font-weight:700;font-size:.7rem;border:1px solid}
 .badge.tp{background:var(--danger-dim);color:var(--danger);border-color:var(--danger)}
 .badge.fp{background:var(--success-dim);color:var(--success);border-color:var(--success)}
 .badge.sev-critical{background:var(--danger-dim);color:var(--danger);border-color:var(--danger)}
-.badge.sev-high{background:var(--warn-dim);color:var(--warn);border-color:var(--warn)}
-.badge.sev-medium{background:rgba(51,170,153,.15);color:#5cc;border-color:#3a9}
+.badge.sev-high{background:rgba(255,204,0,.15);color:#ffcc00;border-color:#ffcc00}
+.badge.sev-medium{background:var(--success-dim);color:var(--success);border-color:var(--success)}
 .badge.sev-low,.badge.sev-unknown{background:var(--bg-tertiary);color:var(--text-secondary);border-color:#333}
 .chip{font-size:.62rem;letter-spacing:1px;padding:2px 6px;border:1px solid #333;
   color:var(--text-secondary);text-transform:uppercase}
@@ -123,8 +129,8 @@ h1::after{content:'_';color:var(--accent);animation:blink 1s step-end infinite}
 .chip.both{color:#ffb000;border-color:#ffb000}
 .chip.exploit{color:var(--danger);border-color:var(--danger)}
 .chip.kev{color:#fff;background:var(--danger);border-color:var(--danger)}
-.chip.av-network{color:var(--danger);border-color:var(--danger)}
-.chip.verified{color:var(--accent);border-color:var(--accent)}
+.chip.av{color:var(--danger);border-color:var(--danger)}
+.chip.verified{color:var(--text-primary);border-color:var(--text-secondary)}
 .snippet{background:#000;border:1px solid var(--border-color);padding:.7rem;font-size:.78rem;
   color:#a3a3a3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;min-width:0}
 .snippet.wrap{white-space:normal;max-height:4.2rem;overflow:hidden}
@@ -422,8 +428,7 @@ function cveCard(r){
   const el=document.createElement('div');
   el.className='card sev-'+(r.severity||'unknown');
   const chips=[];
-  if(r.av==='Network') chips.push('<span class="chip av-network">NET</span>');
-  else if(r.av&&r.av!=='Unknown') chips.push('<span class="chip">'+esc(r.av.slice(0,3).toUpperCase())+'</span>');
+  if(r.av&&r.av!=='Unknown') chips.push('<span class="chip av">'+esc(r.av==='Network'?'NET':r.av.slice(0,3).toUpperCase())+'</span>');
   if(r.kev) chips.push('<span class="chip kev">KEV</span>');
   else if(r.has_exploit) chips.push('<span class="chip exploit">EXPLOIT</span>');
   if(r.verified) chips.push('<span class="chip verified">VERIFIED</span>');
