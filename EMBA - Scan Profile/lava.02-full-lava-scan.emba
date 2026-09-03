@@ -1,0 +1,47 @@
+# EMBA - EMBEDDED LINUX ANALYZER
+# LAVA profile: both modules (--modules credentials,cve).
+#
+# = lava.01-cve-scan (SBOM + cve-bin-tool + VEX + S26/S36/S118)
+#   + the hardcoded-credential modules LAVA's parser.py reads:
+#       S45  pass_file_check
+#       S99  grepit                (LAVA's S99_SCAN feature depends on this)
+#       S106 deep_key_search
+#       S107 deep_password_search
+#       S108 stacs_password_search
+# Still skips the slow binary/decompiler/script analysis and the dynamic
+# (L*) emulation modules.
+
+export FORMAT_LOG=1
+export THREADED=1
+export SHORT_PATH=1
+export HTML=1
+
+SBOM_MINIMAL=1
+SBOM_UNTRACKED_FILES=1
+DISABLE_DEEP=1
+DEEP_EXT_DEPTH=1
+SBOM_MAX_FILE_LOG=500
+
+# --- CVE side (same as lava.01-cve-scan.emba) ----------------------------
+export SELECT_MODULES+=( "S06" "S08" "S09" "S24" "S25" "S26" "S36" )
+export QEMULATION=1
+export SELECT_MODULES+=( "S115" "S116" "S118" )
+export SELECT_MODULES+=( "F14" "F15" "F17" "F50" )
+export VEX_METRICS=1
+
+# --- credential side ----------------------------------------------------
+export SELECT_MODULES+=( "S45" "S99" "S106" "S107" "S108" )
+
+export EMBA_MAP_GENERATOR=0
+export DISABLE_STATUS_BAR=0
+export SILENT=1
+export DISABLE_NOTIFICATIONS=1
+export DISABLE_DOTS=1
+export AI_OPTION=0
+
+if [[ $IN_DOCKER -ne 1 ]] ; then
+  for MODULE_ in "${SELECT_MODULES[@]}"; do
+    print_output "$(indent "$(orange "Enabled module: ${MODULE_}")")" "no_log"
+  done
+  export USE_DOCKER=1
+fi

@@ -101,14 +101,28 @@ if [ ! -f "$CONFIG_ENV" ] && [ -f "$LAVA_ROOT/config/ai_config.example.env" ]; t
     echo "[*] Created config/ai_config.env from the example template."
 fi
 
-AI_PROVIDER="local"
-if [ -f "$CONFIG_ENV" ]; then
-    # Only match a line-leading "AI_PROVIDER="; skip comment lines such as
-    # "# AI_PROVIDER options:", take the first match, strip quotes/whitespace.
-    prov_val=$(grep -E "^[[:space:]]*AI_PROVIDER[[:space:]]*=" "$CONFIG_ENV" 2>/dev/null | head -n1 \
-        | sed -E "s/^[[:space:]]*AI_PROVIDER[[:space:]]*=[[:space:]]*[\"']?([^\"']*)[\"']?[[:space:]]*\$/\1/")
-    [ -n "$prov_val" ] && AI_PROVIDER="$prov_val"
+# Read a line-leading "KEY=" value from ai_config.env (skips comment lines,
+# strips quotes/whitespace). Prints nothing if absent.
+read_cfg() {
+    [ -f "$CONFIG_ENV" ] || return 0
+    grep -E "^[[:space:]]*$1[[:space:]]*=" "$CONFIG_ENV" 2>/dev/null | head -n1 \
+        | sed -E "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*[\"']?([^\"']*)[\"']?[[:space:]]*\$/\1/"
+}
+
+AI_PROVIDER="$(read_cfg AI_PROVIDER)"; AI_PROVIDER="${AI_PROVIDER:-local}"
+CVE_SCAN_ENABLED="$(read_cfg CVE_SCAN_ENABLED)"
+EMBA_SCAN_PROFILE="$(read_cfg EMBA_SCAN_PROFILE)"; EMBA_SCAN_PROFILE="${EMBA_SCAN_PROFILE:-auto}"
+
+# Resolve which LAVA modules this run wants (same rule as run_lava.sh): the
+# -Modules flag wins; otherwise "credentials" (+ cve if CVE_SCAN_ENABLED=1).
+if [ -n "$Modules" ]; then
+    RESOLVED_MODULES="$Modules"
+else
+    RESOLVED_MODULES="credentials"
+    [ "$CVE_SCAN_ENABLED" = "1" ] && RESOLVED_MODULES="credentials,cve"
 fi
+case ",$RESOLVED_MODULES," in *,credentials,*) _R_CREDS=1 ;; *) _R_CREDS=0 ;; esac
+case ",$RESOLVED_MODULES," in *,cve,*)         _R_CVE=1   ;; *) _R_CVE=0   ;; esac
 
 # Start Ollama in the background if it is not running
 if [ "$AI_PROVIDER" != "gemini" ] && [[ "$AI_PROVIDER" != mcp* ]] && ! curl -s http://localhost:11434/ > /dev/null; then
@@ -186,18 +200,40 @@ echo "Firmware: $FirmwarePath"
 echo "EMBA executable: $EMBA_PATH"
 
 emba_dir=$(dirname "$EMBA_PATH")
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &> /dev/null && pwd)"
-LAVA_ROOT="$(dirname "$SCRIPT_DIR")"
-PROFILE_SRC="$LAVA_ROOT/EMBA - Scan Profile/lava.00-quick-scan.emba"
 
-if [ -f "$PROFILE_SRC" ]; then
-    echo "Quick-scan profile found, copying: $PROFILE_SRC"
-    sudo mkdir -p "$emba_dir/scan-profiles/"
-    sudo cp "$PROFILE_SRC" "$emba_dir/scan-profiles/"
-    PROFILE_ARG="-p lava.00-quick-scan.emba"
-else
-    echo "Warning: quick-scan profile not found, using EMBA's default scan."
+# ---------------------------------------------------------------------------
+# Pick the EMBA scan profile.
+#   EMBA_SCAN_PROFILE=full  -> no profile: EMBA runs its complete default set
+#                              (slowest, most thorough), whatever modules were
+#                              selected. LAVA still only analyses the selected
+#                              modules afterwards.
+#   EMBA_SCAN_PROFILE=auto  -> a LAVA profile matched to the selected modules,
+#                              so EMBA only runs what that module needs:
+#       credentials      -> lava.00-quick-scan.emba
+#       cve              -> lava.01-cve-scan.emba
+#       credentials,cve  -> lava.02-full-lava-scan.emba
+# ---------------------------------------------------------------------------
+_PROF_DIR="$LAVA_ROOT/EMBA - Scan Profile"
+if [ "$EMBA_SCAN_PROFILE" = "full" ]; then
+    echo "EMBA scan profile: full (EMBA's complete default scan; modules selected: $RESOLVED_MODULES)"
     PROFILE_ARG=""
+else
+    if [ "$_R_CREDS" = "1" ] && [ "$_R_CVE" = "1" ]; then
+        _PROF="lava.02-full-lava-scan.emba"
+    elif [ "$_R_CVE" = "1" ]; then
+        _PROF="lava.01-cve-scan.emba"
+    else
+        _PROF="lava.00-quick-scan.emba"
+    fi
+    if [ -f "$_PROF_DIR/$_PROF" ]; then
+        echo "EMBA scan profile: auto -> $_PROF  (modules: $RESOLVED_MODULES)"
+        sudo mkdir -p "$emba_dir/scan-profiles/"
+        sudo cp "$_PROF_DIR/$_PROF" "$emba_dir/scan-profiles/"
+        PROFILE_ARG="-p $_PROF"
+    else
+        echo "Warning: profile '$_PROF' not found, falling back to EMBA's default scan."
+        PROFILE_ARG=""
+    fi
 fi
 
 # EMBA_DIR and LAVA_OUT_DIR were set at the top (timestamped siblings).

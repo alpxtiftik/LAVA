@@ -134,7 +134,27 @@
                         <div class="settings-panel" id="panel-advanced">
                             <h3>Advanced</h3>
 
-                            <label class="settings-label">EMBA S99 grepit coverage</label>
+                            <label class="settings-label">EMBA scan profile (Full Pipeline only)</label>
+                            <select id="embaScanProfileSelect" class="settings-input">
+                                <option value="auto">Auto &ndash; minimal EMBA modules for the selected LAVA modules (faster)</option>
+                                <option value="full">Full &ndash; EMBA's complete default scan, ignores module selection (slowest)</option>
+                            </select>
+                            <div class="settings-note">
+                                Only affects <b>Full Pipeline</b> (scan a firmware image). In
+                                <b>Analyze EMBA Logs</b> mode EMBA has already run.
+                                <ul style="margin:8px 0 0 0; padding-left:18px;">
+                                  <li><b>Auto</b> &ndash; run_emba_lava.sh applies a LAVA profile matched to
+                                      the modules you ticked, so EMBA only runs what that module needs
+                                      (<code>lava.00-quick-scan</code> for credentials,
+                                      <code>lava.01-cve-scan</code> for CVE,
+                                      <code>lava.02-full-lava-scan</code> for both). Much faster.</li>
+                                  <li><b>Full</b> &ndash; no profile: EMBA runs its complete default module
+                                      set regardless of what you ticked. Use this if the Auto profile
+                                      seems to be missing data. LAVA still only analyses the ticked modules.</li>
+                                </ul>
+                            </div>
+
+                            <label class="settings-label" style="margin-top:16px;">EMBA S99 grepit coverage</label>
                             <select id="s99ScanSelect" class="settings-input">
                                 <option value="raw">raw &ndash; everything grepit found (default)</option>
                                 <option value="light">light &ndash; drop binary string tables + web assets</option>

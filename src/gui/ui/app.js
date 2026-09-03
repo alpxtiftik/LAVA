@@ -424,6 +424,7 @@ function setupEventListeners() {
     const grepProfileContainer = document.getElementById('grepProfileContainer');
     const s99ScanSelect = document.getElementById('s99ScanSelect');
     const mcpBatchSizeInput = document.getElementById('mcpBatchSizeInput');
+    const embaScanProfileSelect = document.getElementById('embaScanProfileSelect');
 
     function updateProviderVisibility(value) {
         if (geminiKeyContainer) geminiKeyContainer.style.display = value === 'gemini' ? 'block' : 'none';
@@ -457,6 +458,7 @@ function setupEventListeners() {
                     s99ScanSelect.value = aliases[config.S99_SCAN] || config.S99_SCAN || 'raw';
                 }
                 if (mcpBatchSizeInput) mcpBatchSizeInput.value = (config.MCP_BATCH_SIZE ?? '40');
+                if (embaScanProfileSelect) embaScanProfileSelect.value = config.EMBA_SCAN_PROFILE || 'auto';
                 updateProviderVisibility(aiProviderSelect.value);
                 updateGrepVisibility();
             }
@@ -498,7 +500,8 @@ function setupEventListeners() {
                     "CUSTOM_GREP_ENABLED": (customGrepEnabled && customGrepEnabled.checked) ? "1" : "0",
                     "SCAN_PROFILE": scanProfileSelect ? scanProfileSelect.value : "iot-testing",
                     "S99_SCAN": s99ScanSelect ? s99ScanSelect.value : "raw",
-                    "MCP_BATCH_SIZE": mcpBatchSizeInput ? String(parseInt(mcpBatchSizeInput.value, 10) || 0) : "40"
+                    "MCP_BATCH_SIZE": mcpBatchSizeInput ? String(parseInt(mcpBatchSizeInput.value, 10) || 0) : "40",
+                    "EMBA_SCAN_PROFILE": embaScanProfileSelect ? embaScanProfileSelect.value : "auto"
                 });
             }
             settingsModal.classList.add('hidden');
