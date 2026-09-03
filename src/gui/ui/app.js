@@ -57,7 +57,7 @@ async function fetchData() {
 
         if (!logDir) {
             document.getElementById('findingsGrid').innerHTML =
-                '<div class="loading-state"><p>Select an input and press <b>Start Scan</b>. Results from previous runs are not loaded automatically.</p></div>';
+                '<div class="loading-state"><p>Select an input and press <b>Start Scan</b> &mdash; or press <b>&#128194; Open Results</b> to load a previous scan\'s <code>lava_out_*</code> folder.</p></div>';
             allFindings = [];
             cveFindings = [];
             totalFindings = 0;
@@ -284,12 +284,15 @@ function renderSplit(searchFiltered) {
 function updateModuleSwitch() {
     const sw = document.getElementById('moduleSwitch');
     const hasCve = cveFindings.length > 0;
+    const hasCreds = allFindings.length > 0;
     if (sw) sw.classList.toggle('hidden', !hasCve);
     const msc = document.getElementById('ms-creds');
     const msv = document.getElementById('ms-cve');
     if (msc) msc.textContent = allFindings.length;
     if (msv) msv.textContent = cveFindings.length;
     if (!hasCve && moduleView === 'cve') setModuleView('creds');
+    // a CVE-only result set: land on the CVE view instead of an empty one
+    if (hasCve && !hasCreds && moduleView === 'creds') setModuleView('cve');
 }
 
 function setModuleView(view) {
@@ -419,6 +422,8 @@ function setupEventListeners() {
     if (stopBtn) stopBtn.addEventListener('click', stopScan);
     if (browseBtn) browseBtn.addEventListener('click', browseFolder);
     if (exportBtn) exportBtn.addEventListener('click', exportHtml);
+    const openResultsBtn = document.getElementById('openResultsBtn');
+    if (openResultsBtn) openResultsBtn.addEventListener('click', openPastResults);
     
 
 
@@ -900,7 +905,9 @@ async function checkStatus() {
             stopBtn.disabled = false;
             logInput.disabled = true;
             setScanConfigDisabled(true);
-            if (document.getElementById('browseBtn')) document.getElementById('browseBtn').disabled = true;
+            ['browseBtn', 'openResultsBtn'].forEach(id => {
+                const el = document.getElementById(id); if (el) el.disabled = true;
+            });
 
             // Fetch live data while running
             fetchData();
@@ -920,10 +927,36 @@ async function checkStatus() {
             stopBtn.disabled = true;
             logInput.disabled = false;
             setScanConfigDisabled(false);
-            if (document.getElementById('browseBtn')) document.getElementById('browseBtn').disabled = false;
+            ['browseBtn', 'openResultsBtn'].forEach(id => {
+                const el = document.getElementById(id); if (el) el.disabled = false;
+            });
         }
     } catch(e) {
         console.error("Status check failed", e);
+    }
+}
+
+// Open a previous run's output folder (lava_out_* / lava_scan_*) in the
+// dashboard, for reviewing a past scan without re-running or opening the HTML.
+async function openPastResults() {
+    if (!window.pywebview || !window.pywebview.api || !window.pywebview.api.load_results) {
+        alert("Opening past results is only available in the LAVA desktop app.");
+        return;
+    }
+    try {
+        const folder = await window.pywebview.api.open_folder_dialog();
+        if (!folder) return;
+        const res = await window.pywebview.api.load_results(folder);
+        if (res.status === 'error') { alert(res.message); return; }
+        document.getElementById('logDirInput').value = folder;
+        currentLogDir = folder;   // fetchData() targets this folder's outputs
+        await fetchData();
+        const grid = document.getElementById('findingsGrid');
+        if (!allFindings.length && !cveFindings.length && grid) {
+            grid.innerHTML = '<div class="loading-state"><p>That folder had no findings.</p></div>';
+        }
+    } catch (e) {
+        alert("Could not open results: " + e.message);
     }
 }
 

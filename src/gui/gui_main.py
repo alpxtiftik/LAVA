@@ -385,6 +385,26 @@ class Api:
                 return {"error": str(e)}
         return []
 
+    def load_results(self, folder):
+        """Point the dashboard at a previous run's output folder (lava_out_* /
+        lava_scan_*) so its verdicts.json / cve_findings.json render again -
+        for reviewing a past scan in the GUI without re-running it."""
+        folder = os.path.expanduser((folder or "").strip())
+        if not os.path.isdir(folder):
+            return {"status": "error", "message": f"Not a folder: {folder}"}
+        has_creds = os.path.exists(os.path.join(folder, "verdicts.json"))
+        has_cve = os.path.exists(os.path.join(folder, "cve_findings.json"))
+        if not has_creds and not has_cve:
+            return {"status": "error", "message":
+                    "That folder has no LAVA results (no verdicts.json or "
+                    "cve_findings.json). Pick a lava_out_* / lava_scan_* folder "
+                    "from a previous scan."}
+        # _get_latest_out_dir returns last_output_dir first, so this is enough
+        # for get_verdicts / get_cve_findings / export_html to target it.
+        self.last_output_dir = folder
+        return {"status": "success", "log_dir": folder,
+                "has_creds": has_creds, "has_cve": has_cve}
+
     def get_cve_findings(self, log_dir):
         """CVE module output (cve_findings.json). [] when the CVE module did not
         run or produced nothing."""
