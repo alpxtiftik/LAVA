@@ -893,6 +893,7 @@ pre {
 /* ============================ CVE module ============================ */
 .module-switch { display: flex; gap: 4px; margin-bottom: 16px; }
 .module-switch.hidden { display: none; }
+.mod-switch-btn.hidden { display: none; }
 .mod-switch-btn {
     padding: 10px 22px; border: 1px solid var(--border-color);
     background: var(--bg-secondary); color: var(--text-secondary);

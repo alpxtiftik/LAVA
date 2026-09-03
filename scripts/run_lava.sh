@@ -289,6 +289,23 @@ echo "========================================="
 REPORT_ARGS=()
 
 # =========================================================================
+# CVE module - structure EMBA's F17 (component) + S26 (kernel) CVE output.
+# Runs FIRST: it is fast (seconds) and deterministic, so the CVE view shows
+# up early while the slow AI classification below is still going.
+# =========================================================================
+if [ "$RUN_CVE" = "1" ]; then
+    echo -e "\n[cve] Structuring EMBA's CVE output (F17 + S26)..."
+    if python3 src/core/cve_scan.py --log-dir "$LOGDIR" --out "$CVE_FINDINGS_FILE"; then
+        echo "[OK] CVE findings written to $CVE_FINDINGS_FILE"
+        REPORT_ARGS+=(--cve-findings "$CVE_FINDINGS_FILE")
+    else
+        # The CVE module is independent; its failure must not sink a run that
+        # also asked for the credentials module.
+        echo "[!] WARNING: cve_scan.py failed - continuing without the CVE view."
+    fi
+fi
+
+# =========================================================================
 # CREDENTIALS module - EMBA hardcoded-credential findings + AI classification
 # =========================================================================
 if [ "$RUN_CREDS" = "1" ]; then
@@ -327,21 +344,6 @@ if [ "$RUN_CREDS" = "1" ]; then
     if [ $? -ne 0 ]; then echo "Error: classifier.py failed!"; exit 2; fi
     echo "[OK] Classification complete. Results written to $VERDICTS_FILE"
     REPORT_ARGS+=(--verdicts "$VERDICTS_FILE")
-fi
-
-# =========================================================================
-# CVE module - structure EMBA's F17 (component) + S26 (kernel) CVE output
-# =========================================================================
-if [ "$RUN_CVE" = "1" ]; then
-    echo -e "\n[cve] Structuring EMBA's CVE output (F17 + S26)..."
-    if python3 src/core/cve_scan.py --log-dir "$LOGDIR" --out "$CVE_FINDINGS_FILE"; then
-        echo "[OK] CVE findings written to $CVE_FINDINGS_FILE"
-        REPORT_ARGS+=(--cve-findings "$CVE_FINDINGS_FILE")
-    else
-        # The CVE module is independent; its failure must not sink a run that
-        # also asked for the credentials module.
-        echo "[!] WARNING: cve_scan.py failed - continuing without the CVE view."
-    fi
 fi
 
 if [ "${#REPORT_ARGS[@]}" -eq 0 ]; then

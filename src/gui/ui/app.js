@@ -11,6 +11,10 @@ let cveFindings = [];
 let moduleView = "creds";   // creds | cve  (results-area switch)
 let cveShowHidden = false;
 const cveFilter = { av: 'all', sev: 'all', exp: 'all', type: 'all' };
+// which module tabs to show even before their data lands - driven by the
+// Modules checkboxes / the modules a running scan was started with.
+let credsModuleWanted = true;
+let cveModuleWanted = false;
 
 function deriveSource(finding) {
     if (finding.source) return finding.source;
@@ -34,6 +38,10 @@ window.addEventListener('pywebviewready', async () => {
             if (modCve) modCve.checked = String(cfg.CVE_SCAN_ENABLED) === '1';
         }
     } catch (e) { /* non-fatal */ }
+    const mc = document.getElementById('modCreds'), mv = document.getElementById('modCve');
+    credsModuleWanted = mc ? mc.checked : true;
+    cveModuleWanted = mv ? mv.checked : false;
+    updateModuleSwitch();
 });
 
 setTimeout(() => {
@@ -283,16 +291,19 @@ function renderSplit(searchFiltered) {
 /* ============================== CVE module ============================== */
 function updateModuleSwitch() {
     const sw = document.getElementById('moduleSwitch');
-    const hasCve = cveFindings.length > 0;
-    const hasCreds = allFindings.length > 0;
-    if (sw) sw.classList.toggle('hidden', !hasCve);
+    // a view is "available" once its module has data OR is selected for this scan
+    const showCve = cveFindings.length > 0 || cveModuleWanted;
+    const showCreds = allFindings.length > 0 || credsModuleWanted;
+
+    // the switch only makes sense when there are two views to switch between
+    if (sw) sw.classList.toggle('hidden', !(showCve && showCreds));
     const msc = document.getElementById('ms-creds');
     const msv = document.getElementById('ms-cve');
     if (msc) msc.textContent = allFindings.length;
     if (msv) msv.textContent = cveFindings.length;
-    if (!hasCve && moduleView === 'cve') setModuleView('creds');
-    // a CVE-only result set: land on the CVE view instead of an empty one
-    if (hasCve && !hasCreds && moduleView === 'creds') setModuleView('cve');
+
+    if (!showCve && moduleView === 'cve') setModuleView('creds');
+    if (!showCreds && showCve && moduleView === 'creds') setModuleView('cve');
 }
 
 function setModuleView(view) {
@@ -359,7 +370,12 @@ function renderCve() {
     const rows = cveFindings.filter(r => cveMatches(r, term));
     grid.innerHTML = '';
     rows.forEach(r => grid.appendChild(buildCveCard(r)));
-    if (!rows.length) grid.innerHTML = '<div class="loading-state"><p>No CVEs match your criteria.</p></div>';
+    if (!rows.length) {
+        const msg = cveFindings.length === 0
+            ? 'CVE results will appear here once the scan reaches the CVE step (it runs before the AI classification).'
+            : 'No CVEs match your criteria.';
+        grid.innerHTML = `<div class="loading-state"><p>${msg}</p></div>`;
+    }
 
     const hidden = cveFindings.filter(r => r.default_hidden).length;
     const note = document.getElementById('cveNote');
@@ -543,10 +559,17 @@ function setupEventListeners() {
     const splitToggle = document.getElementById('splitToggle');
     if (splitToggle) splitToggle.addEventListener('click', () => setSplitView(!splitView));
 
-    // "CVE" module chip: remember the choice (persists to CVE_SCAN_ENABLED, also
-    // used as the CLI default when run_lava.sh gets no --modules).
+    // Module chips: ticking one shows its results tab right away (even before a
+    // scan), and the CVE choice persists to CVE_SCAN_ENABLED.
+    const modCredsChip = document.getElementById('modCreds');
     const modCveChip = document.getElementById('modCve');
+    if (modCredsChip) modCredsChip.addEventListener('change', () => {
+        credsModuleWanted = modCredsChip.checked;
+        updateModuleSwitch();
+    });
     if (modCveChip) modCveChip.addEventListener('change', () => {
+        cveModuleWanted = modCveChip.checked;
+        updateModuleSwitch();
         if (window.pywebview && window.pywebview.api && window.pywebview.api.save_ai_config) {
             window.pywebview.api.save_ai_config({ "CVE_SCAN_ENABLED": modCveChip.checked ? "1" : "0" });
         }
@@ -1011,6 +1034,8 @@ async function startScan() {
         alert("Select at least one module (Credentials / CVE).");
         return;
     }
+    credsModuleWanted = modules.includes('credentials');
+    cveModuleWanted = modules.includes('cve');
 
     if (!window.pywebview || !window.pywebview.api) {
         alert("Native API is not available.");
