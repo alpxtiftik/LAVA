@@ -141,6 +141,18 @@ class Api:
         picked = [m for m in ("credentials", "cve") if m in modules] or ["credentials"]
         mod_arg = ["-Modules", ",".join(picked)]
 
+        if mode != "firmware":
+            # "Analyze EMBA Logs": reject anything that is not an EMBA log dir
+            # (or does not contain one) before launching - a LAVA output folder
+            # (lava_out_* / lava_scan_*) must not start a run.
+            if not os.path.isdir(os.path.expanduser(input_path)):
+                return {"status": "error", "message": f"Not a folder: {input_path}"}
+            if not self._is_emba_logdir(self._resolve_emba_logdir(input_path)):
+                return {"status": "error", "message":
+                        "That folder is not an EMBA log directory (no csv_logs/, emba.log, "
+                        "SBOM/ ...). Select the folder EMBA wrote its logs into - not a LAVA "
+                        "output folder."}
+
         try:
             self.last_output_dir = None
             if mode == "firmware":
@@ -292,7 +304,9 @@ class Api:
             os.path.isdir(os.path.join(d, "csv_logs"))
             or os.path.isfile(os.path.join(d, "emba.log"))
             or os.path.isdir(os.path.join(d, "s99_grepit"))
-            or os.path.isdir(os.path.join(d, "s106_deep_key_search")))
+            or os.path.isdir(os.path.join(d, "s106_deep_key_search"))
+            or os.path.isdir(os.path.join(d, "SBOM"))
+            or os.path.isdir(os.path.join(d, "s26_kernel_vuln_verifier")))
 
     def _resolve_emba_logdir(self, hint):
         """The selected path, or an EMBA log dir one level inside it."""

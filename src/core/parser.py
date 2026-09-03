@@ -530,9 +530,10 @@ def main():
     # Same acceptance test as run_lava.sh's _is_emba_logdir() - stay consistent so
     # a dir that the launcher accepted is not then rejected here.
     if not any((log_dir / m).exists() for m in
-               ("csv_logs", "s99_grepit", "s106_deep_key_search", "emba.log")):
+               ("csv_logs", "s99_grepit", "s106_deep_key_search", "emba.log",
+                "SBOM", "s26_kernel_vuln_verifier")):
         print("[!] ERROR: the selected folder is not a valid EMBA log directory.")
-        print(f"    None of csv_logs/, s99_grepit/, s106_deep_key_search/, emba.log found in '{log_dir}'.")
+        print(f"    None of csv_logs/, s99_grepit/, s106_deep_key_search/, emba.log, SBOM/ found in '{log_dir}'.")
         print("    If you extracted the EMBA logs from a zip, you may have selected a subfolder.")
         print("    Please select the actual log directory that contains 'csv_logs', 'firmware', etc.")
         sys.exit(1)

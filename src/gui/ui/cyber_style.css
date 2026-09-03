@@ -699,26 +699,34 @@ pre {
 }
 
 /* ------------------------------------------------------------------ */
-/* Source tabs (EMBA / Grep / overlap)                                 */
+/* Source tabs (EMBA / Grep / overlap) - same pill look as the CVE     */
+/* side's .cve-filter-btn                                              */
 /* ------------------------------------------------------------------ */
 .source-tabs {
-    display: flex; gap: 4px; margin-bottom: 14px;
-    border-bottom: 1px solid var(--border-color);
+    display: flex; gap: 4px; margin-bottom: 14px; flex-wrap: wrap; align-items: center;
 }
 .source-tabs.hidden { display: none !important; }
 .source-tab {
-    padding: 8px 16px; border: 0; background: transparent;
-    color: var(--text-secondary); cursor: pointer; font-size: 13px;
-    border-bottom: 2px solid transparent;
+    padding: 5px 12px; border: 1px solid var(--border-color);
+    background: var(--bg-tertiary); color: var(--text-secondary);
+    cursor: pointer; font-family: inherit; font-size: 0.78rem;
+    transition: all 0.15s;
 }
 .source-tab:hover { color: var(--text-primary); }
-.source-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
-.source-count {
-    display: inline-block; margin-left: 6px; padding: 0 6px;
-    background: var(--bg-tertiary); border: 1px solid var(--border-color);
-    border-radius: 10px; font-size: 11px; color: var(--text-secondary);
+.source-tab.active {
+    background: var(--text-primary); color: var(--bg-primary); border-color: var(--text-primary);
 }
-.source-tab.active .source-count { color: var(--accent); border-color: var(--accent); }
+.source-count {
+    display: inline-block; margin-left: 6px; padding: 0 5px;
+    background: rgba(0, 0, 0, 0.28); border-radius: 8px; font-size: 0.7rem; color: inherit;
+}
+.source-tab.active .source-count { background: rgba(0, 0, 0, 0.15); }
+
+/* one focus behaviour for every pill on both sides (mouse click = no ring) */
+.filter-btn:focus, .source-tab:focus, .cve-filter-btn:focus, .split-toggle:focus,
+#cveShowAll:focus, #cveTypeSelect:focus { outline: none; }
+.filter-btn:focus-visible, .source-tab:focus-visible, .cve-filter-btn:focus-visible,
+.split-toggle:focus-visible, #cveShowAll:focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; }
 
 /* Per-card / modal source chip */
 .source-chip {
@@ -733,12 +741,12 @@ pre {
 /* ------------------------------------------------------------------ */
 .split-toggle {
     margin-left: auto; align-self: center;
-    padding: 6px 14px; border: 1px solid var(--border-color);
+    padding: 5px 12px; border: 1px solid var(--border-color);
     background: var(--bg-tertiary); color: var(--text-secondary);
-    cursor: pointer; font-family: inherit; font-size: 12px;
-    transition: all 0.2s;
+    cursor: pointer; font-family: inherit; font-size: 0.78rem;
+    transition: all 0.15s;
 }
-.split-toggle:hover { color: var(--text-primary); border-color: var(--border-highlight); }
+.split-toggle:hover { color: var(--text-primary); }
 .split-toggle.active {
     background: var(--text-primary); color: var(--bg-primary); border-color: var(--text-primary);
 }

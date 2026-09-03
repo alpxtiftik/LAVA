@@ -60,7 +60,8 @@ fi
 # ---------------------------------------------------------------------------
 _is_emba_logdir() {
     [ -d "$1/csv_logs" ] || [ -f "$1/emba.log" ] || [ -d "$1/s99_grepit" ] \
-        || [ -d "$1/s106_deep_key_search" ]
+        || [ -d "$1/s106_deep_key_search" ] || [ -d "$1/SBOM" ] \
+        || [ -d "$1/s26_kernel_vuln_verifier" ]
 }
 
 _find_emba_logdirs() {  # prints every EMBA log dir at/under "$1" (depth <= 2)
@@ -88,10 +89,10 @@ if ! _is_emba_logdir "$LOGDIR"; then
         printf '           %s\n' "${_EMBA_CANDIDATES[@]}"
         exit 2
     else
-        echo "WARNING: '$LOGDIR' does not look like an EMBA log directory"
-        echo "         (no csv_logs/, emba.log, s99_grepit/, s106_deep_key_search/)."
-        echo "         The parser will most likely find no EMBA findings. Select the"
-        echo "         folder EMBA wrote its logs into."
+        echo "ERROR: '$LOGDIR' is not an EMBA log directory and none was found inside it."
+        echo "       (looked for csv_logs/, emba.log, s99_grepit/, s106_deep_key_search/, SBOM/, s26_kernel_vuln_verifier/)"
+        echo "       Select the folder EMBA wrote its logs into - not a LAVA output folder."
+        exit 2
     fi
 fi
 
