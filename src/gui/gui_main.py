@@ -127,11 +127,12 @@ class Api:
         if scan_process and scan_process.poll() is None:
             return {"status": "error", "message": "Scan already running"}
 
-        # modules: list/str of "credentials" and/or "cve"; None -> script default
+        # modules: comma string or list of "credentials" / "cve"; falsy -> the
+        # script's own default (credentials, plus cve if CVE_SCAN_ENABLED=1).
         mod_arg = []
         if modules:
             if isinstance(modules, str):
-                modules = [modules]
+                modules = [m.strip() for m in modules.split(",") if m.strip()]
             picked = [m for m in ("credentials", "cve") if m in modules]
             if not picked:
                 return {"status": "error", "message": "Select at least one module (Credentials / CVE)."}

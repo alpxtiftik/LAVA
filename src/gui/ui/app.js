@@ -843,6 +843,18 @@ function escapeHtml(unsafe) {
          .replace(/'/g, "&#039;");
 }
 
+// Enable/disable the scan-config inputs (module chips, mode segments) as a set.
+function setScanConfigDisabled(disabled) {
+    ['modCreds', 'modCve'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { el.disabled = disabled; el.closest('.toggle-chip')?.classList.toggle('is-disabled', disabled); }
+    });
+    document.querySelectorAll('input[name="scanMode"]').forEach(r => {
+        r.disabled = disabled;
+        r.closest('.segment')?.classList.toggle('is-disabled', disabled);
+    });
+}
+
 // Scan Control API Calls
 async function checkStatus() {
     if (!window.pywebview || !window.pywebview.api) return;
@@ -852,7 +864,7 @@ async function checkStatus() {
         const startBtn = document.getElementById('startScanBtn');
         const stopBtn = document.getElementById('stopScanBtn');
         const logInput = document.getElementById('logDirInput');
-        
+
         if (!indicator) return;
 
         if (data.running) {
@@ -861,8 +873,9 @@ async function checkStatus() {
             startBtn.disabled = true;
             stopBtn.disabled = false;
             logInput.disabled = true;
+            setScanConfigDisabled(true);
             if (document.getElementById('browseBtn')) document.getElementById('browseBtn').disabled = true;
-            
+
             // Fetch live data while running
             fetchData();
         } else {
@@ -880,6 +893,7 @@ async function checkStatus() {
             startBtn.disabled = false;
             stopBtn.disabled = true;
             logInput.disabled = false;
+            setScanConfigDisabled(false);
             if (document.getElementById('browseBtn')) document.getElementById('browseBtn').disabled = false;
         }
     } catch(e) {
@@ -945,7 +959,9 @@ async function startScan() {
     }
 
     try {
-        const res = await window.pywebview.api.start_scan(inputPath, mode, modules);
+        // pass modules as a plain comma string - the most reliable type across
+        // pywebview versions (an array can arrive as None on some builds).
+        const res = await window.pywebview.api.start_scan(inputPath, mode, modules.join(','));
         if (res.status === 'error') {
             alert("Failed to start scan: " + res.message);
         } else {

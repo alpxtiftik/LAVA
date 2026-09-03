@@ -866,6 +866,11 @@ pre {
 }
 .segment input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: -2px; }
 
+/* locked while a scan is running */
+.toggle-chip.is-disabled, .segment.is-disabled { cursor: not-allowed; opacity: 0.4; }
+.toggle-chip.is-disabled .toggle-chip-face,
+.segment.is-disabled span { pointer-events: none; }
+
 @media (max-width: 720px) {
     .control-bar { gap: 1rem; }
     .control-bar-settings { margin-left: 0; }
