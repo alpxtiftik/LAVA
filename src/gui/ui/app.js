@@ -6,6 +6,12 @@ let sourceFilter = "all";   // all | emba | custom | both
 let splitView = false;      // EMBA vs Grep side-by-side
 const splitVerdict = { emba: 'all', grep: 'all' };  // per-column TP/FP filter
 
+// CVE module (v1, no AI)
+let cveFindings = [];
+let moduleView = "creds";   // creds | cve  (results-area switch)
+let cveShowHidden = false;
+const cveFilter = { av: 'all', sev: 'all', exp: 'all' };
+
 function deriveSource(finding) {
     if (finding.source) return finding.source;
     const mods = finding.found_by_modules || (finding.module ? [finding.module] : []);
@@ -20,6 +26,14 @@ window.addEventListener('pywebviewready', async () => {
     setupEventListeners();
     checkStatus();
     setInterval(checkStatus, 3000);
+    // Seed the main-screen "CVE" module checkbox from the saved default.
+    try {
+        if (window.pywebview && window.pywebview.api && window.pywebview.api.get_ai_config) {
+            const cfg = await window.pywebview.api.get_ai_config();
+            const modCve = document.getElementById('modCve');
+            if (modCve) modCve.checked = String(cfg.CVE_SCAN_ENABLED) === '1';
+        }
+    } catch (e) { /* non-fatal */ }
 });
 
 setTimeout(() => {
@@ -51,9 +65,16 @@ async function fetchData() {
         if (allFindings.error) {
             throw new Error(allFindings.error);
         }
-        
+
+        if (window.pywebview.api.get_cve_findings) {
+            const cve = await window.pywebview.api.get_cve_findings(logDir);
+            cveFindings = Array.isArray(cve) ? cve : [];
+        }
+
         populateModuleFilter();
         updateSourceTabs();
+        updateModuleSwitch();
+        renderCve();
         updateStats();
 
         // Re-apply current filters instead of rendering all findings
@@ -73,25 +94,39 @@ async function fetchData() {
 }
 
 function updateStats() {
+    const elTotal = document.getElementById('stat-total');
+    const elTp = document.getElementById('stat-tp');
+    const elFp = document.getElementById('stat-fp');
+    const setLabels = (a, b, c) => {
+        const L = document.querySelectorAll('.stat-card .stat-label');
+        if (L[0]) L[0].textContent = a;
+        if (L[1]) L[1].textContent = b;
+        if (L[2]) L[2].textContent = c;
+    };
+
+    if (moduleView === 'cve') {
+        const crit = cveFindings.filter(r => r.severity === 'critical' || r.severity === 'high').length;
+        const exp = cveFindings.filter(r => r.has_exploit).length;
+        setLabels('CVEs', 'High / Critical', 'With Exploit');
+        if (elTotal) elTotal.querySelector('.stat-value').innerHTML = cveFindings.length;
+        if (elTp) elTp.querySelector('.stat-value').innerHTML = crit;
+        if (elFp) elFp.querySelector('.stat-value').innerHTML = exp;
+        updateRawJsonView();
+        return;
+    }
+
     const total = allFindings.length;
     const tp = allFindings.filter(f => f.predicted_verdict === 'TP').length;
     const fp = allFindings.filter(f => f.predicted_verdict === 'FP').length;
 
-    const elTotal = document.getElementById('stat-total');
+    setLabels('Findings Processed', 'True Positives', 'False Positives');
     if (elTotal) {
-        if (totalFindings > 0) {
-            elTotal.querySelector('.stat-value').innerHTML = `${total} / ${totalFindings}`;
-        } else {
-            elTotal.querySelector('.stat-value').innerHTML = total;
-        }
+        elTotal.querySelector('.stat-value').innerHTML =
+            totalFindings > 0 ? `${total} / ${totalFindings}` : total;
     }
-    
-    const elTp = document.getElementById('stat-tp');
     if (elTp) elTp.querySelector('.stat-value').innerHTML = tp;
-    
-    const elFp = document.getElementById('stat-fp');
     if (elFp) elFp.querySelector('.stat-value').innerHTML = fp;
-    
+
     // Also update raw JSON view if it's currently visible
     updateRawJsonView();
 }
@@ -235,6 +270,126 @@ function renderSplit(searchFiltered) {
     renderSplitColumn('grep', searchFiltered);
 }
 
+/* ============================== CVE module ============================== */
+function updateModuleSwitch() {
+    const sw = document.getElementById('moduleSwitch');
+    const hasCve = cveFindings.length > 0;
+    if (sw) sw.classList.toggle('hidden', !hasCve);
+    const msc = document.getElementById('ms-creds');
+    const msv = document.getElementById('ms-cve');
+    if (msc) msc.textContent = allFindings.length;
+    if (msv) msv.textContent = cveFindings.length;
+    if (!hasCve && moduleView === 'cve') setModuleView('creds');
+}
+
+function setModuleView(view) {
+    moduleView = view;
+    document.getElementById('credsView').classList.toggle('hidden', view !== 'creds');
+    document.getElementById('cveView').classList.toggle('hidden', view !== 'cve');
+    document.querySelectorAll('.mod-switch-btn').forEach(b =>
+        b.classList.toggle('active', b.dataset.view === view));
+    updateStats();
+    if (view === 'cve') renderCve();
+}
+
+function cveMatches(r, term) {
+    if (term && !((r.cve || '').toLowerCase().includes(term) ||
+                  (r.component || '').toLowerCase().includes(term) ||
+                  (r.description || '').toLowerCase().includes(term))) return false;
+    if (!cveShowHidden && r.default_hidden) return false;
+    if (cveFilter.av !== 'all' && r.av !== cveFilter.av) return false;
+    if (cveFilter.sev !== 'all' && r.severity !== cveFilter.sev) return false;
+    if (cveFilter.exp === 'exploit' && !r.has_exploit) return false;
+    if (cveFilter.exp === 'kev' && !r.kev) return false;
+    return true;
+}
+
+function buildCveCard(r) {
+    const card = document.createElement('div');
+    card.className = `finding-card cve-card sev-${r.severity || 'unknown'}`;
+    const chips = [];
+    if (r.av === 'Network') chips.push('<span class="cve-chip chip-net">NET</span>');
+    else if (r.av && r.av !== 'Unknown') chips.push(`<span class="cve-chip">${escapeHtml(r.av.slice(0, 3).toUpperCase())}</span>`);
+    if (r.kev) chips.push('<span class="cve-chip chip-kev">KEV</span>');
+    else if (r.has_exploit) chips.push('<span class="cve-chip chip-exploit">EXPLOIT</span>');
+    if (r.verified) chips.push('<span class="cve-chip chip-verified">VERIFIED</span>');
+    chips.push(`<span class="verdict-badge sev-badge sev-${r.severity || 'unknown'}">${escapeHtml((r.severity || '?').toUpperCase())}</span>`);
+    const score = (r.cvss_score != null) ? r.cvss_score.toFixed(1) : '--';
+
+    card.innerHTML = `
+        <div class="card-top">
+            <div class="card-titles">
+                <div class="card-file">${escapeHtml(r.component)} ${escapeHtml(r.version || '')}</div>
+                <div class="card-category">${escapeHtml(r.cve)}</div>
+            </div>
+            <div class="card-chips">${chips.join('')}</div>
+        </div>
+        <div class="snippet cve-desc">${escapeHtml(r.description || '(no description)')}</div>
+        <div class="card-footer">
+            <span>${escapeHtml(r.av || '?')} &middot; ${escapeHtml(r.cvss_vector || 'no vector')}</span>
+            <span>CVSS ${score}</span>
+        </div>
+    `;
+    card.addEventListener('click', () => openCveModal(r));
+    return card;
+}
+
+function renderCve() {
+    const grid = document.getElementById('cveGrid');
+    if (!grid) return;
+    const term = (document.getElementById('cveSearch')?.value || '').toLowerCase();
+    const rows = cveFindings.filter(r => cveMatches(r, term));
+    grid.innerHTML = '';
+    rows.forEach(r => grid.appendChild(buildCveCard(r)));
+    if (!rows.length) grid.innerHTML = '<div class="loading-state"><p>No CVEs match your criteria.</p></div>';
+
+    const hidden = cveFindings.filter(r => r.default_hidden).length;
+    const note = document.getElementById('cveNote');
+    if (note) {
+        note.textContent = `${rows.length} shown` +
+            ((!cveShowHidden && hidden) ? `  ·  ${hidden} lower-severity kernel CVEs hidden` : '');
+    }
+}
+
+function openCveModal(r) {
+    document.getElementById('modalTitle').textContent = r.cve;
+    const im = r.impact || {};
+    const badges = [
+        `<span class="verdict-badge sev-badge sev-${r.severity || 'unknown'}">${escapeHtml((r.severity || '?').toUpperCase())}</span>`,
+        `<span class="verdict-badge" style="border:1px solid var(--glass-border);color:var(--text-secondary)">CVSS ${r.cvss_score != null ? r.cvss_score : '--'} (v${escapeHtml(r.cvss_version || '?')})</span>`,
+        `<span class="verdict-badge" style="border:1px solid var(--glass-border);color:var(--text-secondary)">${escapeHtml(r.component)} ${escapeHtml(r.version || '')}</span>`,
+        `<span class="verdict-badge" style="border:1px solid var(--glass-border);color:var(--text-secondary)">${r.source_module === 'S26' ? 'kernel (S26)' : 'component (F17)'}</span>`,
+    ];
+    if (r.kev) badges.push('<span class="cve-chip chip-kev">KNOWN-EXPLOITED</span>');
+    if (r.verified) badges.push(`<span class="cve-chip chip-verified">kernel-verified: ${escapeHtml(r.verified)}</span>`);
+    document.getElementById('modalBadges').innerHTML = badges.join(' ');
+
+    document.getElementById('modalCredsBody').classList.add('hidden');
+    const body = document.getElementById('modalCveBody');
+    body.classList.remove('hidden');
+    const exploits = (r.exploit_sources && r.exploit_sources.length)
+        ? escapeHtml(r.exploit_sources.join('\n'))
+        : 'No exploit or PoC referenced by EMBA.';
+    body.innerHTML = `
+        <h3>Description</h3>
+        <div class="reasoning-box">${escapeHtml(r.description || '(none)')}</div>
+        <h3>CVSS vector</h3>
+        <div class="cve-kv">
+            <b>Attack vector</b><span>${escapeHtml(r.av || '?')}</span>
+            <b>Attack complexity</b><span>${escapeHtml(r.ac || '?')}</span>
+            <b>Privileges required</b><span>${escapeHtml(r.pr || 'n/a')}</span>
+            <b>User interaction</b><span>${escapeHtml(r.ui || 'n/a')}</span>
+            <b>Impact C/I/A</b><span>${escapeHtml(im.c || '?')} / ${escapeHtml(im.i || '?')} / ${escapeHtml(im.a || '?')}</span>
+            <b>Raw</b><span>${escapeHtml(r.cvss_vector || '(none)')}</span>
+        </div>
+        <h3>Exploit / PoC</h3>
+        <pre><code>${exploits}</code></pre>
+        ${(r.cwe && r.cwe.length) ? '<h3>CWE</h3><pre><code>' + escapeHtml(r.cwe.map(c => 'CWE-' + c).join(', ')) + '</code></pre>' : ''}
+    `;
+    document.getElementById('modalOverlay').classList.add('active');
+    document.body.style.overflow = 'hidden';
+}
+
 function setupEventListeners() {
     // Scan Controls
     const startBtn = document.getElementById('startScanBtn');
@@ -264,6 +419,7 @@ function setupEventListeners() {
     const grepProfileContainer = document.getElementById('grepProfileContainer');
     const s99ScanSelect = document.getElementById('s99ScanSelect');
     const mcpBatchSizeInput = document.getElementById('mcpBatchSizeInput');
+    const cveScanEnabled = document.getElementById('cveScanEnabled');
 
     function updateProviderVisibility(value) {
         if (geminiKeyContainer) geminiKeyContainer.style.display = value === 'gemini' ? 'block' : 'none';
@@ -297,6 +453,7 @@ function setupEventListeners() {
                     s99ScanSelect.value = aliases[config.S99_SCAN] || config.S99_SCAN || 'raw';
                 }
                 if (mcpBatchSizeInput) mcpBatchSizeInput.value = (config.MCP_BATCH_SIZE ?? '40');
+                if (cveScanEnabled) cveScanEnabled.checked = String(config.CVE_SCAN_ENABLED) === '1';
                 updateProviderVisibility(aiProviderSelect.value);
                 updateGrepVisibility();
             }
@@ -338,9 +495,13 @@ function setupEventListeners() {
                     "CUSTOM_GREP_ENABLED": (customGrepEnabled && customGrepEnabled.checked) ? "1" : "0",
                     "SCAN_PROFILE": scanProfileSelect ? scanProfileSelect.value : "iot-testing",
                     "S99_SCAN": s99ScanSelect ? s99ScanSelect.value : "raw",
-                    "MCP_BATCH_SIZE": mcpBatchSizeInput ? String(parseInt(mcpBatchSizeInput.value, 10) || 0) : "40"
+                    "MCP_BATCH_SIZE": mcpBatchSizeInput ? String(parseInt(mcpBatchSizeInput.value, 10) || 0) : "40",
+                    "CVE_SCAN_ENABLED": (cveScanEnabled && cveScanEnabled.checked) ? "1" : "0"
                 });
             }
+            // keep the main-screen Modules checkbox in sync with the saved default
+            const modCve = document.getElementById('modCve');
+            if (modCve && cveScanEnabled) modCve.checked = cveScanEnabled.checked;
             settingsModal.classList.add('hidden');
         });
     }
@@ -360,6 +521,31 @@ function setupEventListeners() {
     // Split view toggle
     const splitToggle = document.getElementById('splitToggle');
     if (splitToggle) splitToggle.addEventListener('click', () => setSplitView(!splitView));
+
+    // Module switch (Credentials / CVE)
+    document.querySelectorAll('.mod-switch-btn').forEach(btn => {
+        btn.addEventListener('click', () => setModuleView(btn.dataset.view));
+    });
+    const cveSearch = document.getElementById('cveSearch');
+    if (cveSearch) cveSearch.addEventListener('input', renderCve);
+    document.querySelectorAll('.cve-filter-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll(`.cve-filter-btn[data-k="${btn.dataset.k}"]`)
+                .forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            cveFilter[btn.dataset.k] = btn.dataset.v;
+            renderCve();
+        });
+    });
+    const cveShowAllBtn = document.getElementById('cveShowAll');
+    if (cveShowAllBtn) cveShowAllBtn.addEventListener('click', () => {
+        cveShowHidden = !cveShowHidden;
+        cveShowAllBtn.classList.toggle('active', cveShowHidden);
+        cveShowAllBtn.textContent = cveShowHidden ? 'Hide lower-severity kernel CVEs' : 'Show hidden kernel CVEs';
+        renderCve();
+    });
+    const exportCveBtn = document.getElementById('exportHtmlBtnCve');
+    if (exportCveBtn) exportCveBtn.addEventListener('click', exportHtml);
 
     // Per-column TP/FP filters inside the split view
     document.querySelectorAll('.split-mini-filters').forEach(group => {
@@ -613,6 +799,10 @@ function setSplitView(on) {
 }
 
 function openModal(finding) {
+    // restore the credentials modal body (CVE modal reuses the same overlay)
+    document.getElementById('modalCredsBody').classList.remove('hidden');
+    document.getElementById('modalCveBody').classList.add('hidden');
+
     const category = (finding.category || '').trim();
     document.getElementById('modalTitle').textContent = category || finding.file_path;
 
@@ -732,19 +922,27 @@ document.addEventListener('DOMContentLoaded', () => {
 async function startScan() {
     const inputPath = document.getElementById('logDirInput').value.trim();
     const mode = document.querySelector('input[name="scanMode"]:checked').value;
-    
+
     if (!inputPath) {
         alert("Please enter a path first.");
         return;
     }
-    
+
+    const modules = [];
+    if (document.getElementById('modCreds')?.checked) modules.push('credentials');
+    if (document.getElementById('modCve')?.checked) modules.push('cve');
+    if (modules.length === 0) {
+        alert("Select at least one module (Credentials / CVE).");
+        return;
+    }
+
     if (!window.pywebview || !window.pywebview.api) {
         alert("Native API is not available.");
         return;
     }
 
     try {
-        const res = await window.pywebview.api.start_scan(inputPath, mode);
+        const res = await window.pywebview.api.start_scan(inputPath, mode, modules);
         if (res.status === 'error') {
             alert("Failed to start scan: " + res.message);
         } else {
@@ -752,10 +950,13 @@ async function startScan() {
             
             // Clear findings when new scan starts
             allFindings = [];
+            cveFindings = [];
             if (typeof totalFindings !== 'undefined') totalFindings = 0;
             sourceFilter = "all";
             renderFindings([]);
+            renderCve();
             updateSourceTabs();
+            updateModuleSwitch();
             updateStats();
             const grid = document.getElementById('findingsGrid');
             if (grid) {

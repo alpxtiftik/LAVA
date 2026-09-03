@@ -6,6 +6,7 @@ while [[ "$#" -gt 0 ]]; do
     case $1 in
         -LogDir|--log-dir) LOGDIR="$2"; shift ;;
         -OutDir|--out-dir) BASEOUTDIR="$2"; shift ;;
+        -Modules|--modules) MODULES="$2"; shift ;;
         *) echo "Unknown parameter: $1"; exit 2 ;;
     esac
     shift
@@ -14,6 +15,15 @@ done
 if [ -z "$LOGDIR" ]; then
     echo "Error: -LogDir is required."
     exit 2
+fi
+
+# Validate an explicitly-passed --modules before doing any work (the
+# config-derived default is resolved later, after ai_config.env is read).
+if [ -n "${MODULES:-}" ]; then
+    case ",$MODULES," in
+        *,credentials,*|*,cve,*) ;;
+        *) echo "Error: --modules must include 'credentials' and/or 'cve' (got: '$MODULES')."; exit 2 ;;
+    esac
 fi
 
 # The pipeline runs `python3 src/core/...` and reads `config/...` as relative
@@ -140,6 +150,7 @@ ENRICHED_FILE="$OUTDIR/enriched_findings.json"
 VERDICTS_FILE="$OUTDIR/verdicts.json"
 REPORT_FILE="$OUTDIR/lava_report.html"
 CUSTOM_FINDINGS_FILE="$OUTDIR/custom_findings.json"
+CVE_FINDINGS_FILE="$OUTDIR/cve_findings.json"
 
 # Defaults; overridden from config/ai_config.env below
 AI_IP="127.0.0.1"
@@ -150,6 +161,7 @@ CUSTOM_GREP_ENABLED="0"
 SCAN_PROFILE="iot-testing"
 S99_SCAN="raw"
 MCP_BATCH_SIZE="40"
+CVE_SCAN_ENABLED="0"
 
 # Read a key's value from ai_config.env. Only matches a line-leading "KEY="
 # (skips comment lines such as "# AI_PROVIDER options:"), takes the first
@@ -168,6 +180,7 @@ if [ -f "config/ai_config.env" ]; then
     profile_val=$(read_env_val SCAN_PROFILE config/ai_config.env)
     s99_val=$(read_env_val S99_SCAN config/ai_config.env)
     batch_val=$(read_env_val MCP_BATCH_SIZE config/ai_config.env)
+    cve_val=$(read_env_val CVE_SCAN_ENABLED config/ai_config.env)
     [ -n "$ip_val" ] && AI_IP="$ip_val"
     [ -n "$port_val" ] && AI_PORT="$port_val"
     [ -n "$prov_val" ] && AI_PROVIDER="$prov_val"
@@ -176,6 +189,23 @@ if [ -f "config/ai_config.env" ]; then
     [ -n "$profile_val" ] && SCAN_PROFILE="$profile_val"
     [ -n "$s99_val" ] && S99_SCAN="$s99_val"
     [ -n "$batch_val" ] && MCP_BATCH_SIZE="$batch_val"
+    [ -n "$cve_val" ] && CVE_SCAN_ENABLED="$cve_val"
+fi
+
+# Which analysis modules to run:
+#   credentials -> EMBA S45/S99/S106/S107/S108 (+ optional custom grep) + AI classify
+#   cve         -> structure EMBA's F17/S26 CVE output (no AI, no external DB)
+# Comma-separated. --modules overrides everything; otherwise "credentials" always
+# runs and CVE_SCAN_ENABLED="1" adds the cve module.
+if [ -z "${MODULES:-}" ]; then
+    MODULES="credentials"
+    [ "$CVE_SCAN_ENABLED" = "1" ] && MODULES="credentials,cve"
+fi
+case ",$MODULES," in *,credentials,*) RUN_CREDS=1 ;; *) RUN_CREDS=0 ;; esac
+case ",$MODULES," in *,cve,*)         RUN_CVE=1   ;; *) RUN_CVE=0   ;; esac
+if [ "$RUN_CREDS" = "0" ] && [ "$RUN_CVE" = "0" ]; then
+    echo "Error: --modules must include 'credentials' and/or 'cve' (got: '$MODULES')."
+    exit 2
 fi
 
 # S99_grepit coverage (parser.py reads LAVA_S99_SCAN): raw (default) | light | off
@@ -192,8 +222,9 @@ fi
 PARSER_EXTRA_ARGS=()
 CLASSIFIER_CUSTOM_ARGS=()
 
-# Start Ollama in the background if it is not running (localhost + local provider only)
-if [ "$AI_PROVIDER" != "gemini" ] && [[ "$AI_PROVIDER" != mcp* ]] && ! curl -s "http://$AI_IP:$AI_PORT/" > /dev/null; then
+# Start Ollama in the background if it is not running (localhost + local provider only).
+# Only the credentials module uses the AI; a cve-only run skips this entirely.
+if [ "$RUN_CREDS" = "1" ] && [ "$AI_PROVIDER" != "gemini" ] && [[ "$AI_PROVIDER" != mcp* ]] && ! curl -s "http://$AI_IP:$AI_PORT/" > /dev/null; then
     if [ "$AI_IP" = "127.0.0.1" ] || [ "$AI_IP" = "localhost" ]; then
         if command -v ollama &> /dev/null; then
             echo "[AI_INFO] Ollama service is down, starting it in the background..."
@@ -215,16 +246,20 @@ fi
 
 echo "========================================="
 echo "Starting the LAVA pipeline..."
-if [ "$AI_PROVIDER" = "gemini" ]; then
+echo "[AI_INFO] Modules: $MODULES"
+if [ "$RUN_CREDS" = "1" ]; then
+  if [ "$AI_PROVIDER" = "gemini" ]; then
     echo "[AI_INFO] Selected model: Gemini API (Cloud)"
-elif [[ "$AI_PROVIDER" == mcp* ]]; then
+  elif [[ "$AI_PROVIDER" == mcp* ]]; then
     echo "[AI_INFO] Selected model: MCP agent ($AI_PROVIDER)"
-else
+  else
     echo "[AI_INFO] Selected model: $AI_MODEL (Local AI)"
+  fi
 fi
-if [ "$CUSTOM_GREP_ENABLED" = "1" ]; then
+if [ "$RUN_CREDS" = "1" ] && [ "$CUSTOM_GREP_ENABLED" = "1" ]; then
     echo "[AI_INFO] Custom grep: ON (profile: $SCAN_PROFILE)"
 fi
+if [ "$RUN_CREDS" = "1" ]; then
 case "$S99_SCAN" in
     raw)              echo "[AI_INFO] S99_grepit coverage: raw (all cryptocred matches; only unreadable binary bytes removed)" ;;
     light|strict|gated|narrow|broad)
@@ -239,45 +274,69 @@ if [[ "$AI_PROVIDER" == mcp* ]]; then
         echo "[AI_INFO] MCP batching: $MCP_BATCH_SIZE findings/batch"
     fi
 fi
+fi   # RUN_CREDS info block
 echo "========================================="
 
-# [1/4] Custom credential grep over the extracted firmware (optional).
-if [ "$CUSTOM_GREP_ENABLED" = "1" ]; then
-    echo "[1/4] Running the custom credential grep (profile: $SCAN_PROFILE)..."
-    if python3 src/core/custom_scan.py --log-dir "$LOGDIR" --profile "$SCAN_PROFILE" --out "$CUSTOM_FINDINGS_FILE"; then
-        PARSER_EXTRA_ARGS=(--extra-findings "$CUSTOM_FINDINGS_FILE")
-        CLASSIFIER_CUSTOM_ARGS=(--custom-findings "$CUSTOM_FINDINGS_FILE")
-        echo "[OK] Custom grep complete."
+REPORT_ARGS=()
+
+# =========================================================================
+# CREDENTIALS module - EMBA hardcoded-credential findings + AI classification
+# =========================================================================
+if [ "$RUN_CREDS" = "1" ]; then
+    # [1/4] Custom credential grep over the extracted firmware (optional).
+    if [ "$CUSTOM_GREP_ENABLED" = "1" ]; then
+        echo "[creds 1/4] Running the custom credential grep (profile: $SCAN_PROFILE)..."
+        if python3 src/core/custom_scan.py --log-dir "$LOGDIR" --profile "$SCAN_PROFILE" --out "$CUSTOM_FINDINGS_FILE"; then
+            PARSER_EXTRA_ARGS=(--extra-findings "$CUSTOM_FINDINGS_FILE")
+            CLASSIFIER_CUSTOM_ARGS=(--custom-findings "$CUSTOM_FINDINGS_FILE")
+            echo "[OK] Custom grep complete."
+        else
+            # The custom grep is an optional add-on; its failure must not sink the
+            # whole run - carry on with EMBA findings only.
+            echo "[!] WARNING: custom_scan.py failed - continuing with EMBA findings only."
+        fi
     else
-        # The custom grep is an optional add-on; its failure must not sink the
-        # whole run - carry on with EMBA findings only.
-        echo "[!] WARNING: custom_scan.py failed - continuing with EMBA findings only."
+        echo "[creds 1/4] Custom grep: disabled (set CUSTOM_GREP_ENABLED=\"1\" in config/ai_config.env to enable)."
     fi
-else
-    echo "[1/4] Custom grep: disabled (set CUSTOM_GREP_ENABLED=\"1\" in config/ai_config.env to enable)."
+
+    if [[ "$AI_PROVIDER" == mcp* ]]; then
+        echo "[creds 2-3/4] MCP mode: skipping the parse/enrich steps (the agent explores the raw logs itself)."
+    else
+        echo -e "\n[creds 2/4] Parsing EMBA logs..."
+        python3 src/core/parser.py --log-dir "$LOGDIR" --out "$FINDINGS_FILE" --merged-out "$MERGED_FILE" "${PARSER_EXTRA_ARGS[@]}"
+        if [ $? -ne 0 ]; then echo "Error: parser.py failed!"; exit 2; fi
+        echo "[OK] Parsing complete."
+
+        echo -e "\n[creds 3/4] Building context (enrich)..."
+        python3 src/core/enricher.py --merged "$MERGED_FILE" --log-dir "$LOGDIR" --out "$ENRICHED_FILE"
+        if [ $? -ne 0 ]; then echo "Error: enricher.py failed!"; exit 2; fi
+        echo "[OK] Context added to findings."
+    fi
+
+    echo -e "\n[creds 4/4] Starting LLM classification (this step can take a while)..."
+    python3 src/core/classifier.py --mode run --config config/ai_config.env --ground-truth ground_truth.json --enriched "$ENRICHED_FILE" --out "$VERDICTS_FILE" --log-dir "$LOGDIR" "${CLASSIFIER_CUSTOM_ARGS[@]}"
+    if [ $? -ne 0 ]; then echo "Error: classifier.py failed!"; exit 2; fi
+    echo "[OK] Classification complete. Results written to $VERDICTS_FILE"
+    REPORT_ARGS+=(--verdicts "$VERDICTS_FILE")
 fi
 
-if [[ "$AI_PROVIDER" == mcp* ]]; then
-    echo "[2-3/4] MCP mode: skipping the parse/enrich steps (the agent explores the raw logs itself)."
-else
-    echo -e "\n[2/4] Parsing EMBA logs..."
-    python3 src/core/parser.py --log-dir "$LOGDIR" --out "$FINDINGS_FILE" --merged-out "$MERGED_FILE" "${PARSER_EXTRA_ARGS[@]}"
-    if [ $? -ne 0 ]; then echo "Error: parser.py failed!"; exit 2; fi
-    echo "[OK] Parsing complete."
-
-    echo -e "\n[3/4] Building context (enrich)..."
-    python3 src/core/enricher.py --merged "$MERGED_FILE" --log-dir "$LOGDIR" --out "$ENRICHED_FILE"
-    if [ $? -ne 0 ]; then echo "Error: enricher.py failed!"; exit 2; fi
-    echo "[OK] Context added to findings."
+# =========================================================================
+# CVE module - structure EMBA's F17 (component) + S26 (kernel) CVE output
+# =========================================================================
+if [ "$RUN_CVE" = "1" ]; then
+    echo -e "\n[cve] Structuring EMBA's CVE output (F17 + S26)..."
+    if python3 src/core/cve_scan.py --log-dir "$LOGDIR" --out "$CVE_FINDINGS_FILE"; then
+        echo "[OK] CVE findings written to $CVE_FINDINGS_FILE"
+        REPORT_ARGS+=(--cve-findings "$CVE_FINDINGS_FILE")
+    else
+        # The CVE module is independent; its failure must not sink a run that
+        # also asked for the credentials module.
+        echo "[!] WARNING: cve_scan.py failed - continuing without the CVE view."
+    fi
 fi
-
-echo -e "\n[4/4] Starting LLM classification (this step can take a while)..."
-python3 src/core/classifier.py --mode run --config config/ai_config.env --ground-truth ground_truth.json --enriched "$ENRICHED_FILE" --out "$VERDICTS_FILE" --log-dir "$LOGDIR" "${CLASSIFIER_CUSTOM_ARGS[@]}"
-if [ $? -ne 0 ]; then echo "Error: classifier.py failed!"; exit 2; fi
-echo "[OK] Classification complete. Results written to $VERDICTS_FILE"
 
 echo -e "\nGenerating the HTML report..."
-python3 src/reporting/html_report.py --verdicts "$VERDICTS_FILE" --out "$REPORT_FILE"
+python3 src/reporting/html_report.py "${REPORT_ARGS[@]}" --out "$REPORT_FILE"
 if [ $? -ne 0 ]; then echo "Error: html_report.py failed!"; exit 2; fi
 echo "[OK] Report ready: $REPORT_FILE"
 

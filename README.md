@@ -14,6 +14,7 @@ Instead of fine-tuning a model, LAVA uses an In-Context Learning (ICL) approach.
 - **Native Desktop App:** A PyWebView desktop GUI with a built-in interactive dashboard to search, filter (by True/False Positives and Dynamic Modules), and read the AI's reasoning.
 - **In-App AI Settings & Live Terminal:** Change your AI provider (Local/Cloud), enter your API keys, and watch the live analysis pipeline via the embedded `xterm.js` terminal, complete with horizontal scrolling for wide EMBA outputs.
 - **Native Folder Browser:** Start and stop LAVA scans directly from the UI using your OS's native folder selection dialog.
+- **Two analysis modules (pick either or both per scan):** *Credentials* — EMBA hardcoded-credential findings + AI triage (the classic flow); *CVE* — structures the CVE data EMBA already produced (`F17_cve_bin_tool` for components, `S26_kernel_vuln_verifier` for the kernel) into a separate, filterable view grouped by attack vector / severity / exploit availability. The CVE module runs no AI and needs no external database. Toggle it in **Settings → CVE Module** or with `--modules credentials,cve` on the runner scripts.
 
 ## Prerequisites
 - **Linux** (Kali / Ubuntu), Python 3.10+

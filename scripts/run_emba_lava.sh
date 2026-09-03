@@ -5,20 +5,28 @@
 
 FirmwarePath=""
 LogDir=""
+Modules=""
 
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         -FirmwarePath|--firmware-path) FirmwarePath="$2"; shift ;;
         -LogDir|--log-dir) LogDir="$2"; shift ;;
+        -Modules|--modules) Modules="$2"; shift ;;
         *) echo "Unknown parameter: $1"; exit 2 ;;
     esac
     shift
 done
 
 if [ -z "$FirmwarePath" ]; then
-    echo "Usage: $0 -FirmwarePath <path> [-LogDir <dir>]"
+    echo "Usage: $0 -FirmwarePath <path> [-LogDir <dir>] [-Modules credentials,cve]"
     exit 2
 fi
+
+# Forwarded verbatim to run_lava.sh (empty = its default, "credentials").
+# NOTE: EMBA still runs its full module set here; -Modules only selects which
+# LAVA analysis modules consume the logs afterwards.
+MODULES_ARG=()
+[ -n "$Modules" ] && MODULES_ARG=(-Modules "$Modules")
 
 # Make the firmware / log-dir paths absolute (they were relative to the caller's
 # cwd) - EMBA is invoked after `cd` into its own install dir, so a relative -f/-l
@@ -261,11 +269,12 @@ cd "$LAVA_ROOT" || exit 2
 if [ "$EUID" -eq 0 ] && [ -n "$SUDO_USER" ] && [ "$SUDO_USER" != "root" ]; then
     echo "[*] Running the AI analysis as user '$SUDO_USER' (not root)."
     sudo -u "$SUDO_USER" -H bash -lc \
-        'cd "$1" && exec bash scripts/run_lava.sh -LogDir "$2" -OutDir "$3"' \
-        lava-analysis "$LAVA_ROOT" "$EMBA_DIR" "$LAVA_OUT_DIR"
+        'root="$1"; log="$2"; out="$3"; shift 3; cd "$root" || exit 2
+         exec bash scripts/run_lava.sh -LogDir "$log" -OutDir "$out" "$@"' \
+        lava-analysis "$LAVA_ROOT" "$EMBA_DIR" "$LAVA_OUT_DIR" "${MODULES_ARG[@]}"
     lava_rc=$?
 else
-    bash "$SCRIPT_DIR/run_lava.sh" -LogDir "$EMBA_DIR" -OutDir "$LAVA_OUT_DIR"
+    bash "$SCRIPT_DIR/run_lava.sh" -LogDir "$EMBA_DIR" -OutDir "$LAVA_OUT_DIR" "${MODULES_ARG[@]}"
     lava_rc=$?
 fi
 

@@ -780,3 +780,80 @@ pre {
     .split-view { grid-template-columns: 1fr; }
     .split-col { max-height: none; }
 }
+
+/* ============================ CVE module ============================ */
+.mod-check {
+    color: var(--text-primary); cursor: pointer; display: inline-flex;
+    align-items: center; gap: 4px; font-size: 0.9rem;
+}
+
+.module-switch { display: flex; gap: 4px; margin-bottom: 16px; }
+.module-switch.hidden { display: none; }
+.mod-switch-btn {
+    padding: 10px 22px; border: 1px solid var(--border-color);
+    background: var(--bg-secondary); color: var(--text-secondary);
+    cursor: pointer; font-family: inherit; font-size: 0.85rem;
+    letter-spacing: 1px; text-transform: uppercase; transition: all 0.15s;
+}
+.mod-switch-btn:hover { color: var(--text-primary); }
+.mod-switch-btn.active {
+    background: var(--text-primary); color: var(--bg-primary); border-color: var(--text-primary);
+}
+
+.cve-filters {
+    display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center;
+    margin-bottom: 12px;
+}
+.cve-filters .fgroup { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+.fgroup-lbl {
+    font-size: 0.65rem; letter-spacing: 1px; color: var(--text-secondary);
+    text-transform: uppercase; margin-right: 4px;
+}
+.cve-filter-btn {
+    padding: 5px 12px; border: 1px solid var(--border-color);
+    background: var(--bg-tertiary); color: var(--text-secondary);
+    cursor: pointer; font-family: inherit; font-size: 0.78rem; transition: all 0.15s;
+}
+.cve-filter-btn:hover { color: var(--text-primary); }
+.cve-filter-btn.active {
+    background: var(--text-primary); color: var(--bg-primary); border-color: var(--text-primary);
+}
+#cveShowAll.active { border-color: var(--accent); color: var(--accent); }
+.cve-note { color: var(--text-secondary); font-size: 0.75rem; margin: 6px 0 14px; }
+
+/* severity accent on the card's left border */
+.finding-card.sev-critical { border-left-color: var(--danger); }
+.finding-card.sev-high     { border-left-color: #ffb000; }
+.finding-card.sev-medium   { border-left-color: #33aa99; }
+.finding-card.sev-low,
+.finding-card.sev-unknown  { border-left-color: var(--border-color); }
+.finding-card.sev-critical:hover { border-left-color: var(--danger); }
+.finding-card.sev-high:hover     { border-left-color: #ffb000; }
+
+.snippet.cve-desc {
+    white-space: normal; max-height: 4.4rem; overflow: hidden;
+    text-overflow: ellipsis; line-height: 1.45;
+}
+
+.cve-chip {
+    font-size: 0.62rem; letter-spacing: 1px; padding: 2px 6px;
+    border: 1px solid #333; color: var(--text-secondary); text-transform: uppercase;
+}
+.cve-chip.chip-net      { color: var(--danger); border-color: var(--danger); }
+.cve-chip.chip-exploit  { color: var(--danger); border-color: var(--danger); }
+.cve-chip.chip-kev      { color: #fff; background: var(--danger); border-color: var(--danger); }
+.cve-chip.chip-verified { color: var(--accent); border-color: var(--accent); }
+
+.verdict-badge.sev-badge { font-weight: 700; }
+.sev-badge.sev-critical { background: var(--danger-dim); color: var(--danger); border: 1px solid var(--danger); }
+.sev-badge.sev-high     { background: rgba(255,176,0,0.15); color: #ffb000; border: 1px solid #ffb000; }
+.sev-badge.sev-medium   { background: rgba(51,170,153,0.15); color: #5cccbb; border: 1px solid #33aa99; }
+.sev-badge.sev-low,
+.sev-badge.sev-unknown  { background: var(--bg-tertiary); color: var(--text-secondary); border: 1px solid #333; }
+
+.cve-kv {
+    display: grid; grid-template-columns: auto 1fr; gap: 4px 14px;
+    font-size: 0.82rem; margin-bottom: 6px;
+}
+.cve-kv b { color: var(--text-secondary); font-weight: 400; }
+#modalCveBody.hidden, #modalCredsBody.hidden { display: none; }

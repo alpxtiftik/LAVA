@@ -1,11 +1,17 @@
 #!/usr/bin/env python3
 """LAVA HTML report.
 
-Self-contained single file whose look and interactions mirror the desktop GUI:
-same card layout (bold file path + bold-larger AI category), the same
-search / TP-FP filter, the EMBA / Grep / Overlap source tabs and the
-side-by-side split view. verdicts.json is embedded as a JSON blob; no server,
-no external assets.
+Self-contained single file whose look and interactions mirror the desktop GUI.
+It can carry either or both of LAVA's two modules:
+
+  * credentials - EMBA hardcoded-credential findings + AI verdicts (verdicts.json):
+    the card layout (bold file path + bold-larger AI category), search / TP-FP
+    filter, EMBA / Grep / Overlap source tabs, side-by-side split view.
+  * cve - EMBA's F17 / S26 CVE output structured by cve_scan.py (cve_findings.json):
+    cards grouped by attack vector, filtered by severity / exploit availability.
+
+When both are present a module switcher appears at the top. No server, no
+external assets - the JSON blobs are embedded.
 """
 import argparse
 import json
@@ -24,6 +30,7 @@ _PAGE = r"""<!DOCTYPE html>
   --text-primary:#e0e0e0;--text-secondary:#888;--accent:#00ffcc;
   --danger:#ff0044;--danger-dim:rgba(255,0,68,.15);
   --success:#00ffcc;--success-dim:rgba(0,255,204,.15);
+  --warn:#ffb000;--warn-dim:rgba(255,176,0,.15);
   --border-color:#222;
 }
 *{box-sizing:border-box;margin:0;padding:0}
@@ -47,6 +54,15 @@ h1::after{content:'_';color:var(--accent);animation:blink 1s step-end infinite}
 .stat .v{font-size:1.6rem;font-weight:700;display:block}
 .stat .l{font-size:.65rem;letter-spacing:1px;color:var(--text-secondary);text-transform:uppercase}
 .stat.tp .v{color:var(--danger)} .stat.fp .v{color:var(--success)}
+.stat.warn .v{color:var(--warn)}
+
+.module-nav{display:flex;gap:4px;margin-bottom:16px}
+.module-nav.hidden{display:none}
+.module-nav button{padding:10px 22px;border:1px solid var(--border-color);background:var(--bg-secondary);
+  color:var(--text-secondary);cursor:pointer;font-family:inherit;font-size:.85rem;letter-spacing:1px;
+  text-transform:uppercase}
+.module-nav button.active{background:var(--text-primary);color:#000;border-color:var(--text-primary)}
+.module.hidden{display:none}
 
 .controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
 .controls input[type=text]{flex:1;min-width:220px;padding:9px 12px;background:#000;
@@ -56,6 +72,8 @@ h1::after{content:'_';color:var(--accent);animation:blink 1s step-end infinite}
 .btn:hover{color:var(--text-primary)}
 .btn.active{background:var(--text-primary);color:#000;border-color:var(--text-primary)}
 .controls.split-mode .filter-btn{display:none}
+.fgroup{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
+.fgroup .lbl{font-size:.65rem;letter-spacing:1px;color:var(--text-secondary);text-transform:uppercase;margin-right:4px}
 
 .source-tabs{display:flex;gap:4px;border-bottom:1px solid var(--border-color);margin-bottom:14px}
 .source-tabs.hidden{display:none}
@@ -77,21 +95,34 @@ h1::after{content:'_';color:var(--accent);animation:blink 1s step-end infinite}
   gap:1rem;cursor:pointer;transition:background .2s,border-color .2s;min-width:0;overflow:hidden}
 .card:hover{background:var(--bg-tertiary);border-color:var(--accent)}
 .card.tp{border-left-color:var(--danger)} .card.fp{border-left-color:var(--success)}
+.card.sev-critical{border-left-color:var(--danger)}
+.card.sev-high{border-left-color:var(--warn)}
+.card.sev-medium{border-left-color:#3a9}
+.card.sev-low,.card.sev-unknown{border-left-color:var(--border-color)}
 .card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem}
 .card-top>div:first-child{min-width:0}
 .card-file{font-size:.9rem;font-weight:700;color:var(--text-primary);word-break:break-all;line-height:1.35}
 .card-cat{margin-top:.35rem;font-size:1.15rem;font-weight:700;color:var(--accent);line-height:1.25}
 .card-cat:empty{display:none}
-.chips{display:flex;gap:6px;align-items:center;flex-shrink:0}
+.chips{display:flex;gap:6px;align-items:center;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end}
 .badge{padding:.2rem .5rem;font-weight:700;font-size:.7rem;border:1px solid}
 .badge.tp{background:var(--danger-dim);color:var(--danger);border-color:var(--danger)}
 .badge.fp{background:var(--success-dim);color:var(--success);border-color:var(--success)}
+.badge.sev-critical{background:var(--danger-dim);color:var(--danger);border-color:var(--danger)}
+.badge.sev-high{background:var(--warn-dim);color:var(--warn);border-color:var(--warn)}
+.badge.sev-medium{background:rgba(51,170,153,.15);color:#5cc;border-color:#3a9}
+.badge.sev-low,.badge.sev-unknown{background:var(--bg-tertiary);color:var(--text-secondary);border-color:#333}
 .chip{font-size:.62rem;letter-spacing:1px;padding:2px 6px;border:1px solid #333;
   color:var(--text-secondary);text-transform:uppercase}
 .chip.custom{color:var(--accent);border-color:var(--accent)}
 .chip.both{color:#ffb000;border-color:#ffb000}
+.chip.exploit{color:var(--danger);border-color:var(--danger)}
+.chip.kev{color:#fff;background:var(--danger);border-color:var(--danger)}
+.chip.av-network{color:var(--danger);border-color:var(--danger)}
+.chip.verified{color:var(--accent);border-color:var(--accent)}
 .snippet{background:#000;border:1px solid var(--border-color);padding:.7rem;font-size:.78rem;
   color:#a3a3a3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;min-width:0}
+.snippet.wrap{white-space:normal;max-height:4.2rem;overflow:hidden}
 .foot{display:flex;justify-content:space-between;align-items:center;margin-top:auto;
   font-size:.72rem;color:var(--text-secondary);gap:10px}
 .foot>span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -99,6 +130,7 @@ h1::after{content:'_';color:var(--accent);animation:blink 1s step-end infinite}
 .bar{width:60px;height:4px;background:var(--border-color)}
 .bar>i{display:block;height:100%}
 .empty{color:var(--text-secondary);font-size:.85rem;padding:24px;text-align:center}
+.note{color:var(--text-secondary);font-size:.75rem;margin:10px 0 14px}
 
 .split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px}
 @media(max-width:1100px){.split{grid-template-columns:minmax(0,1fr)}}
@@ -126,54 +158,105 @@ h1::after{content:'_';color:var(--accent);animation:blink 1s step-end infinite}
 .modal .close{float:right;background:none;border:1px solid var(--border-color);color:var(--text-secondary);
   cursor:pointer;padding:2px 10px;font-family:inherit}
 .badge-group{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:.82rem}
+.kv b{color:var(--text-secondary);font-weight:400}
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
     <div><h1>LAVA</h1><span class="sub" id="sub">Local AI Vulnerability Auditor</span></div>
-    <div class="stats">
-      <div class="stat"><span class="v" id="s-total">0</span><span class="l">findings</span></div>
-      <div class="stat tp"><span class="v" id="s-tp">0</span><span class="l">true positive</span></div>
-      <div class="stat fp"><span class="v" id="s-fp">0</span><span class="l">false positive</span></div>
-    </div>
+    <div class="stats" id="stats"></div>
   </header>
 
-  <div class="controls" id="controls">
-    <input type="text" id="search" placeholder="Search files or content...">
-    <button class="btn filter-btn active" data-filter="all">All</button>
-    <button class="btn filter-btn" data-filter="TP">True Positives</button>
-    <button class="btn filter-btn" data-filter="FP">False Positives</button>
+  <div class="module-nav hidden" id="moduleNav">
+    <button data-module="creds" class="active">Credentials <span class="count" id="mn-creds">0</span></button>
+    <button data-module="cve">CVE <span class="count" id="mn-cve">0</span></button>
   </div>
 
-  <div class="source-tabs hidden" id="tabs">
-    <button class="source-tab active" data-source="all">All <span class="count" id="c-all">0</span></button>
-    <button class="source-tab" data-source="emba">EMBA <span class="count" id="c-emba">0</span></button>
-    <button class="source-tab" data-source="custom">Grep <span class="count" id="c-custom">0</span></button>
-    <button class="source-tab" data-source="both">Overlap <span class="count" id="c-both">0</span></button>
-    <button class="btn split-toggle" id="splitToggle">&#8863; Split</button>
-  </div>
+  <!-- ============================ CREDENTIALS ============================ -->
+  <section class="module" id="mod-creds">
+    <div class="controls" id="controls">
+      <input type="text" id="search" placeholder="Search files or content...">
+      <button class="btn filter-btn active" data-filter="all">All</button>
+      <button class="btn filter-btn" data-filter="TP">True Positives</button>
+      <button class="btn filter-btn" data-filter="FP">False Positives</button>
+    </div>
 
-  <div class="grid" id="grid"></div>
+    <div class="source-tabs hidden" id="tabs">
+      <button class="source-tab active" data-source="all">All <span class="count" id="c-all">0</span></button>
+      <button class="source-tab" data-source="emba">EMBA <span class="count" id="c-emba">0</span></button>
+      <button class="source-tab" data-source="custom">Grep <span class="count" id="c-custom">0</span></button>
+      <button class="source-tab" data-source="both">Overlap <span class="count" id="c-both">0</span></button>
+      <button class="btn split-toggle" id="splitToggle">&#8863; Split</button>
+    </div>
 
-  <div class="split hidden" id="split">
-    <div class="col"><div class="col-head"><span class="col-title">EMBA <span class="count" id="cs-emba">0</span></span>
-      <div class="mini" data-col="emba"><button class="btn active" data-f="all">All</button>
-        <button class="btn" data-f="TP">TP</button><button class="btn" data-f="FP">FP</button></div></div>
-      <div class="col-body" id="body-emba"></div></div>
-    <div class="col"><div class="col-head"><span class="col-title">Grep <span class="count" id="cs-grep">0</span></span>
-      <div class="mini" data-col="grep"><button class="btn active" data-f="all">All</button>
-        <button class="btn" data-f="TP">TP</button><button class="btn" data-f="FP">FP</button></div></div>
-      <div class="col-body" id="body-grep"></div></div>
-  </div>
+    <div class="grid" id="grid"></div>
+
+    <div class="split hidden" id="split">
+      <div class="col"><div class="col-head"><span class="col-title">EMBA <span class="count" id="cs-emba">0</span></span>
+        <div class="mini" data-col="emba"><button class="btn active" data-f="all">All</button>
+          <button class="btn" data-f="TP">TP</button><button class="btn" data-f="FP">FP</button></div></div>
+        <div class="col-body" id="body-emba"></div></div>
+      <div class="col"><div class="col-head"><span class="col-title">Grep <span class="count" id="cs-grep">0</span></span>
+        <div class="mini" data-col="grep"><button class="btn active" data-f="all">All</button>
+          <button class="btn" data-f="TP">TP</button><button class="btn" data-f="FP">FP</button></div></div>
+        <div class="col-body" id="body-grep"></div></div>
+    </div>
+  </section>
+
+  <!-- ================================ CVE =============================== -->
+  <section class="module hidden" id="mod-cve">
+    <div class="controls">
+      <input type="text" id="cve-search" placeholder="Search CVE id, component or description...">
+    </div>
+    <div class="controls">
+      <div class="fgroup"><span class="lbl">Attack vector</span>
+        <button class="btn cve-f active" data-k="av" data-v="all">All</button>
+        <button class="btn cve-f" data-k="av" data-v="Network">Network</button>
+        <button class="btn cve-f" data-k="av" data-v="Adjacent">Adjacent</button>
+        <button class="btn cve-f" data-k="av" data-v="Local">Local</button>
+        <button class="btn cve-f" data-k="av" data-v="Physical">Physical</button>
+      </div>
+    </div>
+    <div class="controls">
+      <div class="fgroup"><span class="lbl">Severity</span>
+        <button class="btn cve-f active" data-k="sev" data-v="all">All</button>
+        <button class="btn cve-f" data-k="sev" data-v="critical">Critical</button>
+        <button class="btn cve-f" data-k="sev" data-v="high">High</button>
+        <button class="btn cve-f" data-k="sev" data-v="medium">Medium</button>
+        <button class="btn cve-f" data-k="sev" data-v="low">Low</button>
+      </div>
+      <div class="fgroup"><span class="lbl">Exploit</span>
+        <button class="btn cve-f active" data-k="exp" data-v="all">All</button>
+        <button class="btn cve-f" data-k="exp" data-v="exploit">Has exploit</button>
+        <button class="btn cve-f" data-k="exp" data-v="kev">Known-exploited</button>
+      </div>
+      <button class="btn" id="cve-showall">Show hidden kernel CVEs</button>
+    </div>
+    <div class="note" id="cve-note"></div>
+    <div class="grid" id="cve-grid"></div>
+  </section>
 </div>
 
 <div class="overlay" id="overlay"><div class="modal" id="modal"></div></div>
 
-<script id="lava-data" type="application/json">__DATA__</script>
+<script id="lava-data" type="application/json">__CREDS_DATA__</script>
+<script id="lava-cve-data" type="application/json">__CVE_DATA__</script>
 <script>
-const DATA = JSON.parse(document.getElementById('lava-data').textContent);
 const esc = s => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const DATA    = JSON.parse(document.getElementById('lava-data').textContent) || [];
+const CVEDATA = JSON.parse(document.getElementById('lava-cve-data').textContent) || [];
+const hasCreds = Array.isArray(DATA) && DATA.length>0;
+const hasCve   = Array.isArray(CVEDATA) && CVEDATA.length>0;
+
+/* ---------------------------- shared modal ---------------------------- */
+function closeModal(){document.getElementById('overlay').classList.remove('on');}
+document.getElementById('overlay').onclick=e=>{if(e.target.id==='overlay')closeModal();};
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
+function showModal(html){document.getElementById('modal').innerHTML=html;document.getElementById('overlay').classList.add('on');}
+
+/* ========================== CREDENTIALS ========================== */
 function srcOf(f){
   if(f.source) return f.source;
   const m=f.found_by_modules||(f.module?[f.module]:[]);
@@ -216,7 +299,7 @@ function card(f){
 function openModal(f){
   const src=srcOf(f), cat=(f.category||'').trim();
   const srcLbl={emba:'Source: EMBA',custom:'Source: Custom grep',both:'Source: EMBA + Custom grep'}[src]||src;
-  document.getElementById('modal').innerHTML=`
+  showModal(`
     <button class="close" onclick="closeModal()">close</button>
     <h2>${esc(cat||f.file_path)}</h2>
     <div class="badge-group">
@@ -231,12 +314,8 @@ function openModal(f){
     <h3>AI reasoning</h3>
     <div class="reason">${esc(f.model_reasoning||f.reasoning||'(none)')}</div>
     <h3>Modules</h3>
-    <pre>${esc((f.found_by_modules||[f.module]).join(', '))}</pre>`;
-  document.getElementById('overlay').classList.add('on');
+    <pre>${esc((f.found_by_modules||[f.module]).join(', '))}</pre>`);
 }
-function closeModal(){document.getElementById('overlay').classList.remove('on');}
-document.getElementById('overlay').onclick=e=>{if(e.target.id==='overlay')closeModal();};
-document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
 
 // a tab is a "seen by" SET: EMBA = emba-only OR both, Grep = custom-only OR both
 function tabMatch(f,tab){
@@ -257,7 +336,7 @@ function searchMatch(f,t){
       || (f.category||'').toLowerCase().includes(t);
 }
 
-function render(){
+function renderCreds(){
   const t=document.getElementById('search').value.toLowerCase();
   const searched=DATA.filter(f=>searchMatch(f,t));
   if(splitView){
@@ -280,48 +359,176 @@ function render(){
   if(!rows.length) g.innerHTML='<div class="empty">No findings match your criteria.</div>';
 }
 
-function visibility(){
+function credsVisibility(){
   document.getElementById('grid').classList.toggle('hidden',splitView);
   document.getElementById('split').classList.toggle('hidden',!splitView);
   document.getElementById('tabs').classList.toggle('split-mode',splitView);
   document.getElementById('controls').classList.toggle('split-mode',splitView);
 }
 
-// init
-(function(){
-  const tp=DATA.filter(f=>f.predicted_verdict==='TP').length;
-  const fp=DATA.filter(f=>f.predicted_verdict==='FP').length;
-  document.getElementById('s-total').textContent=DATA.length;
-  document.getElementById('s-tp').textContent=tp;
-  document.getElementById('s-fp').textContent=fp;
-  document.getElementById('sub').textContent='Local AI Vulnerability Auditor  ·  '+new Date().toISOString().slice(0,16).replace('T',' ');
-
-  const rc=rawCounts();
-  const c={all:DATA.length,emba:rc.emba+rc.both,custom:rc.custom+rc.both,both:rc.both};
-  ['all','emba','custom','both'].forEach(s=>document.getElementById('c-'+s).textContent=c[s]);
-  const hasCustom=rc.custom>0||rc.both>0;
-  document.getElementById('tabs').classList.toggle('hidden',!hasCustom);
-
-  document.getElementById('search').addEventListener('input',render);
+function initCreds(){
+  document.getElementById('search').addEventListener('input',renderCreds);
   document.querySelectorAll('.filter-btn').forEach(b=>b.onclick=()=>{
     document.querySelectorAll('.filter-btn').forEach(x=>x.classList.remove('active'));
-    b.classList.add('active'); verdictFilter=b.dataset.filter; render();
+    b.classList.add('active'); verdictFilter=b.dataset.filter; renderCreds();
   });
   document.querySelectorAll('.source-tab').forEach(b=>b.onclick=()=>{
     document.querySelectorAll('.source-tab').forEach(x=>x.classList.remove('active'));
-    b.classList.add('active'); sourceFilter=b.dataset.source; render();
+    b.classList.add('active'); sourceFilter=b.dataset.source; renderCreds();
   });
   document.getElementById('splitToggle').onclick=function(){
-    splitView=!splitView; this.classList.toggle('active',splitView); visibility(); render();
+    splitView=!splitView; this.classList.toggle('active',splitView); credsVisibility(); renderCreds();
   };
   document.querySelectorAll('.mini').forEach(group=>{
     const col=group.dataset.col;
     group.querySelectorAll('.btn').forEach(b=>b.onclick=()=>{
       group.querySelectorAll('.btn').forEach(x=>x.classList.remove('active'));
-      b.classList.add('active'); splitVerdict[col]=b.dataset.f; render();
+      b.classList.add('active'); splitVerdict[col]=b.dataset.f; renderCreds();
     });
   });
-  render();
+  const rc=rawCounts();
+  const c={all:DATA.length,emba:rc.emba+rc.both,custom:rc.custom+rc.both,both:rc.both};
+  ['all','emba','custom','both'].forEach(s=>document.getElementById('c-'+s).textContent=c[s]);
+  const hasCustom=rc.custom>0||rc.both>0;
+  document.getElementById('tabs').classList.toggle('hidden',!hasCustom);
+  renderCreds();
+}
+
+/* ============================== CVE ============================== */
+const cveFilter={av:'all',sev:'all',exp:'all'};
+let cveShowHidden=false;
+
+function cveCard(r){
+  const el=document.createElement('div');
+  el.className='card sev-'+(r.severity||'unknown');
+  const chips=[];
+  if(r.av==='Network') chips.push('<span class="chip av-network">NET</span>');
+  else if(r.av&&r.av!=='Unknown') chips.push('<span class="chip">'+esc(r.av.slice(0,3).toUpperCase())+'</span>');
+  if(r.kev) chips.push('<span class="chip kev">KEV</span>');
+  else if(r.has_exploit) chips.push('<span class="chip exploit">EXPLOIT</span>');
+  if(r.verified) chips.push('<span class="chip verified">VERIFIED</span>');
+  chips.push('<span class="badge sev-'+(r.severity||'unknown')+'">'+esc((r.severity||'?').toUpperCase())+'</span>');
+  const score=(r.cvss_score!=null)?r.cvss_score.toFixed(1):'--';
+  el.innerHTML=`
+    <div class="card-top">
+      <div>
+        <div class="card-file">${esc(r.component)} ${esc(r.version||'')}</div>
+        <div class="card-cat">${esc(r.cve)}</div>
+      </div>
+      <div class="chips">${chips.join('')}</div>
+    </div>
+    <div class="snippet wrap">${esc(r.description||'(no description)')}</div>
+    <div class="foot">
+      <span>${esc(r.av||'?')} &middot; ${esc(r.cvss_vector||'no vector')}</span>
+      <span>CVSS ${score}</span>
+    </div>`;
+  el.onclick=()=>openCveModal(r);
+  return el;
+}
+
+function openCveModal(r){
+  const im=r.impact||{};
+  showModal(`
+    <button class="close" onclick="closeModal()">close</button>
+    <h2>${esc(r.cve)}</h2>
+    <div class="badge-group">
+      <span class="badge sev-${r.severity||'unknown'}">${esc((r.severity||'?').toUpperCase())}</span>
+      <span class="chip">CVSS ${r.cvss_score!=null?r.cvss_score:'--'} (v${esc(r.cvss_version||'?')})</span>
+      <span class="chip">${esc(r.component)} ${esc(r.version||'')}</span>
+      <span class="chip">${esc(r.source_module==='S26'?'kernel (S26)':'component (F17)')}</span>
+      ${r.kev?'<span class="chip kev">KNOWN-EXPLOITED</span>':''}
+      ${r.verified?'<span class="chip verified">kernel-verified: '+esc(r.verified)+'</span>':''}
+    </div>
+    <h3>Description</h3>
+    <div class="reason">${esc(r.description||'(none)')}</div>
+    <h3>CVSS vector</h3>
+    <div class="kv">
+      <b>Attack vector</b><span>${esc(r.av||'?')}</span>
+      <b>Attack complexity</b><span>${esc(r.ac||'?')}</span>
+      <b>Privileges required</b><span>${esc(r.pr||'n/a')}</span>
+      <b>User interaction</b><span>${esc(r.ui||'n/a')}</span>
+      <b>Impact C/I/A</b><span>${esc(im.c||'?')} / ${esc(im.i||'?')} / ${esc(im.a||'?')}</span>
+      <b>Raw</b><span>${esc(r.cvss_vector||'(none)')}</span>
+    </div>
+    <h3>Exploit / PoC</h3>
+    <pre>${r.exploit_sources&&r.exploit_sources.length?esc(r.exploit_sources.join('\n')):'No exploit or PoC referenced by EMBA.'}</pre>
+    ${r.cwe&&r.cwe.length?'<h3>CWE</h3><pre>'+esc(r.cwe.map(c=>'CWE-'+c).join(', '))+'</pre>':''}`);
+}
+
+function cveMatch(r,t){
+  if(t && !((r.cve||'').toLowerCase().includes(t)||(r.component||'').toLowerCase().includes(t)
+      ||(r.description||'').toLowerCase().includes(t))) return false;
+  if(!cveShowHidden && r.default_hidden) return false;
+  if(cveFilter.av!=='all' && r.av!==cveFilter.av) return false;
+  if(cveFilter.sev!=='all' && r.severity!==cveFilter.sev) return false;
+  if(cveFilter.exp==='exploit' && !r.has_exploit) return false;
+  if(cveFilter.exp==='kev' && !r.kev) return false;
+  return true;
+}
+
+function renderCve(){
+  const t=document.getElementById('cve-search').value.toLowerCase();
+  const rows=CVEDATA.filter(r=>cveMatch(r,t));
+  const g=document.getElementById('cve-grid'); g.innerHTML='';
+  rows.forEach(r=>g.appendChild(cveCard(r)));
+  if(!rows.length) g.innerHTML='<div class="empty">No CVEs match your criteria.</div>';
+  const hidden=CVEDATA.filter(r=>r.default_hidden).length;
+  document.getElementById('cve-note').textContent=
+    `${rows.length} shown${(!cveShowHidden&&hidden)?`  ·  ${hidden} lower-severity kernel CVEs hidden (click "Show hidden kernel CVEs")`:''}`;
+}
+
+function initCve(){
+  document.getElementById('cve-search').addEventListener('input',renderCve);
+  document.querySelectorAll('.cve-f').forEach(b=>b.onclick=()=>{
+    document.querySelectorAll(`.cve-f[data-k="${b.dataset.k}"]`).forEach(x=>x.classList.remove('active'));
+    b.classList.add('active'); cveFilter[b.dataset.k]=b.dataset.v; renderCve();
+  });
+  document.getElementById('cve-showall').onclick=function(){
+    cveShowHidden=!cveShowHidden; this.classList.toggle('active',cveShowHidden);
+    this.textContent=cveShowHidden?'Hide lower-severity kernel CVEs':'Show hidden kernel CVEs';
+    renderCve();
+  };
+  renderCve();
+}
+
+/* ========================= module switch ========================= */
+function setStats(mod){
+  const s=document.getElementById('stats');
+  if(mod==='cve'){
+    const crit=CVEDATA.filter(r=>r.severity==='critical'||r.severity==='high').length;
+    const exp=CVEDATA.filter(r=>r.has_exploit).length;
+    s.innerHTML=`<div class="stat"><span class="v">${CVEDATA.length}</span><span class="l">CVEs</span></div>
+      <div class="stat warn"><span class="v">${crit}</span><span class="l">high / critical</span></div>
+      <div class="stat tp"><span class="v">${exp}</span><span class="l">with exploit</span></div>`;
+  }else{
+    const tp=DATA.filter(f=>f.predicted_verdict==='TP').length;
+    const fp=DATA.filter(f=>f.predicted_verdict==='FP').length;
+    s.innerHTML=`<div class="stat"><span class="v">${DATA.length}</span><span class="l">findings</span></div>
+      <div class="stat tp"><span class="v">${tp}</span><span class="l">true positive</span></div>
+      <div class="stat fp"><span class="v">${fp}</span><span class="l">false positive</span></div>`;
+  }
+}
+function setModule(mod){
+  document.getElementById('mod-creds').classList.toggle('hidden',mod!=='creds');
+  document.getElementById('mod-cve').classList.toggle('hidden',mod!=='cve');
+  document.querySelectorAll('#moduleNav button').forEach(b=>b.classList.toggle('active',b.dataset.module===mod));
+  setStats(mod);
+}
+
+(function(){
+  document.getElementById('sub').textContent='Local AI Vulnerability Auditor  ·  '+new Date().toISOString().slice(0,16).replace('T',' ');
+  document.getElementById('mn-creds').textContent=DATA.length;
+  document.getElementById('mn-cve').textContent=CVEDATA.length;
+
+  if(hasCreds) initCreds();
+  if(hasCve)   initCve();
+
+  const both=hasCreds&&hasCve;
+  document.getElementById('moduleNav').classList.toggle('hidden',!both);
+  if(both){
+    document.querySelectorAll('#moduleNav button').forEach(b=>b.onclick=()=>setModule(b.dataset.module));
+  }
+  setModule(hasCreds?'creds':'cve');
 })();
 </script>
 </body>
@@ -329,32 +536,52 @@ function visibility(){
 """
 
 
-def generate_report(verdicts_file: str, out_file: str) -> None:
-    if not os.path.exists(verdicts_file):
-        print(f"Error: {verdicts_file} not found.")
+def _load_list(path: str, label: str) -> list:
+    if not path:
+        return []
+    if not os.path.exists(path):
+        print(f"Error: {label} {path} not found.")
         sys.exit(1)
     try:
-        with open(verdicts_file, "r", encoding="utf-8") as f:
-            findings = json.load(f)
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
     except (json.JSONDecodeError, OSError) as e:
-        print(f"Error reading {verdicts_file}: {e}")
+        print(f"Error reading {path}: {e}")
         sys.exit(1)
-    if not isinstance(findings, list):
-        findings = []
+    return data if isinstance(data, list) else []
+
+
+def _embed(data: list) -> str:
+    return (json.dumps(data, ensure_ascii=False)
+            .replace("<", "\\u003c").replace("\u2028", " ").replace("\u2029", " "))
+
+
+def generate_report(verdicts_file: str, cve_file: str, out_file: str) -> None:
+    findings = _load_list(verdicts_file, "verdicts")
+    cve_findings = _load_list(cve_file, "cve-findings")
+
+    if not verdicts_file and not cve_file:
+        print("Error: give --verdicts and/or --cve-findings.")
+        sys.exit(1)
 
     rank = {"TP": 0, "FP": 1}
     findings.sort(key=lambda f: rank.get(str(f.get("predicted_verdict", "")).upper(), 2))
 
-    blob = json.dumps(findings, ensure_ascii=False).replace("<", "\\u003c").replace("\u2028", " ").replace("\u2029", " ")
-    page = _PAGE.replace("__DATA__", blob)
+    page = (_PAGE
+            .replace("__CREDS_DATA__", _embed(findings))
+            .replace("__CVE_DATA__", _embed(cve_findings)))
     with open(out_file, "w", encoding="utf-8") as f:
         f.write(page)
-    print(f"[OK] report -> {out_file} ({len(findings)} findings)")
+    print(f"[OK] report -> {out_file} "
+          f"({len(findings)} credential findings, {len(cve_findings)} CVEs)")
 
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description="Generate the LAVA HTML report")
-    ap.add_argument("--verdicts", required=True, help="Path to verdicts.json")
+    ap.add_argument("--verdicts", help="Path to verdicts.json (credentials module)")
+    ap.add_argument("--cve-findings", dest="cve_findings", help="Path to cve_findings.json (CVE module)")
     ap.add_argument("--out", required=True, help="Output HTML file")
     args = ap.parse_args()
-    generate_report(args.verdicts, args.out)
+    if not args.verdicts and not args.cve_findings:
+        ap.error("give --verdicts and/or --cve-findings")
+    generate_report(args.verdicts, args.cve_findings, args.out)

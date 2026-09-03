@@ -54,11 +54,11 @@ class Api:
         return ""
 
     _CONFIG_KEYS = ("AI_PROVIDER", "GEMINI_API_KEY", "CUSTOM_GREP_ENABLED",
-                    "SCAN_PROFILE", "S99_SCAN", "MCP_BATCH_SIZE")
+                    "SCAN_PROFILE", "S99_SCAN", "MCP_BATCH_SIZE", "CVE_SCAN_ENABLED")
     _CONFIG_DEFAULTS = {
         "AI_PROVIDER": "local", "GEMINI_API_KEY": "",
         "CUSTOM_GREP_ENABLED": "0", "SCAN_PROFILE": "iot-testing",
-        "S99_SCAN": "raw", "MCP_BATCH_SIZE": "40",
+        "S99_SCAN": "raw", "MCP_BATCH_SIZE": "40", "CVE_SCAN_ENABLED": "0",
     }
 
     def _config_path(self):
@@ -118,7 +118,7 @@ class Api:
                     names.append(fn[:-5])
         return names or ["iot-testing"]
 
-    def start_scan(self, input_path, mode="log"):
+    def start_scan(self, input_path, mode="log", modules=None):
         global scan_process
         input_path = input_path.strip()
         if not input_path:
@@ -127,6 +127,16 @@ class Api:
         if scan_process and scan_process.poll() is None:
             return {"status": "error", "message": "Scan already running"}
 
+        # modules: list/str of "credentials" and/or "cve"; None -> script default
+        mod_arg = []
+        if modules:
+            if isinstance(modules, str):
+                modules = [modules]
+            picked = [m for m in ("credentials", "cve") if m in modules]
+            if not picked:
+                return {"status": "error", "message": "Select at least one module (Credentials / CVE)."}
+            mod_arg = ["-Modules", ",".join(picked)]
+
         try:
             self.last_output_dir = None
             if mode == "firmware":
@@ -134,10 +144,10 @@ class Api:
                 # (emba_<name>_<ts>/ and lava_scan_<name>_<ts>/ next to the
                 # firmware, or under ~/.cache/lava if the path isn't EMBA-safe).
                 sh_path = os.path.join(APP_DIR, "scripts", "run_emba_lava.sh")
-                cmd = ["bash", sh_path, "-FirmwarePath", input_path]
+                cmd = ["bash", sh_path, "-FirmwarePath", input_path, *mod_arg]
             else:
                 sh_path = os.path.join(APP_DIR, "scripts", "run_lava.sh")
-                cmd = ["bash", sh_path, "-LogDir", input_path]
+                cmd = ["bash", sh_path, "-LogDir", input_path, *mod_arg]
 
             global scan_buffer, master_fd_global
             with scan_buffer_lock:
@@ -332,8 +342,8 @@ class Api:
 
         if cands:
             best = max(cands, key=os.path.getmtime)
-            if not os.path.exists(os.path.join(best, "verdicts.json")) \
-                    and not os.path.exists(os.path.join(best, "enriched_findings.json")):
+            if not any(os.path.exists(os.path.join(best, f)) for f in
+                       ("verdicts.json", "enriched_findings.json", "cve_findings.json")):
                 return _legacy_descent(best) or best
             return best
 
@@ -347,6 +357,21 @@ class Api:
         if os.path.exists(verdicts_path):
             try:
                 with open(verdicts_path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception as e:
+                return {"error": str(e)}
+        return []
+
+    def get_cve_findings(self, log_dir):
+        """CVE module output (cve_findings.json). [] when the CVE module did not
+        run or produced nothing."""
+        if not log_dir:
+            return []
+        out_dir = self._get_latest_out_dir(log_dir)
+        cve_path = os.path.join(out_dir, "cve_findings.json")
+        if os.path.exists(cve_path):
+            try:
+                with open(cve_path, "r", encoding="utf-8") as f:
                     return json.load(f)
             except Exception as e:
                 return {"error": str(e)}
@@ -372,14 +397,19 @@ class Api:
 
         out_dir = self._get_latest_out_dir(log_dir)
         verdicts_file = os.path.join(out_dir, "verdicts.json")
+        cve_file = os.path.join(out_dir, "cve_findings.json")
         report_file = os.path.join(out_dir, "lava_report.html")
 
-        if not os.path.exists(verdicts_file):
-            return {"status": "error", "message": "No verdicts.json found. Please run a scan first."}
+        generator_script = os.path.join(APP_DIR, "src", "reporting", "html_report.py")
+        cmd = ["python3", generator_script, "--out", report_file]
+        if os.path.exists(verdicts_file):
+            cmd += ["--verdicts", verdicts_file]
+        if os.path.exists(cve_file):
+            cmd += ["--cve-findings", cve_file]
+        if "--verdicts" not in cmd and "--cve-findings" not in cmd:
+            return {"status": "error", "message": "No results found. Please run a scan first."}
 
         try:
-            generator_script = os.path.join(APP_DIR, "src", "reporting", "html_report.py")
-            cmd = ["python3", generator_script, "--verdicts", verdicts_file, "--out", report_file]
             subprocess.check_call(cmd)
 
             filepath = os.path.abspath(report_file)
