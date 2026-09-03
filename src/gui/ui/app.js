@@ -419,7 +419,6 @@ function setupEventListeners() {
     const grepProfileContainer = document.getElementById('grepProfileContainer');
     const s99ScanSelect = document.getElementById('s99ScanSelect');
     const mcpBatchSizeInput = document.getElementById('mcpBatchSizeInput');
-    const cveScanEnabled = document.getElementById('cveScanEnabled');
 
     function updateProviderVisibility(value) {
         if (geminiKeyContainer) geminiKeyContainer.style.display = value === 'gemini' ? 'block' : 'none';
@@ -453,7 +452,6 @@ function setupEventListeners() {
                     s99ScanSelect.value = aliases[config.S99_SCAN] || config.S99_SCAN || 'raw';
                 }
                 if (mcpBatchSizeInput) mcpBatchSizeInput.value = (config.MCP_BATCH_SIZE ?? '40');
-                if (cveScanEnabled) cveScanEnabled.checked = String(config.CVE_SCAN_ENABLED) === '1';
                 updateProviderVisibility(aiProviderSelect.value);
                 updateGrepVisibility();
             }
@@ -495,13 +493,9 @@ function setupEventListeners() {
                     "CUSTOM_GREP_ENABLED": (customGrepEnabled && customGrepEnabled.checked) ? "1" : "0",
                     "SCAN_PROFILE": scanProfileSelect ? scanProfileSelect.value : "iot-testing",
                     "S99_SCAN": s99ScanSelect ? s99ScanSelect.value : "raw",
-                    "MCP_BATCH_SIZE": mcpBatchSizeInput ? String(parseInt(mcpBatchSizeInput.value, 10) || 0) : "40",
-                    "CVE_SCAN_ENABLED": (cveScanEnabled && cveScanEnabled.checked) ? "1" : "0"
+                    "MCP_BATCH_SIZE": mcpBatchSizeInput ? String(parseInt(mcpBatchSizeInput.value, 10) || 0) : "40"
                 });
             }
-            // keep the main-screen Modules checkbox in sync with the saved default
-            const modCve = document.getElementById('modCve');
-            if (modCve && cveScanEnabled) modCve.checked = cveScanEnabled.checked;
             settingsModal.classList.add('hidden');
         });
     }
@@ -521,6 +515,15 @@ function setupEventListeners() {
     // Split view toggle
     const splitToggle = document.getElementById('splitToggle');
     if (splitToggle) splitToggle.addEventListener('click', () => setSplitView(!splitView));
+
+    // "CVE" module chip: remember the choice (persists to CVE_SCAN_ENABLED, also
+    // used as the CLI default when run_lava.sh gets no --modules).
+    const modCveChip = document.getElementById('modCve');
+    if (modCveChip) modCveChip.addEventListener('change', () => {
+        if (window.pywebview && window.pywebview.api && window.pywebview.api.save_ai_config) {
+            window.pywebview.api.save_ai_config({ "CVE_SCAN_ENABLED": modCveChip.checked ? "1" : "0" });
+        }
+    });
 
     // Module switch (Credentials / CVE)
     document.querySelectorAll('.mod-switch-btn').forEach(btn => {
