@@ -240,7 +240,25 @@
                     <input type="text" id="searchInput" placeholder="Search files or content...">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
                 </div>
-                <div class="filters">
+                <div class="view-toggle">
+                    <button id="exportHtmlBtn" class="btn-primary">&#128196; Export HTML</button>
+                    <button id="toggleViewBtn" class="btn-secondary">{} View Raw JSON</button>
+                </div>
+            </div>
+
+            <div class="results-layout">
+              <aside class="filter-rail" id="credsRail">
+                <!-- Source tabs (EMBA / Grep / overlap) - only shown when the custom grep produced results -->
+                <div class="source-tabs hidden" id="sourceTabs">
+                    <span class="rail-group-lbl">Source</span>
+                    <button class="source-tab active" data-source="all">All <span class="source-count" id="src-count-all">0</span></button>
+                    <button class="source-tab" data-source="emba">EMBA <span class="source-count" id="src-count-emba">0</span></button>
+                    <button class="source-tab" data-source="custom">Grep <span class="source-count" id="src-count-custom">0</span></button>
+                    <button class="source-tab" data-source="both">Overlap <span class="source-count" id="src-count-both">0</span></button>
+                    <button class="split-toggle" id="splitToggle" title="Show EMBA and Grep results side by side">&#8863; Split</button>
+                </div>
+                <div class="rail-group" id="verdictFilterGroup">
+                    <span class="rail-group-lbl">Verdict</span>
                     <select id="moduleFilter" class="filter-select" style="display: none;">
                         <option value="all">All Modules</option>
                     </select>
@@ -248,30 +266,18 @@
                     <button class="filter-btn" data-filter="TP">True Positives</button>
                     <button class="filter-btn" data-filter="FP">False Positives</button>
                 </div>
-                <div class="view-toggle">
-                    <button id="exportHtmlBtn" class="btn-primary" style="margin-right: 10px;">&#128196; Export HTML</button>
-                    <button id="toggleViewBtn" class="btn-secondary">{} View Raw JSON</button>
+              </aside>
+
+              <div class="results-main">
+                <div class="findings-grid" id="findingsGrid">
+                    <div class="loading-state">
+                        <div class="spinner"></div>
+                        <p>Loading verdicts.json...</p>
+                    </div>
                 </div>
-            </div>
 
-            <!-- Source tabs (EMBA / Grep / overlap) - only shown when the custom grep produced results -->
-            <div class="source-tabs hidden" id="sourceTabs">
-                <button class="source-tab active" data-source="all">All <span class="source-count" id="src-count-all">0</span></button>
-                <button class="source-tab" data-source="emba">EMBA <span class="source-count" id="src-count-emba">0</span></button>
-                <button class="source-tab" data-source="custom">Grep <span class="source-count" id="src-count-custom">0</span></button>
-                <button class="source-tab" data-source="both">Overlap <span class="source-count" id="src-count-both">0</span></button>
-                <button class="split-toggle" id="splitToggle" title="Show EMBA and Grep results side by side">&#8863; Split</button>
-            </div>
-
-            <div class="findings-grid" id="findingsGrid">
-                <div class="loading-state">
-                    <div class="spinner"></div>
-                    <p>Loading verdicts.json...</p>
-                </div>
-            </div>
-
-            <!-- Split view: EMBA findings and Grep findings side by side, each with its own TP/FP filter -->
-            <div class="split-view hidden" id="splitView">
+                <!-- Split view: EMBA findings and Grep findings side by side, each with its own TP/FP filter -->
+                <div class="split-view hidden" id="splitView">
                 <div class="split-col" id="splitColEmba">
                     <div class="split-col-head">
                         <span class="split-col-title">EMBA <span class="source-count" id="split-count-emba">0</span></span>
@@ -296,13 +302,15 @@
                 </div>
             </div>
 
-            <!-- Raw JSON View Container -->
-            <div id="rawJsonView" class="hidden">
-                <div class="raw-header">
-                    <h3>Raw verdicts.json</h3>
+                <!-- Raw JSON View Container -->
+                <div id="rawJsonView" class="hidden">
+                    <div class="raw-header">
+                        <h3>Raw verdicts.json</h3>
+                    </div>
+                    <pre><code id="rawJsonContent"></code></pre>
                 </div>
-                <pre><code id="rawJsonContent"></code></pre>
-            </div>
+              </div><!-- /.results-main -->
+            </div><!-- /.results-layout -->
           </div><!-- /#credsView -->
 
           <!-- ============================ CVE view ============================ -->
@@ -316,51 +324,59 @@
                     <button id="exportHtmlBtnCve" class="btn-primary">&#128196; Export HTML</button>
                 </div>
             </div>
-            <div class="cve-filters">
-                <div class="fgroup"><span class="fgroup-lbl">Attack vector</span>
-                    <button class="cve-filter-btn active" data-k="av" data-v="all">All</button>
-                    <button class="cve-filter-btn" data-k="av" data-v="Network">Network</button>
-                    <button class="cve-filter-btn" data-k="av" data-v="Adjacent">Adjacent</button>
-                    <button class="cve-filter-btn" data-k="av" data-v="Local">Local</button>
-                    <button class="cve-filter-btn" data-k="av" data-v="Physical">Physical</button>
+
+            <div class="results-layout">
+              <aside class="filter-rail" id="cveRail">
+                <div class="cve-filters">
+                    <div class="fgroup"><span class="fgroup-lbl">Attack vector</span>
+                        <button class="cve-filter-btn active" data-k="av" data-v="all">All</button>
+                        <button class="cve-filter-btn" data-k="av" data-v="Network">Network</button>
+                        <button class="cve-filter-btn" data-k="av" data-v="Adjacent">Adjacent</button>
+                        <button class="cve-filter-btn" data-k="av" data-v="Local">Local</button>
+                        <button class="cve-filter-btn" data-k="av" data-v="Physical">Physical</button>
+                    </div>
+                    <div class="fgroup"><span class="fgroup-lbl">Sort</span>
+                        <select id="cveSortSelect" class="cve-type-select">
+                            <option value="sev-desc">Severity: high &rarr; low</option>
+                            <option value="sev-asc">Severity: low &rarr; high</option>
+                        </select>
+                    </div>
+                    <div class="fgroup"><span class="fgroup-lbl">Type</span>
+                        <select id="cveTypeSelect" class="cve-type-select">
+                            <option value="all">All types</option>
+                            <option value="Injection / RCE">Injection / RCE</option>
+                            <option value="Memory safety">Memory safety</option>
+                            <option value="Auth / access control">Auth / access control</option>
+                            <option value="Path traversal">Path traversal</option>
+                            <option value="Information disclosure">Information disclosure</option>
+                            <option value="Race condition">Race condition</option>
+                            <option value="Denial of service">Denial of service</option>
+                            <option value="Cryptographic issue">Cryptographic issue</option>
+                            <option value="Web (XSS / CSRF / SSRF)">Web (XSS / CSRF / SSRF)</option>
+                            <option value="__unclassified__">Unclassified</option>
+                        </select>
+                    </div>
+                    <div class="fgroup"><span class="fgroup-lbl">Severity</span>
+                        <button class="cve-filter-btn active" data-k="sev" data-v="all">All</button>
+                        <button class="cve-filter-btn" data-k="sev" data-v="critical">Critical</button>
+                        <button class="cve-filter-btn" data-k="sev" data-v="high">High</button>
+                        <button class="cve-filter-btn" data-k="sev" data-v="medium">Medium</button>
+                        <button class="cve-filter-btn" data-k="sev" data-v="low">Low</button>
+                    </div>
+                    <div class="fgroup"><span class="fgroup-lbl">Exploit</span>
+                        <button class="cve-filter-btn active" data-k="exp" data-v="all">All</button>
+                        <button class="cve-filter-btn" data-k="exp" data-v="exploit">Has exploit</button>
+                        <button class="cve-filter-btn" data-k="exp" data-v="kev">Known-exploited</button>
+                    </div>
+                    <button class="cve-filter-btn" id="cveShowAll">Show hidden kernel CVEs</button>
                 </div>
-                <div class="fgroup"><span class="fgroup-lbl">Sort</span>
-                    <select id="cveSortSelect" class="cve-type-select">
-                        <option value="sev-desc">Severity: high &rarr; low</option>
-                        <option value="sev-asc">Severity: low &rarr; high</option>
-                    </select>
-                </div>
-                <div class="fgroup"><span class="fgroup-lbl">Type</span>
-                    <select id="cveTypeSelect" class="cve-type-select">
-                        <option value="all">All types</option>
-                        <option value="Injection / RCE">Injection / RCE</option>
-                        <option value="Memory safety">Memory safety</option>
-                        <option value="Auth / access control">Auth / access control</option>
-                        <option value="Path traversal">Path traversal</option>
-                        <option value="Information disclosure">Information disclosure</option>
-                        <option value="Race condition">Race condition</option>
-                        <option value="Denial of service">Denial of service</option>
-                        <option value="Cryptographic issue">Cryptographic issue</option>
-                        <option value="Web (XSS / CSRF / SSRF)">Web (XSS / CSRF / SSRF)</option>
-                        <option value="__unclassified__">Unclassified</option>
-                    </select>
-                </div>
-                <div class="fgroup"><span class="fgroup-lbl">Severity</span>
-                    <button class="cve-filter-btn active" data-k="sev" data-v="all">All</button>
-                    <button class="cve-filter-btn" data-k="sev" data-v="critical">Critical</button>
-                    <button class="cve-filter-btn" data-k="sev" data-v="high">High</button>
-                    <button class="cve-filter-btn" data-k="sev" data-v="medium">Medium</button>
-                    <button class="cve-filter-btn" data-k="sev" data-v="low">Low</button>
-                </div>
-                <div class="fgroup"><span class="fgroup-lbl">Exploit</span>
-                    <button class="cve-filter-btn active" data-k="exp" data-v="all">All</button>
-                    <button class="cve-filter-btn" data-k="exp" data-v="exploit">Has exploit</button>
-                    <button class="cve-filter-btn" data-k="exp" data-v="kev">Known-exploited</button>
-                </div>
-                <button class="cve-filter-btn" id="cveShowAll">Show hidden kernel CVEs</button>
+              </aside>
+
+              <div class="results-main">
+                <div class="cve-note" id="cveNote"></div>
+                <div class="findings-grid" id="cveGrid"></div>
+              </div>
             </div>
-            <div class="cve-note" id="cveNote"></div>
-            <div class="findings-grid" id="cveGrid"></div>
           </div><!-- /#cveView -->
         </main>
     </div>

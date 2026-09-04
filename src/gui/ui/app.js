@@ -858,10 +858,10 @@ function updateResultsVisibility() {
     if (grid) grid.classList.toggle('hidden', rawOpen || splitView);
     if (split) split.classList.toggle('hidden', rawOpen || !splitView);
 
-    const tabs = document.getElementById('sourceTabs');
-    const controls = document.querySelector('.controls');
-    if (tabs) tabs.classList.toggle('split-mode', splitView);
-    if (controls) controls.classList.toggle('split-mode', splitView);
+    // In split mode the rail's global source/verdict filters are replaced by
+    // the per-column filters living inside the split view.
+    const rail = document.getElementById('credsRail');
+    if (rail) rail.classList.toggle('split-mode', splitView);
 }
 
 function setSplitView(on) {

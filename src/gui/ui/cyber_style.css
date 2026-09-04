@@ -754,10 +754,9 @@ pre {
 .split-toggle.active {
     background: var(--text-primary); color: var(--bg-primary); border-color: var(--text-primary);
 }
-/* In split mode the source tabs + global verdict filters are replaced by the per-column ones */
-.source-tabs.split-mode .source-tab { display: none; }
-.controls.split-mode .filters .filter-btn,
-.controls.split-mode #moduleFilter { display: none !important; }
+/* In split mode the rail's global source/verdict filters are replaced by the per-column ones */
+.filter-rail.split-mode .source-tab,
+.filter-rail.split-mode .rail-group { display: none !important; }
 
 .split-view { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
 .split-view.hidden { display: none !important; }
@@ -970,3 +969,113 @@ pre {
 }
 .cve-kv b { color: var(--text-secondary); font-weight: 400; }
 #modalCveBody.hidden, #modalCredsBody.hidden { display: none; }
+
+/* ------------------------------------------------------------------ */
+/* Results layout: sticky left filter rail + results column            */
+/*   .controls (search + Export HTML) spans the full width on top,     */
+/*   then a two-column row: the filter rail and the findings.          */
+/* ------------------------------------------------------------------ */
+.view-toggle { display: flex; gap: 10px; align-items: center; flex-shrink: 0; }
+
+.results-layout {
+    display: flex;
+    align-items: flex-start;
+    gap: 1.5rem;
+}
+.results-main {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.filter-rail {
+    flex: 0 0 220px;
+    align-self: stretch;
+    position: sticky;
+    top: 1rem;
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1.6rem;
+    padding: 1.1rem 1rem;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+}
+.filter-rail::-webkit-scrollbar { width: 10px; }
+.filter-rail::-webkit-scrollbar-thumb { background: var(--border-color); }
+.filter-rail::-webkit-scrollbar-track { background: transparent; }
+
+/* a labelled group of controls, stacked vertically */
+.rail-group,
+.filter-rail .source-tabs,
+.filter-rail .cve-filters,
+.filter-rail .fgroup {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    flex-wrap: nowrap;
+    gap: 5px;
+    margin: 0;
+}
+.filter-rail .cve-filters { gap: 1.6rem; }
+
+.rail-group-lbl,
+.filter-rail .fgroup-lbl {
+    margin: 0 0 3px 0;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+}
+
+/* every pill / select in the rail spans the full width */
+.filter-rail .filter-btn,
+.filter-rail .cve-filter-btn,
+.filter-rail .source-tab,
+.filter-rail .split-toggle,
+.filter-rail .cve-type-select,
+.filter-rail .filter-select {
+    width: 100%;
+    margin: 0;
+    text-align: left;
+}
+.filter-rail .source-tab {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.filter-rail .split-toggle,
+.filter-rail #cveShowAll {
+    align-self: stretch;
+    text-align: center;
+    margin: 4px 0 0 0;
+}
+
+/* rail on the left but one card column when the results area gets tight */
+@media (max-width: 1200px) {
+    .results-main .findings-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* stack the rail above the results on a narrow window */
+@media (max-width: 900px) {
+    .results-layout { flex-direction: column; }
+    .filter-rail {
+        position: static;
+        max-height: none;
+        overflow: visible;
+        flex-basis: auto;
+        width: 100%;
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 1rem 1.75rem;
+    }
+    .filter-rail .cve-filters { flex-direction: row; flex-wrap: wrap; gap: 1rem 1.75rem; }
+    .filter-rail .filter-btn,
+    .filter-rail .cve-filter-btn,
+    .filter-rail .source-tab,
+    .filter-rail .split-toggle,
+    .filter-rail .cve-type-select,
+    .filter-rail .filter-select { width: auto; }
+    .filter-rail .source-tab { justify-content: flex-start; gap: 6px; }
+}
