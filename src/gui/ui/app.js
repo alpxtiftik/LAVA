@@ -128,6 +128,9 @@ function updateStats() {
     const elTotal = document.getElementById('stat-total');
     const elTp = document.getElementById('stat-tp');
     const elFp = document.getElementById('stat-fp');
+    // right-hand stat card ("With Exploit" in CVE mode) hovers red, not green
+    const statsC = document.querySelector('.stats-container');
+    if (statsC) statsC.classList.toggle('cve-mode', moduleView === 'cve');
     const setLabels = (a, b, c) => {
         const L = document.querySelectorAll('.stat-card .stat-label');
         if (L[0]) L[0].textContent = a;

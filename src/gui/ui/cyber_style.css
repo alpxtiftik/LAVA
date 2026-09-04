@@ -111,6 +111,16 @@ header {
     border-color: var(--border-highlight);
 }
 
+/* hover frame = the same semantic colours as the finding cards:
+   grey  = neutral count  (#stat-total: "Findings Processed" / "CVEs")
+   red   = attention count (#stat-tp: "True Positives" / "High / Critical";
+                            #stat-fp when in CVE mode: "With Exploit")
+   green = false-positive count (#stat-fp in credentials mode) */
+#stat-total:hover { border-color: var(--text-secondary); }
+#stat-tp:hover    { border-color: var(--danger); }
+#stat-fp:hover    { border-color: var(--success); }
+.stats-container.cve-mode #stat-fp:hover { border-color: var(--danger); }
+
 .stat-value {
     font-size: 1.8rem;
     font-weight: 700;
