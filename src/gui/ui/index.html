@@ -328,18 +328,23 @@
             <div class="results-layout">
               <aside class="filter-rail" id="cveRail">
                 <div class="cve-filters">
-                    <div class="fgroup"><span class="fgroup-lbl">Attack vector</span>
-                        <button class="cve-filter-btn active" data-k="av" data-v="all">All</button>
-                        <button class="cve-filter-btn" data-k="av" data-v="Network">Network</button>
-                        <button class="cve-filter-btn" data-k="av" data-v="Adjacent">Adjacent</button>
-                        <button class="cve-filter-btn" data-k="av" data-v="Local">Local</button>
-                        <button class="cve-filter-btn" data-k="av" data-v="Physical">Physical</button>
-                    </div>
                     <div class="fgroup"><span class="fgroup-lbl">Sort</span>
                         <select id="cveSortSelect" class="cve-type-select">
                             <option value="sev-desc">Severity: high &rarr; low</option>
                             <option value="sev-asc">Severity: low &rarr; high</option>
                         </select>
+                    </div>
+                    <div class="fgroup"><span class="fgroup-lbl">Severity</span>
+                        <button class="cve-filter-btn active" data-k="sev" data-v="all">All</button>
+                        <button class="cve-filter-btn" data-k="sev" data-v="critical">Critical</button>
+                        <button class="cve-filter-btn" data-k="sev" data-v="high">High</button>
+                        <button class="cve-filter-btn" data-k="sev" data-v="medium">Medium</button>
+                        <button class="cve-filter-btn" data-k="sev" data-v="low">Low</button>
+                    </div>
+                    <div class="fgroup"><span class="fgroup-lbl">Exploit</span>
+                        <button class="cve-filter-btn active" data-k="exp" data-v="all">All</button>
+                        <button class="cve-filter-btn" data-k="exp" data-v="exploit">Has exploit</button>
+                        <button class="cve-filter-btn" data-k="exp" data-v="kev">Known-exploited</button>
                     </div>
                     <div class="fgroup"><span class="fgroup-lbl">Type</span>
                         <select id="cveTypeSelect" class="cve-type-select">
@@ -356,19 +361,15 @@
                             <option value="__unclassified__">Unclassified</option>
                         </select>
                     </div>
-                    <div class="fgroup"><span class="fgroup-lbl">Severity</span>
-                        <button class="cve-filter-btn active" data-k="sev" data-v="all">All</button>
-                        <button class="cve-filter-btn" data-k="sev" data-v="critical">Critical</button>
-                        <button class="cve-filter-btn" data-k="sev" data-v="high">High</button>
-                        <button class="cve-filter-btn" data-k="sev" data-v="medium">Medium</button>
-                        <button class="cve-filter-btn" data-k="sev" data-v="low">Low</button>
-                    </div>
-                    <div class="fgroup"><span class="fgroup-lbl">Exploit</span>
-                        <button class="cve-filter-btn active" data-k="exp" data-v="all">All</button>
-                        <button class="cve-filter-btn" data-k="exp" data-v="exploit">Has exploit</button>
-                        <button class="cve-filter-btn" data-k="exp" data-v="kev">Known-exploited</button>
+                    <div class="fgroup"><span class="fgroup-lbl">Attack vector</span>
+                        <button class="cve-filter-btn active" data-k="av" data-v="all">All</button>
+                        <button class="cve-filter-btn" data-k="av" data-v="Network">Network</button>
+                        <button class="cve-filter-btn" data-k="av" data-v="Adjacent">Adjacent</button>
+                        <button class="cve-filter-btn" data-k="av" data-v="Local">Local</button>
+                        <button class="cve-filter-btn" data-k="av" data-v="Physical">Physical</button>
                     </div>
                     <button class="cve-filter-btn" id="cveShowAll">Show hidden kernel CVEs</button>
+                    <button class="cve-filter-btn" id="cveHideKernel">Hide all kernel CVEs</button>
                 </div>
               </aside>
 

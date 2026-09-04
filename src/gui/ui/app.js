@@ -9,10 +9,19 @@ const splitVerdict = { emba: 'all', grep: 'all' };  // per-column TP/FP filter
 // CVE module (v1, no AI)
 let cveFindings = [];
 let moduleView = "creds";   // creds | cve  (results-area switch)
-let cveShowHidden = false;
+let cveShowHidden = false;   // reveal the lower-severity kernel CVEs
+let cveHideKernel = false;   // hide EVERY kernel (S26) CVE, regardless of severity
 let cveSort = 'sev-desc';   // sev-desc (JSON default: high->low) | sev-asc
 const cveFilter = { av: 'all', sev: 'all', exp: 'all', type: 'all' };
 const _SEV_RANK = { critical: 0, high: 1, medium: 2, low: 3, unknown: 4 };
+const _KERNEL_COMPS = new Set(['kernel', 'linux_kernel', 'linux', 'linux-kernel']);
+
+// a record is a kernel CVE if the scanner tagged it (is_kernel), else fall back
+// to the S26 source module / a known kernel component name (older JSON files).
+function isKernelCve(r) {
+    if (r.is_kernel != null) return !!r.is_kernel;
+    return r.source_module === 'S26' || _KERNEL_COMPS.has((r.component || '').toLowerCase());
+}
 
 function sortCveRows(rows) {
     if (cveSort !== 'sev-asc') return rows;   // default = the file's order
@@ -336,6 +345,7 @@ function cveMatches(r, term) {
     if (term && !((r.cve || '').toLowerCase().includes(term) ||
                   (r.component || '').toLowerCase().includes(term) ||
                   (r.description || '').toLowerCase().includes(term))) return false;
+    if (cveHideKernel && isKernelCve(r)) return false;
     if (!cveShowHidden && r.default_hidden) return false;
     if (cveFilter.av !== 'all' && r.av !== cveFilter.av) return false;
     if (cveFilter.sev !== 'all' && r.severity !== cveFilter.sev) return false;
@@ -394,11 +404,18 @@ function renderCve() {
     }
 
     const hidden = cveFindings.filter(r => r.default_hidden).length;
+    const kernelTotal = cveFindings.filter(isKernelCve).length;
     const note = document.getElementById('cveNote');
     if (note) {
-        note.textContent = `${rows.length} shown` +
-            ((!cveShowHidden && hidden) ? `  ·  ${hidden} lower-severity kernel CVEs hidden` : '');
+        let extra = '';
+        if (cveHideKernel && kernelTotal) extra = `  ·  ${kernelTotal} kernel CVEs hidden`;
+        else if (!cveShowHidden && hidden) extra = `  ·  ${hidden} lower-severity kernel CVEs hidden`;
+        note.textContent = `${rows.length} shown${extra}`;
     }
+
+    // "show hidden" is meaningless once every kernel CVE is hidden
+    const showAllBtn = document.getElementById('cveShowAll');
+    if (showAllBtn) showAllBtn.classList.toggle('is-muted', cveHideKernel);
 }
 
 function openCveModal(r) {
@@ -616,9 +633,17 @@ function setupEventListeners() {
     });
     const cveShowAllBtn = document.getElementById('cveShowAll');
     if (cveShowAllBtn) cveShowAllBtn.addEventListener('click', () => {
+        if (cveHideKernel) return;   // muted while all kernel CVEs are hidden
         cveShowHidden = !cveShowHidden;
         cveShowAllBtn.classList.toggle('active', cveShowHidden);
         cveShowAllBtn.textContent = cveShowHidden ? 'Hide lower-severity kernel CVEs' : 'Show hidden kernel CVEs';
+        renderCve();
+    });
+    const cveHideKernelBtn = document.getElementById('cveHideKernel');
+    if (cveHideKernelBtn) cveHideKernelBtn.addEventListener('click', () => {
+        cveHideKernel = !cveHideKernel;
+        cveHideKernelBtn.classList.toggle('active', cveHideKernel);
+        cveHideKernelBtn.textContent = cveHideKernel ? 'Show kernel CVEs' : 'Hide all kernel CVEs';
         renderCve();
     });
     const exportCveBtn = document.getElementById('exportHtmlBtnCve');

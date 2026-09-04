@@ -73,6 +73,8 @@ h1::after{content:'_';color:var(--accent);animation:blink 1s step-end infinite}
 .btn.active{background:var(--text-primary);color:#000;border-color:var(--text-primary)}
 #cve-showall{margin-left:4px}
 #cve-showall.active{background:rgba(0,255,204,.12);color:var(--accent);border-color:var(--accent)}
+#cve-showall.is-muted{opacity:.4;pointer-events:none}
+#cve-hidekernel.active{background:var(--danger-dim);color:var(--danger);border-color:var(--danger)}
 .controls.split-mode .filter-btn{display:none}
 .fgroup{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
 .fgroup .lbl{font-size:.65rem;letter-spacing:1px;color:var(--text-secondary);text-transform:uppercase;margin-right:4px}
@@ -222,19 +224,26 @@ h1::after{content:'_';color:var(--accent);animation:blink 1s step-end infinite}
       <input type="text" id="cve-search" placeholder="Search CVE id, component or description...">
     </div>
     <div class="controls">
-      <div class="fgroup"><span class="lbl">Attack vector</span>
-        <button class="btn cve-f active" data-k="av" data-v="all">All</button>
-        <button class="btn cve-f" data-k="av" data-v="Network">Network</button>
-        <button class="btn cve-f" data-k="av" data-v="Adjacent">Adjacent</button>
-        <button class="btn cve-f" data-k="av" data-v="Local">Local</button>
-        <button class="btn cve-f" data-k="av" data-v="Physical">Physical</button>
-      </div>
       <div class="fgroup"><span class="lbl">Sort</span>
         <select id="cve-sort">
           <option value="sev-desc">Severity: high &rarr; low</option>
           <option value="sev-asc">Severity: low &rarr; high</option>
         </select>
       </div>
+      <div class="fgroup"><span class="lbl">Severity</span>
+        <button class="btn cve-f active" data-k="sev" data-v="all">All</button>
+        <button class="btn cve-f" data-k="sev" data-v="critical">Critical</button>
+        <button class="btn cve-f" data-k="sev" data-v="high">High</button>
+        <button class="btn cve-f" data-k="sev" data-v="medium">Medium</button>
+        <button class="btn cve-f" data-k="sev" data-v="low">Low</button>
+      </div>
+      <div class="fgroup"><span class="lbl">Exploit</span>
+        <button class="btn cve-f active" data-k="exp" data-v="all">All</button>
+        <button class="btn cve-f" data-k="exp" data-v="exploit">Has exploit</button>
+        <button class="btn cve-f" data-k="exp" data-v="kev">Known-exploited</button>
+      </div>
+    </div>
+    <div class="controls">
       <div class="fgroup"><span class="lbl">Type</span>
         <select id="cve-type">
           <option value="all">All types</option>
@@ -250,21 +259,15 @@ h1::after{content:'_';color:var(--accent);animation:blink 1s step-end infinite}
           <option value="__unclassified__">Unclassified</option>
         </select>
       </div>
-    </div>
-    <div class="controls">
-      <div class="fgroup"><span class="lbl">Severity</span>
-        <button class="btn cve-f active" data-k="sev" data-v="all">All</button>
-        <button class="btn cve-f" data-k="sev" data-v="critical">Critical</button>
-        <button class="btn cve-f" data-k="sev" data-v="high">High</button>
-        <button class="btn cve-f" data-k="sev" data-v="medium">Medium</button>
-        <button class="btn cve-f" data-k="sev" data-v="low">Low</button>
-      </div>
-      <div class="fgroup"><span class="lbl">Exploit</span>
-        <button class="btn cve-f active" data-k="exp" data-v="all">All</button>
-        <button class="btn cve-f" data-k="exp" data-v="exploit">Has exploit</button>
-        <button class="btn cve-f" data-k="exp" data-v="kev">Known-exploited</button>
+      <div class="fgroup"><span class="lbl">Attack vector</span>
+        <button class="btn cve-f active" data-k="av" data-v="all">All</button>
+        <button class="btn cve-f" data-k="av" data-v="Network">Network</button>
+        <button class="btn cve-f" data-k="av" data-v="Adjacent">Adjacent</button>
+        <button class="btn cve-f" data-k="av" data-v="Local">Local</button>
+        <button class="btn cve-f" data-k="av" data-v="Physical">Physical</button>
       </div>
       <button class="btn" id="cve-showall">Show hidden kernel CVEs</button>
+      <button class="btn" id="cve-hidekernel">Hide all kernel CVEs</button>
     </div>
     <div class="note" id="cve-note"></div>
     <div class="grid" id="cve-grid"></div>
@@ -429,8 +432,14 @@ function initCreds(){
 /* ============================== CVE ============================== */
 const cveFilter={av:'all',sev:'all',exp:'all',type:'all'};
 let cveShowHidden=false;
+let cveHideKernel=false;
 let cveSort='sev-desc';
 const _SEV_RANK={critical:0,high:1,medium:2,low:3,unknown:4};
+const _KERNEL_COMPS=new Set(['kernel','linux_kernel','linux','linux-kernel']);
+function isKernelCve(r){
+  if(r.is_kernel!=null) return !!r.is_kernel;
+  return r.source_module==='S26' || _KERNEL_COMPS.has((r.component||'').toLowerCase());
+}
 function sortCve(rows){
   if(cveSort!=='sev-asc') return rows;
   return rows.slice().sort(function(a,b){
@@ -502,6 +511,7 @@ function openCveModal(r){
 function cveMatch(r,t){
   if(t && !((r.cve||'').toLowerCase().includes(t)||(r.component||'').toLowerCase().includes(t)
       ||(r.description||'').toLowerCase().includes(t))) return false;
+  if(cveHideKernel && isKernelCve(r)) return false;
   if(!cveShowHidden && r.default_hidden) return false;
   if(cveFilter.av!=='all' && r.av!==cveFilter.av) return false;
   if(cveFilter.sev!=='all' && r.severity!==cveFilter.sev) return false;
@@ -519,8 +529,13 @@ function renderCve(){
   rows.forEach(r=>g.appendChild(cveCard(r)));
   if(!rows.length) g.innerHTML='<div class="empty">No CVEs match your criteria.</div>';
   const hidden=CVEDATA.filter(r=>r.default_hidden).length;
-  document.getElementById('cve-note').textContent=
-    `${rows.length} shown${(!cveShowHidden&&hidden)?`  ·  ${hidden} lower-severity kernel CVEs hidden (click "Show hidden kernel CVEs")`:''}`;
+  const kernelTotal=CVEDATA.filter(isKernelCve).length;
+  let extra='';
+  if(cveHideKernel&&kernelTotal) extra=`  ·  ${kernelTotal} kernel CVEs hidden`;
+  else if(!cveShowHidden&&hidden) extra=`  ·  ${hidden} lower-severity kernel CVEs hidden (click "Show hidden kernel CVEs")`;
+  document.getElementById('cve-note').textContent=`${rows.length} shown${extra}`;
+  const sa=document.getElementById('cve-showall');
+  if(sa) sa.classList.toggle('is-muted',cveHideKernel);
 }
 
 function initCve(){
@@ -532,8 +547,14 @@ function initCve(){
     b.classList.add('active'); cveFilter[b.dataset.k]=b.dataset.v; renderCve();
   });
   document.getElementById('cve-showall').onclick=function(){
+    if(cveHideKernel) return;
     cveShowHidden=!cveShowHidden; this.classList.toggle('active',cveShowHidden);
     this.textContent=cveShowHidden?'Hide lower-severity kernel CVEs':'Show hidden kernel CVEs';
+    renderCve();
+  };
+  document.getElementById('cve-hidekernel').onclick=function(){
+    cveHideKernel=!cveHideKernel; this.classList.toggle('active',cveHideKernel);
+    this.textContent=cveHideKernel?'Show kernel CVEs':'Hide all kernel CVEs';
     renderCve();
   };
   renderCve();

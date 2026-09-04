@@ -938,6 +938,12 @@ pre {
 #cveShowAll.active {
     background: rgba(0, 255, 204, 0.12); color: var(--accent); border-color: var(--accent);
 }
+/* "hide all kernel CVEs" - "on" state reads as a subtraction, so tint it red */
+#cveHideKernel.active {
+    background: rgba(255, 0, 68, 0.12); color: var(--danger); border-color: var(--danger);
+}
+/* show-hidden is pointless while every kernel CVE is hidden */
+#cveShowAll.is-muted { opacity: 0.4; pointer-events: none; }
 .cve-note { color: var(--text-secondary); font-size: 0.75rem; margin: 6px 0 14px; }
 .cve-type-select {
     padding: 5px 10px; background: var(--bg-primary);
@@ -1056,11 +1062,13 @@ pre {
     justify-content: space-between;
 }
 .filter-rail .split-toggle,
-.filter-rail #cveShowAll {
+.filter-rail #cveShowAll,
+.filter-rail #cveHideKernel {
     align-self: stretch;
     text-align: center;
     margin: 4px 0 0 0;
 }
+.filter-rail #cveHideKernel { margin-top: 2px; }
 
 /* rail on the left but one card column when the results area gets tight */
 @media (max-width: 1200px) {
