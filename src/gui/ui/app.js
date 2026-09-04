@@ -1,6 +1,7 @@
 let allFindings = [];
 let totalFindings = 0;
 let term = null;
+let lastLogOffset = 0;      // byte offset into the scan PTY buffer already rendered
 let currentLogDir = "";
 let sourceFilter = "all";   // all | emba | custom | both
 let splitView = false;      // EMBA vs Grep side-by-side
@@ -663,6 +664,30 @@ function setupEventListeners() {
     });
 
     let logInterval = null;
+    let _pumpBusy = false;
+    async function pumpTerminalLogs() {
+        if (_pumpBusy || !term) return;
+        if (!window.pywebview || !window.pywebview.api || !window.pywebview.api.get_scan_logs) return;
+        _pumpBusy = true;
+        try {
+            const res = await window.pywebview.api.get_scan_logs(lastLogOffset);
+            if (res && res.data) {
+                const binary = atob(res.data);
+                const bytes = new Uint8Array(binary.length);
+                for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+                term.write(bytes);
+                lastLogOffset = res.offset;
+            } else if (res && res.offset < lastLogOffset) {
+                // log buffer was truncated / a new scan started
+                term.clear();
+                lastLogOffset = 0;
+            }
+        } catch (e) {
+            /* transient IPC error - next tick retries */
+        } finally {
+            _pumpBusy = false;
+        }
+    }
 
     if (showTerminalBtn) {
         showTerminalBtn.addEventListener('click', async () => {
@@ -678,14 +703,24 @@ function setupEventListeners() {
                             theme: { background: '#000000' },
                             fontFamily: "'Consolas', 'Courier New', monospace",
                             fontSize: 13,
+                            cursorBlink: true,
                             convertEol: true,
                             scrollback: 9999
                         });
-                        
+
                         const fitAddon = new FitAddon.FitAddon();
                         term.loadAddon(fitAddon);
                         term.open(tc);
                         fitAddon.fit();
+
+                        // interactive: forward keystrokes into the running scan's
+                        // PTY (EMBA [y/N] + sudo prompts, Ctrl-C, agy/claude login)
+                        term.onData(d => {
+                            if (window.pywebview && window.pywebview.api && window.pywebview.api.send_input) {
+                                window.pywebview.api.send_input(d);
+                                pumpTerminalLogs();   // reflect the echo without waiting for the poll
+                            }
+                        });
                         
                         // Prevent scroll chaining explicitly for xterm.js
                         tc.addEventListener('wheel', (e) => {
@@ -735,26 +770,9 @@ function setupEventListeners() {
                         setTimeout(resizePty, 200); 
                     }
                     
-                    // Start fetching logs
+                    // Start fetching logs (fast tick so typed input echoes back promptly)
                     if (!logInterval) {
-                        logInterval = setInterval(async () => {
-                            if (window.pywebview && window.pywebview.api.get_scan_logs) {
-                                const res = await window.pywebview.api.get_scan_logs(lastLogOffset);
-                                if (res && res.data) {
-                                    const binary = atob(res.data);
-                                    const bytes = new Uint8Array(binary.length);
-                                    for (let i = 0; i < binary.length; i++) {
-                                        bytes[i] = binary.charCodeAt(i);
-                                    }
-                                    term.write(bytes);
-                                    lastLogOffset = res.offset;
-                                } else if (res && res.offset < lastLogOffset) {
-                                    // Log file was truncated/restarted
-                                    term.clear();
-                                    lastLogOffset = 0;
-                                }
-                            }
-                        }, 500); // 500ms for smooth TUI updates
+                        logInterval = setInterval(pumpTerminalLogs, 120);
                     }
                 } else {
                     terminalView.classList.add('hidden');

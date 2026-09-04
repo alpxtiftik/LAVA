@@ -220,10 +220,11 @@
                 </div>
             </div>
 
-            <!-- Embedded Live Terminal View -->
+            <!-- Embedded Live Terminal View (interactive: keystrokes go to the running scan's PTY) -->
             <div id="terminalView" class="hidden" style="background: var(--bg-tertiary); padding: 15px; border-radius: 0px; border: 1px solid var(--border-color); margin-bottom: 20px; display: flex; flex-direction: column; height: 500px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                    <h3 style="margin: 0; color: var(--text-primary); font-size: 14px;">Live Log Viewer</h3>
+                    <h3 style="margin: 0; color: var(--text-primary); font-size: 14px;">Terminal</h3>
+                    <span style="color: var(--text-secondary); font-size: 11px;">click to focus &middot; keystrokes go to the running scan (y/N, sudo, Ctrl&#8209;C)</span>
                 </div>
                 <div id="terminalContent" style="background: #000; border-radius: 0px; flex: 1; overflow: hidden;"></div>
             </div>

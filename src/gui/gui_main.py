@@ -204,29 +204,40 @@ class Api:
                 self.current_log_file = None
 
             def _reader():
-                while True:
+                global master_fd_global
+                try:
+                    while True:
+                        try:
+                            chunk = os.read(master_fd, 4096)
+                        except OSError:
+                            break
+                        if not chunk:
+                            break
+                        with scan_buffer_lock:
+                            scan_buffer.extend(chunk)
+
+                        m = _OUTPUT_DIR_MARKER.search(chunk)
+                        if m:
+                            try:
+                                self.last_output_dir = m.group(1).decode("utf-8", "replace")
+                            except Exception:
+                                pass
+
+                        if self.current_log_file:
+                            try:
+                                with open(self.current_log_file, "ab") as f:
+                                    f.write(chunk)
+                            except Exception:
+                                pass
+                finally:
+                    # scan is done: stop send_input()/resize_pty() from writing to
+                    # a dead PTY (unless a newer scan already took the global over)
+                    if master_fd_global == master_fd:
+                        master_fd_global = None
                     try:
-                        chunk = os.read(master_fd, 4096)
+                        os.close(master_fd)
                     except OSError:
-                        break
-                    if not chunk:
-                        break
-                    with scan_buffer_lock:
-                        scan_buffer.extend(chunk)
-
-                    m = _OUTPUT_DIR_MARKER.search(chunk)
-                    if m:
-                        try:
-                            self.last_output_dir = m.group(1).decode("utf-8", "replace")
-                        except Exception:
-                            pass
-
-                    if self.current_log_file:
-                        try:
-                            with open(self.current_log_file, "ab") as f:
-                                f.write(chunk)
-                        except Exception:
-                            pass
+                        pass
 
             threading.Thread(target=_reader, daemon=True).start()
 
@@ -267,6 +278,20 @@ class Api:
             except Exception as e:
                 return {"status": "error", "message": str(e)}
         return {"status": "ignored"}
+
+    def send_input(self, data):
+        """Forward keystrokes from the embedded terminal into the running scan's
+        PTY - lets the user answer EMBA [y/N] / sudo password prompts, send
+        Ctrl-C, or complete an `agy` / `claude` login. No-op when nothing runs."""
+        global master_fd_global
+        if master_fd_global is None or not data:
+            return {"status": "ignored"}
+        try:
+            os.write(master_fd_global, data.encode("utf-8", "replace"))
+            return {"status": "success"}
+        except OSError as e:
+            # master closed (scan already finished) - nothing to type into
+            return {"status": "error", "message": str(e)}
 
     def get_scan_logs(self, last_offset=0):
         global scan_buffer
